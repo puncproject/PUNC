@@ -10,7 +10,7 @@ show_plot = True
 #------------------------------------------------------------------------------
 
 if not has_linear_algebra_backend("PETSc"):
-    info("DOLFIN has not been configured with PETSc. Exiting.")
+    info("langmuir.py needs PETSc")
     exit()
 
 parameters["linear_algebra_backend"] = "PETSc"
@@ -35,8 +35,8 @@ class PeriodicBoundary(SubDomain):
 
 	# Target domain
 	def inside(self, x, on_bnd):
-		return bool(		(near(x[0],0)  or near(x[1],0))	 # Near a lower bnd
-					and not (near(x[0],Lx) or near(x[1],Ly)) # But not touching an upper bnd
+		return bool(		(near(x[0],0)  or near(x[1],0))	 # On a lower bound
+					and not (near(x[0],Lx) or near(x[1],Ly)) # But not an upper
 					and on_bnd)
 
 	# Map upper edges to lower edges
@@ -58,25 +58,46 @@ Npx = Nx*16
 Npy = Ny*16
 Np = Npx*Npy
 
-x = np.arange(0.5*Lx/Npx,Lx,Lx/Npx)
-#x = np.linspace(0,Lx,Npx,endpoint=False)
-y = np.arange(0.5*Lx/Npx,Ly,Ly/Npy)
-#y = np.linspace(0,Ly,Npy,endpoint=False)
+q = np.array([-1., 1.])
+m = np.array([1., 1836.])
 
-#x = x+0.001*np.sin(x)
+multiplicity = (Lx*Ly/Np)*m[0]/(q[0]**2)
 
-xcart = np.tile(x,Npy)
-ycart = np.repeat(y,Npx)
-pos = np.c_[xcart,ycart]
+q *= multiplicity
+m *= multiplicity
 
-#pos = lp.RandomCircle(Point(Lx/2,Ly/2),Lx/4).generate([Npx,Npy])
-pos = lp.RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
-
-pos[:,0] += 0.052*np.sin(2*pos[:,0])
-	
+qm = q/m
 
 lpart = lp.LagrangianParticles(S)
-lpart.add_particles(pos)	# Velocity defaults to zero
+
+# Place particls in lattice
+
+#x = np.arange(0,Lx,Lx/Npx)
+#y = np.arange(0,Ly,Ly/Npy)
+#x = np.linspace(0,Lx,Npx,endpoint=False)
+#y = np.linspace(0,Ly,Npy,endpoint=False)
+##x = x+0.001*np.sin(x)
+#xcart = np.tile(x,Npy)
+#ycart = np.repeat(y,Npx)
+#pos = np.c_[xcart,ycart]
+
+#pos = lp.RandomCircle(Point(Lx/2,Ly/2),Lx/4).generate([Npx,Npy])
+
+# Electrons
+pos = lp.RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
+pos[:,0] += 0.052*np.sin(2*pos[:,0])
+
+q0 = q[0]*np.ones(len(pos))
+lpart.add_particles(pos,{'q':q0})
+
+# Ions
+pos = lp.RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
+
+q1 = q[1]*np.ones(len(pos))
+lpart.add_particles(pos,{'q':q1})
+
+#for (i,p) in enumerate(lpart):
+#	p.properties = {'q':q[i/Np], 'qm':qm[i/Np], 'm':m[i/Np]}
 
 fig = plt.figure()
 lpart.scatter(fig)
@@ -91,15 +112,24 @@ fig.savefig("particles.png")
 rhoD = Function(D)
 dofmap = D.dofmap()
 
+## Simply count particles
+#for c in cells(mesh):
+#	cindex = c.index()
+#	dofindex = dofmap.cell_dofs(cindex)[0]
+#	try:
+#		count = len(lpart.particle_map[cindex])
+#	except:
+#		count = 0
+##	print cindex, count
+#	rhoD.vector()[dofindex] = count
+
 for c in cells(mesh):
 	cindex = c.index()
 	dofindex = dofmap.cell_dofs(cindex)[0]
-	try:
-		count = len(lpart.particle_map[cindex])
-	except:
-		count = 0
-#	print cindex, count
-	rhoD.vector()[dofindex] = count
+	cellcharge = 0
+	for particle in lpart.particle_map[cindex].particles:
+		cellcharge += particle.properties['q']
+	rhoD.vector()[dofindex] = cellcharge
 
 rho = project(rhoD,S)
 #rho = Expression('sin((2*DOLFIN_PI/%f)*x[0])'%Lx)
