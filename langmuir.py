@@ -105,7 +105,7 @@ as_backend_type(A).set_nullspace(null_space)
 
 print "Initializing particles"
 
-Npmul = 4 #if preview else 1
+Npmul = 4 if preview else 1
 Npx = Nx*4*Npmul
 Npy = Ny*4*Npmul
 Np = Npx*Npy
