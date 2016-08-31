@@ -1,5 +1,5 @@
 from dolfin import *
-import LagrangianParticles as lp
+from punc import *
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -121,7 +121,7 @@ m *= multiplicity
 
 qm = q/m
 
-lpart = lp.LagrangianParticles(S)
+pop = Population(S)
 
 # Place particls in lattice
 
@@ -137,17 +137,19 @@ pos = lp.RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
 pos[:,0] += 0.052*np.sin(2*pos[:,0])
 qTemp = q[0]*np.ones(len(pos))
 qmTemp = qm[0]*np.ones(len(pos))
-lpart.add_particles(pos,{'q':qTemp,'qm':qmTemp})
+#pop.add_particles(pos)
+pop.add_particles(pos,{'q':qTemp,'qm':qmTemp})
 
 # Ions
 pos = lp.RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
 qTemp = q[1]*np.ones(len(pos))
 qmTemp = qm[1]*np.ones(len(pos))
-lpart.add_particles(pos,{'q':qTemp,'qm':qmTemp})
+#pop.add_particles(pos)
+pop.add_particles(pos,{'q':qTemp,'qm':qmTemp})
 
 if(False):
 	fig = plt.figure()
-	lpart.scatter(fig)
+	pop.scatter(fig)
 	fig.suptitle('Initial Particle Position')
 	plt.axis([0, Lx, 0, Ly])
 	fig.savefig("particles.png")
@@ -172,7 +174,7 @@ for n in xrange(1,Nt+1):
 	#	cindex = c.index()
 	#	dofindex = dofmap.cell_dofs(cindex)[0]
 	#	try:
-	#		count = len(lpart.particle_map[cindex])
+	#		count = len(pop.particle_map[cindex])
 	#	except:
 	#		count = 0
 	##	print cindex, count
@@ -182,7 +184,7 @@ for n in xrange(1,Nt+1):
 		cindex = c.index()
 		dofindex = dofmap.cell_dofs(cindex)[0]
 		cellcharge = 0
-		for particle in lpart.particle_map[cindex].particles:
+		for particle in pop.particle_map[cindex].particles:
 			cellcharge += particle.properties['q']
 		rhoD.vector()[dofindex] = cellcharge
 
@@ -207,8 +209,8 @@ for n in xrange(1,Nt+1):
 		myPlot(phi,"png/phi_%d"%n)
 #		viz = plot(phi,key="u")
 #		viz.write_png("png/phi_%d"%n)
-		file = File("vtk/phi_%d.pvd"%n)
-		file << phi
+#		file = File("vtk/phi_%d.pvd"%n)
+#		file << phi
 
 	#==========================================================================
 	# PHI -> E
@@ -229,7 +231,7 @@ for n in xrange(1,Nt+1):
 	# E -> (VEL,POS)
 	#--------------------------------------------------------------------------
 
-	for particle in lpart:
+	for particle in pop:
 		Ei = E(particle.position)
 		fraction = 0.5 if n==1 else 1
 		qm = particle.properties['qm']
@@ -240,7 +242,7 @@ for n in xrange(1,Nt+1):
 		particle.position[0] %= Lx
 		particle.position[1] %= Ly
 
-	lpart.relocate()
+	pop.relocate()
 
 print("Finished")
 

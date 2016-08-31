@@ -1,45 +1,39 @@
-# __authors__ = ('Mikael Mortensen <mikaem@math.uio.no>',
-#                'Miroslav Kuchta <mirok@math.uio.no>')
-# __date__ = '2014-19-11'
-# __copyright__ = 'Copyright (C) 2011' + __authors__
-# __license__  = 'GNU Lesser GPL version 3 or any later version'
-'''
-This module contains functionality for Lagrangian tracking of particles with
-DOLFIN
-'''
-
-import dolfin as df
-import numpy as np
-import copy
+import LagrangianParticles as lp
 from mpi4py import MPI as pyMPI
+import numpy as np
+import dolfin as df
 from collections import defaultdict
 
+comm = pyMPI.COMM_WORLD
+__UINT32_MAX__ = np.iinfo('uint32').max
 # Disable printing
 __DEBUG__ = False
 
-comm = pyMPI.COMM_WORLD
+class Particle(lp.Particle):
 
-# collisions tests return this value or -1 if there is no collision
-__UINT32_MAX__ = np.iinfo('uint32').max
+	__slots__ = ['velocity']
 
-class Particle:
-    __slots__ = ['position', 'properties']
-    'Lagrangian particle with position and some other passive properties.'
-    def __init__(self, x):
-        self.position = x
-        self.properties = {}
+	def __init__(self, x, v=0):
+		lp.Particle.__init__(self, x)
+		if not isinstance(x,Particle):
+			if(v==0): v=np.zeros(len(x))
+		self.velocity = v
+#		del self.properties
 
-    def send(self, dest):
-        'Send particle to dest.'
-        comm.Send(self.position, dest=dest)
-        comm.send(self.properties, dest=dest)
+	def send(self, dest):
 
-    def recv(self, source):
-        'Receive info of a new particle sent from source.'
-        comm.Recv(self.position, source=source)
-        self.properties = comm.recv(source=source)
+		lp.Particle.send(self, dest)
+		comm.Send(self.velocity, dest=dest)
 
+	def recv(self, source):
 
+		lp.Particle.recv(self, dest)
+		comm.Send(self.velocity, source=source)
+
+class CellWithParticles(lp.CellWithParticles):
+	def __add__(self, particle):
+		return lp.CellWithParticles.__add__(self, Particle(particle))
+'''
 class CellWithParticles(df.Cell):
     'Dolfin cell with list of particles that it contains.'
     def __init__(self, mesh, cell_id, particle):
@@ -61,7 +55,7 @@ class CellWithParticles(df.Cell):
     def __len__(self):
         'Number of particles in cell.'
         return len(self.particles)
-
+'''
 
 class CellParticleMap(dict):
     'Dictionary of cells with particles.'
@@ -101,7 +95,7 @@ class CellParticleMap(dict):
         return sum(map(len, self.itervalues()))
 
 
-class LagrangianParticles:
+class Population:
     'Particles moved by the velocity field in V.'
     def __init__(self, V):
         self.__debug = __DEBUG__
@@ -143,7 +137,7 @@ class LagrangianParticles:
         self.tot_escaped_particles = np.zeros(self.num_processes, dtype='I')
         # Dummy particle for receiving/sending at [0, 0, ...]
         self.particle0 = Particle(np.zeros(self.mesh.geometry().dim()))
-
+		
 
     def __iter__(self):
         '''Iterate over all particles.'''
@@ -371,79 +365,48 @@ class LagrangianParticles:
         else:
             return None
 
-# Simple initializers for particle positions
+'''
+class Population(lp.LagrangianParticles):
 
-from math import pi, sqrt
-from itertools import product
+	def __init__(self, V):
+		lp.LagrangianParticles.__init__(self,V)
+		self.particle0 = Particle(np.zeros(self.mesh.geometry().dim()))
 
-comm = pyMPI.COMM_WORLD
+	def add_particles(self, list_of_particles, properties_d=None):
+		if properties_d is not None:
+			n = len(list_of_particles)
+			assert all(len(sub_list) == n
+					   for sub_list in properties_d.itervalues())
+			# Dictionary that will be used to feed properties of single
+			# particles
+			properties = properties_d.keys()
+			particle_properties = dict((key, 0) for key in properties)
 
+			has_properties = True
+		else:
+			has_properties = False
 
-class RandomGenerator(object):
-    '''
-    Fill object by random points.
-    '''
-    def __init__(self, domain, rule):
-        '''
-        Domain specifies bounding box for the shape and is used to generate
-        points. The rule filter points of inside the bounding box that are
-        axctually inside the shape.
-        '''
-        assert isinstance(domain, list)
-        self.domain = domain
-        self.rule = rule
-        self.dim = len(domain)
-        self.rank = comm.Get_rank()
+		pmap = self.particle_map
+		my_found = np.zeros(len(list_of_particles), 'I')
+		all_found = np.zeros(len(list_of_particles), 'I')
+		for i, particle in enumerate(list_of_particles):
+			c = self.locate(particle)
+			if not (c == -1 or c == __UINT32_MAX__):
+				my_found[i] = True
+				if not has_properties:
+					pmap += self.mesh, c, particle
+				else:
+					# Get values of properties for this particle
+					for key in properties:
+						particle_properties[key] = properties_d[key][i]
+					pmap += self.mesh, c, particle, particle_properties
+		# All particles must be found on some process
+		comm.Reduce(my_found, all_found, root=0)
 
-    def generate(self, N, method='full'):
-        'Genererate points.'
-        assert len(N) == self.dim
-        assert method in ['full', 'tensor']
+		if self.myrank == 0:
+			missing = np.where(all_found == 0)[0]
+			n_missing = len(missing)
 
-        if self.rank == 0:
-            # Generate random points for all coordinates
-            if method == 'full':
-                n_points = np.product(N)
-                points = np.random.rand(n_points, self.dim)
-                for i, (a, b) in enumerate(self.domain):
-                    points[:, i] = a + points[:, i]*(b-a)
-            # Create points by tensor product of intervals
-            else:
-                # Values from [0, 1) used to create points between
-                # a, b - boundary
-                # points in each of the directiosn
-                shifts_i = np.array([np.random.rand(n) for n in N])
-                # Create candidates for each directions
-                points_i = (a+shifts_i[i]*(b-a)
-                            for i, (a, b) in enumerate(self.domain))
-                # Cartesian product of directions yield n-d points
-                points = (np.array(point) for point in product(*points_i))
-
-
-            # Use rule to see which points are inside
-            points_inside = np.array(filter(self.rule, points))
-        else:
-            points_inside = None
-
-        points_inside = comm.bcast(points_inside, root=0)
-
-        return points_inside
-
-
-class RandomRectangle(RandomGenerator):
-    def __init__(self, ll, ur):
-        ax, ay = ll.x(), ll.y()
-        bx, by = ur.x(), ur.y()
-        assert ax < bx and ay < by
-        RandomGenerator.__init__(self, [[ax, bx], [ay, by]], lambda x: True)
-
-
-class RandomCircle(RandomGenerator):
-    def __init__(self, center, radius):
-        assert radius > 0
-        domain = [[center[0]-radius, center[0]+radius],
-                  [center[1]-radius, center[1]+radius]]
-        RandomGenerator.__init__(self, domain,
-                                 lambda x: sqrt((x[0]-center[0])**2 +
-                                                (x[1]-center[1])**2) < radius
-                                 )
+			assert n_missing == 0,\
+				'%d particles are not located in mesh' % n_missing
+'''
