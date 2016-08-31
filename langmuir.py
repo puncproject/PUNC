@@ -1,8 +1,9 @@
 from dolfin import *
-from punc import *
+#from punc import *
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import LagrangianParticles as lp
 
 preview = False
 
@@ -104,7 +105,7 @@ as_backend_type(A).set_nullspace(null_space)
 
 print "Initializing particles"
 
-Npmul = 4 if preview else 1
+Npmul = 4 #if preview else 1
 Npx = Nx*4*Npmul
 Npy = Ny*4*Npmul
 Np = Npx*Npy
@@ -121,7 +122,7 @@ m *= multiplicity
 
 qm = q/m
 
-pop = Population(S)
+pop = lp.Population(S)
 
 # Place particls in lattice
 
@@ -134,18 +135,20 @@ pop = Population(S)
 
 # Electrons
 pos = lp.RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
-pos[:,0] += 0.052*np.sin(2*pos[:,0])
+pos[:,0] += 0.052*np.sin(pos[:,0])
 qTemp = q[0]*np.ones(len(pos))
 qmTemp = qm[0]*np.ones(len(pos))
 #pop.add_particles(pos)
-pop.add_particles(pos,{'q':qTemp,'qm':qmTemp})
+#pop.add_particles(pos,{'q':qTemp,'qm':qmTemp})
+pop.addParticles(pos,{'q':qTemp,'qm':qmTemp})
 
 # Ions
 pos = lp.RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
 qTemp = q[1]*np.ones(len(pos))
 qmTemp = qm[1]*np.ones(len(pos))
 #pop.add_particles(pos)
-pop.add_particles(pos,{'q':qTemp,'qm':qmTemp})
+#pop.add_particles(pos,{'q':qTemp,'qm':qmTemp})
+pop.addParticles(pos,{'q':qTemp,'qm':qmTemp})
 
 if(False):
 	fig = plt.figure()
@@ -180,11 +183,21 @@ for n in xrange(1,Nt+1):
 	##	print cindex, count
 	#	rhoD.vector()[dofindex] = count
 
+	## Add up different charges, dictionary variant
+	#for c in cells(mesh):
+	#	cindex = c.index()
+	#	dofindex = dofmap.cell_dofs(cindex)[0]
+	#	cellcharge = 0
+	#	for particle in pop.particle_map[cindex].particles:
+	#		cellcharge += particle.properties['q']
+	#	rhoD.vector()[dofindex] = cellcharge
+
+	# Add up different charges, list variant
 	for c in cells(mesh):
 		cindex = c.index()
 		dofindex = dofmap.cell_dofs(cindex)[0]
 		cellcharge = 0
-		for particle in pop.particle_map[cindex].particles:
+		for particle in pop[cindex]:
 			cellcharge += particle.properties['q']
 		rhoD.vector()[dofindex] = cellcharge
 
