@@ -1,5 +1,5 @@
 # __authors__ = ('Sigvald Marholm <sigvaldm@fys.uio.no>',
-				 'Mikael Mortensen <mikaem@math.uio.no>',
+#				 'Mikael Mortensen <mikaem@math.uio.no>',
 #				 'Miroslav Kuchta <mirok@math.uio.no>')
 # __date__ = '2014-19-11'
 # __copyright__ = 'Copyright (C) 2011' + __authors__
@@ -27,29 +27,29 @@ comm = pyMPI.COMM_WORLD
 __UINT32_MAX__ = np.iinfo('uint32').max
 
 class Particle:
-	__slots__ = ['position', 'velocity', 'properties']		# changed
-	'Lagrangian particle with position and some other passive properties.'
+	__slots__ = ['pos', 'vel', 'properties']		# changed
+	'Lagrangian particle with pos and some other passive properties.'
 	def __init__(self, x, v=0):
 		if(isinstance(x,Particle)): return x
-		self.position = x
+		self.pos = x
 		if(v==0): v=np.zeros(len(x))						# new
-		self.velocity = v									# new
+		self.vel = v									# new
 		self.properties = {}
 
 	def send(self, dest):
 		'Send particle to dest.'
-		comm.Send(self.position, dest=dest)
-		comm.Send(self.velocity, dest=dest)					# new
+		comm.Send(self.pos, dest=dest)
+		comm.Send(self.vel, dest=dest)					# new
 		comm.send(self.properties, dest=dest)
 
 	def recv(self, source):
 		'Receive info of a new particle sent from source.'
-		comm.Recv(self.position, source=source)
-		comm.Recv(self.velocity, source=source)				# new
+		comm.Recv(self.pos, source=source)
+		comm.Recv(self.vel, source=source)				# new
 		self.properties = comm.recv(source=source)
 
 class Population(list):
-	'Particles moved by the velocity field in V.'
+	'Particles moved by the vel field in V.'
 	def __init__(self, V):
 		self.__debug = __DEBUG__
 
@@ -61,8 +61,8 @@ class Population(list):
 		for cell in df.cells(self.mesh):
 			self.append(list())
 
-		# Allocate some variables used to look up the velocity
-		# Velocity is computed as U_i*basis_i where i is the dimension of
+		# Allocate some variables used to look up the vel
+		# vel is computed as U_i*basis_i where i is the dimension of
 		# element function space, U are coefficients and basis_i are element
 		# function space basis functions. For interpolation in cell it is
 		# advantageous to compute the resctriction once for cell and only
@@ -153,7 +153,7 @@ class Population(list):
 			# Print particle info
 			if self.__debug:
 				for i in missing:
-					print 'Missing', list_of_particles[i].position
+					print 'Missing', list_of_particles[i].pos
 
 				n_duplicit = len(np.where(all_found > 1)[0])
 				print 'There are %d duplicit particles' % n_duplicit
@@ -169,8 +169,8 @@ class Population(list):
 					   cwp.get_vertex_coordinates(),
 					   cwp)
 			for particle in cwp.particles:
-				x = particle.position
-				# Compute velocity at position x
+				x = particle.pos
+				# Compute vel at pos x
 				self.element.evaluate_basis_all(self.basis_matrix,
 												x,
 												cwp.get_vertex_coordinates(),
@@ -193,7 +193,7 @@ class Population(list):
 			cindex = dfCell.index()
 			cell = self[cindex]
 			for i, particle in enumerate(cell):
-				point = df.Point(*particle.position)
+				point = df.Point(*particle.pos)
 				# Search only if particle moved outside original cell
 				if not dfCell.contains(point):
 					found = False
@@ -265,7 +265,7 @@ class Population(list):
 		assert isinstance(particle, (Particle, np.ndarray))
 		if isinstance(particle, Particle):
 			# Convert particle to point
-			point = df.Point(*particle.position)
+			point = df.Point(*particle.pos)
 			return self.tree.compute_first_entity_collision(point)
 		else:
 			return self.locate(Particle(particle))
@@ -291,14 +291,14 @@ class Population(list):
 		else:
 			# Receive on master
 			received = defaultdict(list)
-			received[0] = [copy.copy(p.position)
+			received[0] = [copy.copy(p.pos)
 						   for cwp in p_map.itervalues()
 						   for p in cwp.particles]
 			for proc in self.other_processes:
 				# Receive all_particles[proc]
 				for j in range(all_particles[proc]):
 					self.particle0.recv(proc)
-					received[proc].append(copy.copy(self.particle0.position))
+					received[proc].append(copy.copy(self.particle0.pos))
 
 			cmap = cmx.get_cmap('jet')
 			cnorm = colors.Normalize(vmin=0, vmax=self.num_processes)
@@ -336,7 +336,7 @@ class Population(list):
 		else:
 			return None
 
-# Simple initializers for particle positions
+# Simple initializers for particle poss
 
 from math import pi, sqrt
 from itertools import product

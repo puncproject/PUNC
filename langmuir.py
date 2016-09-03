@@ -1,9 +1,8 @@
 from dolfin import *
-#from punc import *
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-import LagrangianParticles as lp
+from punc import *
 
 preview = False
 
@@ -22,7 +21,7 @@ Nx = 32
 Ny = 32
 mesh = RectangleMesh(Point(0,0),Point(Lx,Ly),Nx,Ny)
 
-Nt = 15 if not preview else 1
+Nt = 45 if not preview else 1
 dt = 0.2
 
 if(show_plot): plot(mesh)
@@ -122,7 +121,7 @@ m *= multiplicity
 
 qm = q/m
 
-pop = lp.Population(S)
+pop = Population(S)
 
 # Place particls in lattice
 
@@ -134,32 +133,33 @@ pop = lp.Population(S)
 #pos = np.c_[xcart,ycart]
 
 # Electrons
-pos = lp.RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
+pos = RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
 pos[:,0] += 0.052*np.sin(pos[:,0])
 qTemp = q[0]*np.ones(len(pos))
+mTemp = m[0]*np.ones(len(pos))
 qmTemp = qm[0]*np.ones(len(pos))
-#pop.add_particles(pos)
-#pop.add_particles(pos,{'q':qTemp,'qm':qmTemp})
-pop.addParticles(pos,{'q':qTemp,'qm':qmTemp})
+pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
 # Ions
-pos = lp.RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
+pos = RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
 qTemp = q[1]*np.ones(len(pos))
+mTemp = m[1]*np.ones(len(pos))
 qmTemp = qm[1]*np.ones(len(pos))
-#pop.add_particles(pos)
-#pop.add_particles(pos,{'q':qTemp,'qm':qmTemp})
-pop.addParticles(pos,{'q':qTemp,'qm':qmTemp})
+pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
 if(False):
 	fig = plt.figure()
 	pop.scatter(fig)
-	fig.suptitle('Initial Particle Position')
+	fig.suptitle('Initial Particle pos')
 	plt.axis([0, Lx, 0, Ly])
 	fig.savefig("particles.png")
 
 #==============================================================================
 # TIME LOOP
 #------------------------------------------------------------------------------
+
+KE = np.zeros(Nt+1)
+PE = np.zeros(Nt+1)
 
 for n in xrange(1,Nt+1):
 
@@ -245,17 +245,35 @@ for n in xrange(1,Nt+1):
 	#--------------------------------------------------------------------------
 
 	for particle in pop:
-		Ei = E(particle.position)
-		fraction = 0.5 if n==1 else 1
+
+		Ei = E(particle.pos)
+		phii = phi(particle.pos)
+
+		q = particle.properties['q']
+		m = particle.properties['m']
 		qm = particle.properties['qm']
 
-		particle.velocity += dt*fraction*qm*Ei
-		particle.position += dt*particle.velocity
+		fraction = 0.5 if n==1 else 1
+		inc = dt*fraction*qm*Ei
+		vel = particle.vel
+
+		KE[n] += 0.5*m*np.dot(vel,vel+inc)
+
+		particle.vel += inc
+		particle.pos += dt*particle.vel
+
+		PE[n] += 0.5*q*phii
 		
-		particle.position[0] %= Lx
-		particle.position[1] %= Ly
+		particle.pos[0] %= Lx
+		particle.pos[1] %= Ly
 
 	pop.relocate()
+
+fig = plt.figure()
+plt.plot(range(1,Nt+1),KE[1:])
+plt.plot(range(1,Nt+1),PE[1:])
+plt.plot(range(1,Nt+1),PE[1:]+KE[1:])
+plt.savefig('energy.png')
 
 print("Finished")
 
