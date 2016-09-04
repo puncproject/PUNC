@@ -3,11 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 from punc import *
+from WeightedGradient import weighted_gradient_matrix
 
 preview = False
 
 show_plot = True if preview else False
 store_phi = True
+set_log_level(WARNING)
 
 #==============================================================================
 # GENERATE MESH
@@ -18,10 +20,10 @@ print "Generating mesh"
 Lx = 2*DOLFIN_PI
 Ly = 2*DOLFIN_PI
 Nx = 32
-Ny = 32
+Ny = Nx
 mesh = RectangleMesh(Point(0,0),Point(Lx,Ly),Nx,Ny)
 
-Nt = 45 if not preview else 1
+Nt = 30 if not preview else 1
 dt = 0.2
 
 if(show_plot): plot(mesh)
@@ -121,7 +123,7 @@ m *= multiplicity
 
 qm = q/m
 
-pop = Population(S)
+pop = Population(S,V)
 
 # Place particls in lattice
 
@@ -154,6 +156,8 @@ if(False):
 	plt.axis([0, Lx, 0, Ly])
 	fig.savefig("particles.png")
 
+tPush = 0
+
 #==============================================================================
 # TIME LOOP
 #------------------------------------------------------------------------------
@@ -168,6 +172,8 @@ for n in xrange(1,Nt+1):
 	#==========================================================================
 	# (POS,Q) -> RHO
 	#--------------------------------------------------------------------------
+
+	print "    Accumulating charges"
 
 	rhoD = Function(D)
 	dofmap = D.dofmap()
@@ -210,6 +216,8 @@ for n in xrange(1,Nt+1):
 	# RHO -> PHI
 	#--------------------------------------------------------------------------
 
+	print "    Solving potential"
+
 	L = rho*phi_*dx
 	b = assemble(L)
 	null_space.orthogonalize(b);
@@ -229,12 +237,20 @@ for n in xrange(1,Nt+1):
 	# PHI -> E
 	#--------------------------------------------------------------------------
 
+	print "    Gradient of potential"
+
 	# TBD:
 	# Possibly replace by fenicstools WeightedGradient.py
 	# Need to take check boundary artifacts
 
 	E = project(-grad(phi), V)
-
+	'''
+	dP = weighted_gradient_matrix(mesh, (0,1), 1, constrained_domain=constrained_domain)
+	Ex = Function(S)
+	Ey = Function(S)
+	Ex.vector()[:] = dP[0] * phi.vector() 
+	Ey.vector()[:] = dP[1] * phi.vector() 
+	'''
 	if(show_plot):
 		x_hat = Expression(('1.0','0.0'))
 		Ex = dot(E,x_hat)
@@ -244,30 +260,83 @@ for n in xrange(1,Nt+1):
 	# E -> (VEL,POS)
 	#--------------------------------------------------------------------------
 
-	for particle in pop:
+	print "    Pushing particles"
 
-		Ei = E(particle.pos)
-		phii = phi(particle.pos)
+	t = df.Timer("push")
 
-		q = particle.properties['q']
-		m = particle.properties['m']
-		qm = particle.properties['qm']
 
-		fraction = 0.5 if n==1 else 1
-		inc = dt*fraction*qm*Ei
-		vel = particle.vel
+	for c in cells(mesh):
+		cindex = c.index()
+		E.restrict(		pop.Vcoefficients,
+						pop.Velement,
+						c,
+						c.get_vertex_coordinates(),
+						c)
+		phi.restrict(	pop.Scoefficients,
+						pop.Selement,
+						c,
+						c.get_vertex_coordinates(),
+						c)
 
-		KE[n] += 0.5*m*np.dot(vel,vel+inc)
+		for p in pop[cindex]:
+			pop.Velement.evaluate_basis_all(	pop.Vbasis_matrix,
+												p.pos,
+												c.get_vertex_coordinates(),
+												c.orientation())
+			pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
+												p.pos,
+												c.get_vertex_coordinates(),
+												c.orientation())
 
-		particle.vel += inc
-		particle.pos += dt*particle.vel
+			Ei = np.dot(pop.Vcoefficients, pop.Vbasis_matrix)[:]
+			phii = np.dot(pop.Scoefficients, pop.Sbasis_matrix)[:]
 
-		PE[n] += 0.5*q*phii
+			q = p.properties['q']
+			m = p.properties['m']
+			qm = p.properties['qm']
+
+			fraction = 0.5 if n==1 else 1
+			inc = dt*fraction*qm*Ei
+			vel = p.vel
+
+			KE[n] += 0.5*m*np.dot(vel,vel+inc)
+
+			p.vel += inc
+			p.pos += dt*p.vel
+
+			PE[n] += 0.5*q*phii
 		
-		particle.pos[0] %= Lx
-		particle.pos[1] %= Ly
+			p.pos[0] %= Lx
+			p.pos[1] %= Ly
+	"""
+	for c in pop:
+		for p in c:
+
+			Ei = E(p.pos)
+			phii = phi(p.pos)
+
+			q = p.properties['q']
+			m = p.properties['m']
+			qm = p.properties['qm']
+
+			fraction = 0.5 if n==1 else 1
+			inc = dt*fraction*qm*Ei
+			vel = p.vel
+
+			KE[n] += 0.5*m*np.dot(vel,vel+inc)
+
+			p.vel += inc
+			p.pos += dt*p.vel
+
+			PE[n] += 0.5*q*phii
+
+			p.pos[0] %= Lx
+			p.pos[1] %= Ly
+	"""
 
 	pop.relocate()
+
+	tPush += t.stop()
 
 fig = plt.figure()
 plt.plot(range(1,Nt+1),KE[1:])

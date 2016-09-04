@@ -50,11 +50,11 @@ class Particle:
 
 class Population(list):
 	'Particles moved by the vel field in V.'
-	def __init__(self, V):
+	def __init__(self, S, V):
 		self.__debug = __DEBUG__
 
-		self.V = V
-		self.mesh = V.mesh()
+		self.S = S
+		self.mesh = S.mesh()
 		self.mesh.init(2, 2)  # Cell-cell connectivity for neighbors of cell
 		self.tree = self.mesh.bounding_box_tree()  # Tree for isection comput.
 
@@ -70,15 +70,25 @@ class Population(list):
 		# interpolation. This updaea mounts to computing the basis matrix
 		self.dim = self.mesh.topology().dim()
 
-		self.element = V.dolfin_element()
-		self.num_tensor_entries = 1
-		for i in range(self.element.value_rank()):
-			self.num_tensor_entries *= self.element.value_dimension(i)
+		self.Velement = V.dolfin_element()
+		self.Vnum_tensor_entries = 1
+		for i in range(self.Velement.value_rank()):
+			self.Vnum_tensor_entries *= self.Velement.value_dimension(i)
 		# For VectorFunctionSpace CG1 this is 3
-		self.coefficients = np.zeros(self.element.space_dimension())
+		self.Vcoefficients = np.zeros(self.Velement.space_dimension())
 		# For VectorFunctionSpace CG1 this is 3x3
-		self.basis_matrix = np.zeros((self.element.space_dimension(),
-									  self.num_tensor_entries))
+		self.Vbasis_matrix = np.zeros((self.Velement.space_dimension(),
+									  self.Vnum_tensor_entries))
+
+		self.Selement = S.dolfin_element()
+		self.Snum_tensor_entries = 1
+		for i in range(self.Selement.value_rank()):
+			self.Snum_tensor_entries *= self.Selement.value_dimension(i)
+		# For VectorFunctionSpace CG1 this is 3
+		self.Scoefficients = np.zeros(self.Selement.space_dimension())
+		# For VectorFunctionSpace CG1 this is 3x3
+		self.Sbasis_matrix = np.zeros((self.Selement.space_dimension(),
+									  self.Snum_tensor_entries))
 
 		# Allocate a dictionary to hold all particles
 
@@ -101,12 +111,12 @@ class Population(list):
 			for particle in cwp.particles:
 				yield particle
 	"""
-
+	"""
 	def __iter__(self):
 		for cell in list.__iter__(self):
 			for particle in cell:
 				yield particle
-
+	"""
 	def addParticles(self, list_of_particles, properties_d=None):
 		'''Add particles and search for their home on all processors.
 		   Note that list_of_particles must be same on all processes. Further
@@ -164,14 +174,14 @@ class Population(list):
 		for cwp in self.particle_map.itervalues():
 			# Restrict once per cell
 			u.restrict(self.coefficients,
-					   self.element,
+					   self.Velement,
 					   cwp,
 					   cwp.get_vertex_coordinates(),
 					   cwp)
 			for particle in cwp.particles:
 				x = particle.pos
 				# Compute vel at pos x
-				self.element.evaluate_basis_all(self.basis_matrix,
+				self.Velement.evaluate_basis_all(self.basis_matrix,
 												x,
 												cwp.get_vertex_coordinates(),
 												cwp.orientation())
