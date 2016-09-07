@@ -5,11 +5,13 @@ import time
 from punc import *
 from WeightedGradient import weighted_gradient_matrix
 
-preview = False
+preview = True
 
 show_plot = True if preview else False
 store_phi = True
 set_log_level(WARNING)
+
+np.random.seed(666)
 
 #==============================================================================
 # GENERATE MESH
@@ -19,12 +21,12 @@ print "Generating mesh"
 
 Lx = 2*DOLFIN_PI
 Ly = 2*DOLFIN_PI
-Nx = 32
+Nx = 16
 Ny = Nx
 mesh = RectangleMesh(Point(0,0),Point(Lx,Ly),Nx,Ny)
 
-Nt = 30 if not preview else 1
-dt = 0.2
+Nt = 15 if not preview else 1
+dt = 0.2#*(32./Nx)	# 0.2 when Nx=32. Scales with dx.
 
 if(show_plot): plot(mesh)
 
@@ -197,7 +199,7 @@ for n in xrange(1,Nt+1):
 	#	for particle in pop.particle_map[cindex].particles:
 	#		cellcharge += particle.properties['q']
 	#	rhoD.vector()[dofindex] = cellcharge
-
+	"""
 	# Add up different charges, list variant
 	for c in cells(mesh):
 		cindex = c.index()
@@ -208,6 +210,27 @@ for n in xrange(1,Nt+1):
 		rhoD.vector()[dofindex] = cellcharge
 
 	rho = project(rhoD,S)
+	"""
+	dofmap = S.dofmap()
+	rho = Function(V) # zero	
+
+	for c in cells(mesh):
+		cindex = c.index()
+		dofindex = dofmap.cell_dofs(cindex)
+
+		accum = np.zeros(3)		
+		for p in pop[cindex]:
+
+			pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
+												p.pos,
+												c.get_vertex_coordinates(),
+												c.orientation())
+
+			for i in xrange(3):
+				value = pop.Sbasis_matrix[i][0]
+				ind = dofindex[i]
+				rho.vector()[ind][0]=rho.vector()[ind][0]+value
+		
 
 	if(show_plot): plot(rhoD)
 	if(show_plot): plot(rho)
@@ -343,6 +366,14 @@ plt.plot(range(1,Nt+1),KE[1:])
 plt.plot(range(1,Nt+1),PE[1:])
 plt.plot(range(1,Nt+1),PE[1:]+KE[1:])
 plt.savefig('energy.png')
+
+
+TE = KE[1:]+PE[1:]
+TEdev = TE - TE[0]
+exdev = np.max(np.abs(TEdev))/TE[0]
+
+print "max relative deviation: ", 100*exdev, "%"
+
 
 print("Finished")
 
