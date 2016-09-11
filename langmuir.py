@@ -5,7 +5,9 @@ import time
 from punc import *
 from WeightedGradient import weighted_gradient_matrix
 
-preview = True
+preview = False
+cgspace = False
+lattice = False
 
 show_plot = True if preview else False
 store_phi = True
@@ -21,12 +23,14 @@ print "Generating mesh"
 
 Lx = 2*DOLFIN_PI
 Ly = 2*DOLFIN_PI
-Nx = 16
+Nx = 32
 Ny = Nx
+deltax = Lx/(Nx-1)	# assumes periodic
+deltay = Ly/(Ny-1)	# assumes periodic
 mesh = RectangleMesh(Point(0,0),Point(Lx,Ly),Nx,Ny)
 
-Nt = 15 if not preview else 1
-dt = 0.2#*(32./Nx)	# 0.2 when Nx=32. Scales with dx.
+Nt = 50 if not preview else 1
+dt = 0.251
 
 if(show_plot): plot(mesh)
 
@@ -118,7 +122,7 @@ m = np.array([1., 1836.])
 
 multiplicity = (Lx*Ly/Np)*m[0]/(q[0]**2)
 
-multiplicity *= 100
+#multiplicity *= 100
 
 q *= multiplicity
 m *= multiplicity
@@ -129,27 +133,44 @@ pop = Population(S,V)
 
 # Place particls in lattice
 
-#x = np.arange(0,Lx,Lx/Npx)
-#y = np.arange(0,Ly,Ly/Npy)
-##x = x+0.001*np.sin(x)
-#xcart = np.tile(x,Npy)
-#ycart = np.repeat(y,Npx)
-#pos = np.c_[xcart,ycart]
+if(lattice):
+	x = np.arange(0,Lx,Lx/Npx)
+	y = np.arange(0,Ly,Ly/Npy)
+	x += (0.001/deltax)*np.sin(x)
+	xcart = np.tile(x,Npy)
+	ycart = np.repeat(y,Npx)
+	pos = np.c_[xcart,ycart]
+	qTemp = q[0]*np.ones(len(pos))
+	mTemp = m[0]*np.ones(len(pos))
+	qmTemp = qm[0]*np.ones(len(pos))
+	pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
-# Electrons
-pos = RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
-pos[:,0] += 0.052*np.sin(pos[:,0])
-qTemp = q[0]*np.ones(len(pos))
-mTemp = m[0]*np.ones(len(pos))
-qmTemp = qm[0]*np.ones(len(pos))
-pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
+	x = np.arange(0,Lx,Lx/Npx)
+	y = np.arange(0,Ly,Ly/Npy)
+	xcart = np.tile(x,Npy)
+	ycart = np.repeat(y,Npx)
+	pos = np.c_[xcart,ycart]
+	qTemp = q[1]*np.ones(len(pos))
+	mTemp = m[1]*np.ones(len(pos))
+	qmTemp = qm[1]*np.ones(len(pos))
+	pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
-# Ions
-pos = RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
-qTemp = q[1]*np.ones(len(pos))
-mTemp = m[1]*np.ones(len(pos))
-qmTemp = qm[1]*np.ones(len(pos))
-pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
+else:
+
+	# Electrons
+	pos = RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
+	pos[:,0] += (0.001/deltax)*np.sin(pos[:,0])
+	qTemp = q[0]*np.ones(len(pos))
+	mTemp = m[0]*np.ones(len(pos))
+	qmTemp = qm[0]*np.ones(len(pos))
+	pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
+
+	# Ions
+	pos = RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
+	qTemp = q[1]*np.ones(len(pos))
+	mTemp = m[1]*np.ones(len(pos))
+	qmTemp = qm[1]*np.ones(len(pos))
+	pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
 if(False):
 	fig = plt.figure()
@@ -199,38 +220,38 @@ for n in xrange(1,Nt+1):
 	#	for particle in pop.particle_map[cindex].particles:
 	#		cellcharge += particle.properties['q']
 	#	rhoD.vector()[dofindex] = cellcharge
-	"""
-	# Add up different charges, list variant
-	for c in cells(mesh):
-		cindex = c.index()
-		dofindex = dofmap.cell_dofs(cindex)[0]
-		cellcharge = 0
-		for particle in pop[cindex]:
-			cellcharge += particle.properties['q']
-		rhoD.vector()[dofindex] = cellcharge
 
-	rho = project(rhoD,S)
-	"""
-	dofmap = S.dofmap()
-	rho = Function(V) # zero	
+	if(not cgspace):
+		# Add up different charges, list variant
+		for c in cells(mesh):
+			cindex = c.index()
+			dofindex = dofmap.cell_dofs(cindex)[0]
+			cellcharge = 0
+			for particle in pop[cindex]:
+				cellcharge += particle.properties['q']/(deltax*deltay)
+			rhoD.vector()[dofindex] = cellcharge
 
-	for c in cells(mesh):
-		cindex = c.index()
-		dofindex = dofmap.cell_dofs(cindex)
+		rho = project(rhoD,S)
+	else:
+		dofmap = S.dofmap()
+		rho = Function(S) # zero
 
-		accum = np.zeros(3)		
-		for p in pop[cindex]:
+		for c in cells(mesh):
+			cindex = c.index()
+			dofindex = dofmap.cell_dofs(cindex)
 
-			pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
-												p.pos,
-												c.get_vertex_coordinates(),
-												c.orientation())
+			accum = np.zeros(3)
+			for p in pop[cindex]:
 
-			for i in xrange(3):
-				value = pop.Sbasis_matrix[i][0]
-				ind = dofindex[i]
-				rho.vector()[ind][0]=rho.vector()[ind][0]+value
-		
+				pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
+													p.pos,
+													c.get_vertex_coordinates(),
+													c.orientation())
+
+				q=p.properties['q']
+				accum += (q/(deltax*deltay))*pop.Sbasis_matrix.T[0]
+
+			rho.vector()[dofindex] += accum
 
 	if(show_plot): plot(rhoD)
 	if(show_plot): plot(rho)
@@ -271,8 +292,8 @@ for n in xrange(1,Nt+1):
 	dP = weighted_gradient_matrix(mesh, (0,1), 1, constrained_domain=constrained_domain)
 	Ex = Function(S)
 	Ey = Function(S)
-	Ex.vector()[:] = dP[0] * phi.vector() 
-	Ey.vector()[:] = dP[1] * phi.vector() 
+	Ex.vector()[:] = dP[0] * phi.vector()
+	Ey.vector()[:] = dP[1] * phi.vector()
 	'''
 	if(show_plot):
 		x_hat = Expression(('1.0','0.0'))
@@ -328,7 +349,7 @@ for n in xrange(1,Nt+1):
 			p.pos += dt*p.vel
 
 			PE[n] += 0.5*q*phii
-		
+
 			p.pos[0] %= Lx
 			p.pos[1] %= Ly
 	"""
