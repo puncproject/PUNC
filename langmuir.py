@@ -6,11 +6,11 @@ from punc import *
 from WeightedGradient import weighted_gradient_matrix
 
 preview = False
-cgspace = False
+cgspace = True
 lattice = False
 
 show_plot = True if preview else False
-store_phi = True
+store_phi = False
 set_log_level(WARNING)
 
 np.random.seed(666)
@@ -27,10 +27,11 @@ Nx = 32
 Ny = Nx
 deltax = Lx/(Nx-1)	# assumes periodic
 deltay = Ly/(Ny-1)	# assumes periodic
+da = deltax*deltay if cgspace else deltax*deltay*0.5
 mesh = RectangleMesh(Point(0,0),Point(Lx,Ly),Nx,Ny)
 
-Nt = 50 if not preview else 1
-dt = 0.251
+Nt = 250 if not preview else 1
+dt = 0.0251327
 
 if(show_plot): plot(mesh)
 
@@ -185,8 +186,8 @@ tPush = 0
 # TIME LOOP
 #------------------------------------------------------------------------------
 
-KE = np.zeros(Nt+1)
-PE = np.zeros(Nt+1)
+KE = np.zeros(Nt)
+PE = np.zeros(Nt)
 
 for n in xrange(1,Nt+1):
 
@@ -228,7 +229,7 @@ for n in xrange(1,Nt+1):
 			dofindex = dofmap.cell_dofs(cindex)[0]
 			cellcharge = 0
 			for particle in pop[cindex]:
-				cellcharge += particle.properties['q']/(deltax*deltay)
+				cellcharge += particle.properties['q']/(da)
 			rhoD.vector()[dofindex] = cellcharge
 
 		rho = project(rhoD,S)
@@ -249,7 +250,7 @@ for n in xrange(1,Nt+1):
 													c.orientation())
 
 				q=p.properties['q']
-				accum += (q/(deltax*deltay))*pop.Sbasis_matrix.T[0]
+				accum += (q/da)*pop.Sbasis_matrix.T[0]
 
 			rho.vector()[dofindex] += accum
 
@@ -343,12 +344,11 @@ for n in xrange(1,Nt+1):
 			inc = dt*fraction*qm*Ei
 			vel = p.vel
 
-			KE[n] += 0.5*m*np.dot(vel,vel+inc)
+			KE[n-1] += 0.5*m*np.dot(vel,vel+inc)
+			PE[n-1] += 0.5*q*phii
 
 			p.vel += inc
 			p.pos += dt*p.vel
-
-			PE[n] += 0.5*q*phii
 
 			p.pos[0] %= Lx
 			p.pos[1] %= Ly
@@ -382,14 +382,15 @@ for n in xrange(1,Nt+1):
 
 	tPush += t.stop()
 
+KE[0]=0
+
 fig = plt.figure()
-plt.plot(range(1,Nt+1),KE[1:])
-plt.plot(range(1,Nt+1),PE[1:])
-plt.plot(range(1,Nt+1),PE[1:]+KE[1:])
+plt.plot(range(Nt),KE)
+plt.plot(range(Nt),PE)
+plt.plot(range(Nt),PE+KE)
 plt.savefig('energy.png')
 
-
-TE = KE[1:]+PE[1:]
+TE = KE+PE
 TEdev = TE - TE[0]
 exdev = np.max(np.abs(TEdev))/TE[0]
 
