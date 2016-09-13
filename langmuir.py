@@ -22,7 +22,7 @@ np.random.seed(666)
 # GENERATE MESH
 #------------------------------------------------------------------------------
 
-print "Generating mesh"
+print "Initializing solver"
 
 Ld = 2*DOLFIN_PI*np.array([1,1])	# Length of domain
 Nc = 32*np.array([1,1])				# Number of cells
@@ -93,43 +93,7 @@ for n in xrange(1,Nt+1):
 
 	print "    Solving potential"
 
-	L = rho*punc.phi_*dx
-	b = assemble(L)
-	punc.null_space.orthogonalize(b);
-
-	punc.solver.solve(punc.phi.vector(), b)
-
-	if(show_plot): plot(phi)
-
-	if(store_phi):
-		myPlot(phi,"png/phi_%d"%n)
-#		viz = plot(phi,key="u")
-#		viz.write_png("png/phi_%d"%n)
-#		file = File("vtk/phi_%d.pvd"%n)
-#		file << phi
-
-	#==========================================================================
-	# PHI -> E
-	#--------------------------------------------------------------------------
-
-	print "    Gradient of potential"
-
-	# TBD:
-	# Possibly replace by fenicstools WeightedGradient.py
-	# Need to take check boundary artifacts
-
-	E = project(-grad(punc.phi), punc.V)
-	'''
-	dP = weighted_gradient_matrix(mesh, (0,1), 1, constrained_domain=constrained_domain)
-	Ex = Function(S)
-	Ey = Function(S)
-	Ex.vector()[:] = dP[0] * phi.vector()
-	Ey.vector()[:] = dP[1] * phi.vector()
-	'''
-	if(show_plot):
-		x_hat = Expression(('1.0','0.0'))
-		Ex = dot(E,x_hat)
-		plot(Ex)
+	punc.solve(rho)
 
 	#==========================================================================
 	# E -> (VEL,POS)
@@ -138,7 +102,7 @@ for n in xrange(1,Nt+1):
 	print "    Pushing particles"
 
 	fraction = 0.5 if n==1 else 1.0
-	KE[n-1] = accel(pop,E,dt*fraction)
+	KE[n-1] = accel(pop,punc.E,dt*fraction)
 	PE[n-1] = potEnergy(pop,punc.phi)
 	movePeriodic(pop,dt,Ld)
 

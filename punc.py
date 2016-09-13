@@ -63,6 +63,16 @@ class Punc(object):
 		self.null_space = VectorSpaceBasis([null_vec])
 		as_backend_type(A).set_nullspace(self.null_space)
 
+	def solve(self,rho):
+
+		L = rho*self.phi_*dx
+		b = assemble(L)
+		self.null_space.orthogonalize(b);
+
+		self.solver.solve(self.phi.vector(), b)
+
+		self.E = project(-grad(self.phi), self.V)
+
 def myPlot(u,fName):
 	mesh = u.function_space().mesh()
 	x = mesh.coordinates()[:,0]
