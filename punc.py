@@ -7,10 +7,7 @@
 #
 # Based on fenicstools/LagrangianParticles
 #
-'''
-This module contains functionality for Lagrangian tracking of particles with
-DOLFIN
-'''
+
 from dolfin import *
 import numpy as np
 import copy
@@ -55,6 +52,8 @@ class Punc(object):
 
 		self.phi_ = phi_
 		self.phi = Function(self.S)
+		self.rho = Function(self.S)
+		self.E = Function(self.V)
 
 		null_vec = Vector(self.phi.vector())
 		self.S.dofmap().set(null_vec, 1.0)
@@ -63,15 +62,124 @@ class Punc(object):
 		self.null_space = VectorSpaceBasis([null_vec])
 		as_backend_type(A).set_nullspace(self.null_space)
 
-	def solve(self,rho):
+		#
+		# POPULATION
+		#
+		self.pop = Population(self.S,self.V)
 
-		L = rho*self.phi_*dx
+	def solve(self):
+
+		L = self.rho*self.phi_*dx
 		b = assemble(L)
 		self.null_space.orthogonalize(b);
 
 		self.solver.solve(self.phi.vector(), b)
 
 		self.E = project(-grad(self.phi), self.V)
+
+	def accel(self,dt):
+
+		KE = 0.0
+
+		pop = self.pop
+
+		for c in cells(self.mesh):
+
+			self.E.restrict(pop.Vcoefficients,
+							pop.Velement,
+							c,
+							c.get_vertex_coordinates(),
+							c)
+
+			for p in pop[c.index()]:
+				pop.Velement.evaluate_basis_all(	pop.Vbasis_matrix,
+														p.pos,
+														c.get_vertex_coordinates(),
+														c.orientation())
+
+				Ei = np.dot(pop.Vcoefficients, pop.Vbasis_matrix)[:]
+
+				m = p.properties['m']
+				qm = p.properties['qm']
+
+				inc = dt*qm*Ei
+				vel = p.vel
+
+				KE += 0.5*m*np.dot(vel,vel+inc)
+
+				p.vel += inc
+
+		return KE
+
+	def movePeriodic(self,dt,L):
+		for cell in self.pop:
+			for particle in cell:
+				particle.pos += dt*particle.vel
+				particle.pos %= L
+
+	def potEnergy(self):
+
+		PE = 0
+		pop = self.pop
+
+		for c in cells(self.mesh):
+			self.phi.restrict(	pop.Scoefficients,
+								pop.Selement,
+								c,
+								c.get_vertex_coordinates(),
+								c)
+
+			for p in pop[c.index()]:
+				pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
+													p.pos,
+													c.get_vertex_coordinates(),
+													c.orientation())
+
+				phii = np.dot(pop.Scoefficients, pop.Sbasis_matrix)[:]
+
+				q = p.properties['q']
+				PE += 0.5*q*phii
+
+		return PE
+
+	def distr(self,da,method='CG1'):
+		assert method in ['CG1','DG0']
+
+		pop = self.pop
+		self.rho = Function(self.S)	# Sets to zero
+
+		if method == 'DG0':
+			rhoD = Function(D)
+
+			for c in cells(self.mesh):
+				cindex = c.index()
+				dofindex = self.D.dofmap().cell_dofs(cindex)[0]
+				cellcharge = 0
+				da = c.volume()
+				for particle in pop[cindex]:
+					cellcharge += particle.properties['q']/da
+				rhoD.vector()[dofindex] = cellcharge
+
+			self.rho = project(rhoD,self.S)
+
+		if method == 'CG1':
+
+			for c in cells(self.mesh):
+				cindex = c.index()
+				dofindex = self.S.dofmap().cell_dofs(cindex)
+
+				accum = np.zeros(3)
+				for p in pop[cindex]:
+
+					pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
+														p.pos,
+														c.get_vertex_coordinates(),
+														c.orientation())
+
+					q=p.properties['q']
+					accum += (q/da)*pop.Sbasis_matrix.T[0]
+
+				self.rho.vector()[dofindex] += accum
 
 def myPlot(u,fName):
 	mesh = u.function_space().mesh()
@@ -101,112 +209,6 @@ class PeriodicBoundary(SubDomain):
 	# Map upper edges to lower edges
 	def map(self, x, y):
 		y[:] = [a-b if near(a,b) else a for a,b in zip(x,self.Ld)]
-
-def accel(pop,E,dt):
-
-	KE = 0.0
-
-	mesh = E.function_space().mesh()
-	for c in cells(mesh):
-
-		E.restrict(		pop.Vcoefficients,
-						pop.Velement,
-						c,
-						c.get_vertex_coordinates(),
-						c)
-
-		for p in pop[c.index()]:
-			pop.Velement.evaluate_basis_all(	pop.Vbasis_matrix,
-												p.pos,
-												c.get_vertex_coordinates(),
-												c.orientation())
-
-			Ei = np.dot(pop.Vcoefficients, pop.Vbasis_matrix)[:]
-
-			m = p.properties['m']
-			qm = p.properties['qm']
-
-			inc = dt*qm*Ei
-			vel = p.vel
-
-			KE += 0.5*m*np.dot(vel,vel+inc)
-
-			p.vel += inc
-
-	return KE
-
-def movePeriodic(pop,dt,L):
-	for cell in pop:
-		for particle in cell:
-			particle.pos += dt*particle.vel
-			particle.pos %= L
-
-def potEnergy(pop,phi):
-
-	PE = 0
-
-	mesh = phi.function_space().mesh()
-	for c in cells(mesh):
-		phi.restrict(	pop.Scoefficients,
-						pop.Selement,
-						c,
-						c.get_vertex_coordinates(),
-						c)
-
-		for p in pop[c.index()]:
-			pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
-												p.pos,
-												c.get_vertex_coordinates(),
-												c.orientation())
-
-			phii = np.dot(pop.Scoefficients, pop.Sbasis_matrix)[:]
-
-			q = p.properties['q']
-			PE += 0.5*q*phii
-
-	return PE
-
-def distrDG0(pop,rho,D):
-
-	S = rho.function_space()
-	mesh = S.mesh()
-
-	rhoD = Function(D)
-
-	for c in cells(mesh):
-		cindex = c.index()
-		dofindex = D.dofmap().cell_dofs(cindex)[0]
-		cellcharge = 0
-		da = c.volume()
-		for particle in pop[cindex]:
-			cellcharge += particle.properties['q']/da
-		rhoD.vector()[dofindex] = cellcharge
-
-	rho = project(rhoD,S)
-
-	return rho
-
-def distrCG1(pop,rho,da):
-
-	S = rho.function_space()
-	mesh = S.mesh()
-	for c in cells(mesh):
-		cindex = c.index()
-		dofindex = S.dofmap().cell_dofs(cindex)
-
-		accum = np.zeros(3)
-		for p in pop[cindex]:
-
-			pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
-												p.pos,
-												c.get_vertex_coordinates(),
-												c.orientation())
-
-			q=p.properties['q']
-			accum += (q/da)*pop.Sbasis_matrix.T[0]
-
-		rho.vector()[dofindex] += accum
-
 
 class Particle:
 	__slots__ = ['pos', 'vel', 'properties']		# changed

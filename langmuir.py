@@ -50,9 +50,9 @@ print "Initializing particles"
 pop = Population(punc.S,punc.V)
 
 if(lattice):
-	pop.addLatticeSine(Np,Ld,0.01)
+	punc.pop.addLatticeSine(Np,Ld,0.01)
 else:
-	pop.addRandomSine(Np,Ld,0.01)
+	punc.pop.addRandomSine(Np,Ld,0.01)
 
 
 if(False):
@@ -79,11 +79,12 @@ for n in xrange(1,Nt+1):
 
 	print "    Accumulating charges"
 
-	rho = Function(punc.S)
-	if(not cgspace):
-		rho = distrDG0(pop,rho,D)
-	else:
-		distrCG1(pop,rho,np.prod(delta))
+	punc.distr(np.prod(delta))
+	# rho = Function(punc.S)
+	# if(not cgspace):
+	# 	rho = punc.distrDG0(pop,rho,D)
+	# else:
+	# 	punc.distrCG1(pop,rho,np.prod(delta))
 
 	if(show_plot): plot(rho)
 
@@ -93,7 +94,7 @@ for n in xrange(1,Nt+1):
 
 	print "    Solving potential"
 
-	punc.solve(rho)
+	punc.solve()
 
 	#==========================================================================
 	# E -> (VEL,POS)
@@ -102,11 +103,11 @@ for n in xrange(1,Nt+1):
 	print "    Pushing particles"
 
 	fraction = 0.5 if n==1 else 1.0
-	KE[n-1] = accel(pop,punc.E,dt*fraction)
-	PE[n-1] = potEnergy(pop,punc.phi)
-	movePeriodic(pop,dt,Ld)
+	KE[n-1] = punc.accel(dt*fraction)
+	PE[n-1] = punc.potEnergy()
+	punc.movePeriodic(dt,Ld)
 
-	pop.relocate()
+	punc.pop.relocate()
 
 KE[0]=0
 
