@@ -26,6 +26,35 @@ comm = pyMPI.COMM_WORLD
 # collisions tests return this value or -1 if there is no collision
 __UINT32_MAX__ = np.iinfo('uint32').max
 
+def myPlot(u,fName):
+	mesh = u.function_space().mesh()
+	x = mesh.coordinates()[:,0]
+	v = u.compute_vertex_values(mesh)
+	y = mesh.coordinates()[:,1]
+	t = mesh.cells()
+
+	fig = plt.figure(figsize=(5,5))
+	ax  = fig.add_subplot(111)
+
+	c = ax.tricontourf(x, y, t, v)
+	fig.savefig(fName)
+
+class PeriodicBoundary(df.SubDomain):
+
+	def __init__(self, Ld):
+		df.SubDomain.__init__(self)
+		self.Ld = Ld
+
+	# Target domain
+	def inside(self, x, onBnd):
+		return bool(		any([df.near(a,0) for a in x])					# On any lower bound
+					and not any([df.near(a,b) for a,b in zip(x,self.Ld)])	# But not any upper bound
+					and onBnd)
+
+	# Map upper edges to lower edges
+	def map(self, x, y):
+		y[:] = [a-b if df.near(a,b) else a for a,b in zip(x,self.Ld)]
+
 def accel(pop,E,dt):
 
 	KE = 0.0
@@ -257,31 +286,61 @@ class Population(list):
 				n_duplicit = len(np.where(all_found > 1)[0])
 				print 'There are %d duplicit particles' % n_duplicit
 
-	def step(self, u, dt):
-		'Move particles by forward Euler x += u*dt'
-		start = df.Timer('shift')
-		for cwp in self.particle_map.itervalues():
-			# Restrict once per cell
-			u.restrict(self.coefficients,
-					   self.Velement,
-					   cwp,
-					   cwp.get_vertex_coordinates(),
-					   cwp)
-			for particle in cwp.particles:
-				x = particle.pos
-				# Compute vel at pos x
-				self.Velement.evaluate_basis_all(self.basis_matrix,
-												x,
-												cwp.get_vertex_coordinates(),
-												cwp.orientation())
-				x[:] = x[:] + dt*np.dot(self.coefficients, self.basis_matrix)[:]
-		# Recompute the map
-		stop_shift = start.stop()
-		start =df.Timer('relocate')
-		info = self.relocate()
-		stop_reloc = start.stop()
-		# We return computation time per process
-		return (stop_shift, stop_reloc)
+	def addRandomSine(self,Np,Ld,amp):
+
+		q = np.array([-1., 1.])
+		m = np.array([1., 1836.])
+
+		multiplicity = (np.prod(Ld)/np.prod(Np))*m[0]/(q[0]**2)
+		q *= multiplicity
+		m *= multiplicity
+		qm = q/m
+
+		# Electrons
+		pos = RandomRectangle(df.Point(0,0),df.Point(Ld[0],Ld[1])).generate([Np[0],Np[1]])
+		pos[:,0] += amp*np.sin(pos[:,0])
+		qTemp = q[0]*np.ones(len(pos))
+		mTemp = m[0]*np.ones(len(pos))
+		qmTemp = qm[0]*np.ones(len(pos))
+		self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
+
+		# Ions
+		pos = RandomRectangle(df.Point(0,0),df.Point(Ld[0],Ld[1])).generate([Np[0],Np[1]])
+		qTemp = q[1]*np.ones(len(pos))
+		mTemp = m[1]*np.ones(len(pos))
+		qmTemp = qm[1]*np.ones(len(pos))
+		self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
+
+	def addLatticeSine(self,Np,Ld,amp):
+
+		q = np.array([-1., 1.])
+		m = np.array([1., 1836.])
+
+		multiplicity = (np.prod(Ld)/np.prod(Np))*m[0]/(q[0]**2)
+		q *= multiplicity
+		m *= multiplicity
+		qm = q/m
+
+		x = np.arange(0,Ld[0],Ld[0]/Np[0])
+		y = np.arange(0,Ld[1],Ld[1]/Np[1])
+		x += amp*np.sin(x)
+		xcart = np.tile(x,Np[1])
+		ycart = np.repeat(y,Np[0])
+		pos = np.c_[xcart,ycart]
+		qTemp = q[0]*np.ones(len(pos))
+		mTemp = m[0]*np.ones(len(pos))
+		qmTemp = qm[0]*np.ones(len(pos))
+		self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
+
+		x = np.arange(0,Ld[0],Ld[0]/Np[0])
+		y = np.arange(0,Ld[1],Ld[1]/Np[1])
+		xcart = np.tile(x,Np[1])
+		ycart = np.repeat(y,Np[0])
+		pos = np.c_[xcart,ycart]
+		qTemp = q[1]*np.ones(len(pos))
+		mTemp = m[1]*np.ones(len(pos))
+		qmTemp = qm[1]*np.ones(len(pos))
+		self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
 	def relocate(self):
 		# Relocate particles on cells and processors

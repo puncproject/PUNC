@@ -21,37 +21,16 @@ np.random.seed(666)
 
 print "Generating mesh"
 
-Lx = 2*DOLFIN_PI
-Ly = 2*DOLFIN_PI
-Lxy = np.array([Lx,Ly])
-Nx = 32
-Ny = Nx
-deltax = Lx/(Nx-1)	# assumes periodic
-deltay = Ly/(Ny-1)	# assumes periodic
-da = deltax*deltay if cgspace else deltax*deltay*0.5
-mesh = RectangleMesh(Point(0,0),Point(Lx,Ly),Nx,Ny)
+Ld = 2*DOLFIN_PI*np.array([1,1])	# Length of domain
+Nc = 32*np.array([1,1])				# Number of cells
+delta = Ld/Nc						# Stepsizes
+Nt = 25 if not preview else 1		# Number of time steps
+dt = 0.0251327						# Time step
+Np = Nc*(16 if preview else 4)		# Number of particles 
 
-Nt = 25 if not preview else 1
-dt = 0.0251327
+mesh = RectangleMesh(Point(0,0),Point(Ld),Nc[0],Nc[1])
 
 if(show_plot): plot(mesh)
-
-#==============================================================================
-# PLOTTING FUNCTION
-#------------------------------------------------------------------------------
-
-def myPlot(u,fName):
-	mesh = u.function_space().mesh()
-	x = mesh.coordinates()[:,0]
-	v = u.compute_vertex_values(mesh)
-	y = mesh.coordinates()[:,1]
-	t = mesh.cells()
-
-	fig = plt.figure(figsize=(5,5))
-	ax  = fig.add_subplot(111)
-
-	c = ax.tricontourf(x, y, t, v)
-	fig.savefig(fName)
 
 #==============================================================================
 # FUNCTION SPACE
@@ -59,20 +38,7 @@ def myPlot(u,fName):
 
 print "Generating function spaces"
 
-class PeriodicBoundary(SubDomain):
-
-	# Target domain
-	def inside(self, x, on_bnd):
-		return bool(		(near(x[0],0)  or near(x[1],0))	 # On a lower bound
-					and not (near(x[0],Lx) or near(x[1],Ly)) # But not an upper
-					and on_bnd)
-
-	# Map upper edges to lower edges
-	def map(self, x, y):
-		y[0] = x[0]-Lx if near(x[0],Lx) else x[0]
-		y[1] = x[1]-Ly if near(x[1],Ly) else x[1]
-
-constrained_domain=PeriodicBoundary()
+constrained_domain=PeriodicBoundary(Ld)
 
 D =       FunctionSpace(mesh, 'DG', 0, constrained_domain=constrained_domain)
 S =       FunctionSpace(mesh, 'CG', 1, constrained_domain=constrained_domain)
@@ -114,65 +80,13 @@ as_backend_type(A).set_nullspace(null_space)
 
 print "Initializing particles"
 
-Npmul = 4 if preview else 1
-Npx = Nx*4*Npmul
-Npy = Ny*4*Npmul
-Np = Npx*Npy
-
-q = np.array([-1., 1.])
-m = np.array([1., 1836.])
-
-multiplicity = (Lx*Ly/Np)*m[0]/(q[0]**2)
-
-#multiplicity *= 100
-
-q *= multiplicity
-m *= multiplicity
-
-qm = q/m
-
 pop = Population(S,V)
 
-# Place particls in lattice
-
 if(lattice):
-	x = np.arange(0,Lx,Lx/Npx)
-	y = np.arange(0,Ly,Ly/Npy)
-	x += (0.001/deltax)*np.sin(x)
-	xcart = np.tile(x,Npy)
-	ycart = np.repeat(y,Npx)
-	pos = np.c_[xcart,ycart]
-	qTemp = q[0]*np.ones(len(pos))
-	mTemp = m[0]*np.ones(len(pos))
-	qmTemp = qm[0]*np.ones(len(pos))
-	pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
-
-	x = np.arange(0,Lx,Lx/Npx)
-	y = np.arange(0,Ly,Ly/Npy)
-	xcart = np.tile(x,Npy)
-	ycart = np.repeat(y,Npx)
-	pos = np.c_[xcart,ycart]
-	qTemp = q[1]*np.ones(len(pos))
-	mTemp = m[1]*np.ones(len(pos))
-	qmTemp = qm[1]*np.ones(len(pos))
-	pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
-
+	pop.addLatticeSine(Np,Ld,0.001/delta[0])
 else:
+	pop.addRandomSine(Np,Ld,0.001/delta[0])
 
-	# Electrons
-	pos = RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
-	pos[:,0] += (0.001/deltax)*np.sin(pos[:,0])
-	qTemp = q[0]*np.ones(len(pos))
-	mTemp = m[0]*np.ones(len(pos))
-	qmTemp = qm[0]*np.ones(len(pos))
-	pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
-
-	# Ions
-	pos = RandomRectangle(Point(0,0),Point(Lx,Ly)).generate([Npx,Npy])
-	qTemp = q[1]*np.ones(len(pos))
-	mTemp = m[1]*np.ones(len(pos))
-	qmTemp = qm[1]*np.ones(len(pos))
-	pop.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
 if(False):
 	fig = plt.figure()
@@ -180,8 +94,6 @@ if(False):
 	fig.suptitle('Initial Particle pos')
 	plt.axis([0, Lx, 0, Ly])
 	fig.savefig("particles.png")
-
-tPush = 0
 
 #==============================================================================
 # TIME LOOP
@@ -204,7 +116,7 @@ for n in xrange(1,Nt+1):
 	if(not cgspace):
 		rho = distrDG0(pop,rho,D,S)
 	else:
-		distrCG1(pop,rho,da)
+		distrCG1(pop,rho,np.prod(delta))
 
 	if(show_plot): plot(rhoD)
 	if(show_plot): plot(rho)
@@ -262,7 +174,7 @@ for n in xrange(1,Nt+1):
 	fraction = 0.5 if n==1 else 1.0
 	KE[n-1] = accel(pop,E,dt*fraction)
 	PE[n-1] = potEnergy(pop,phi)
-	movePeriodic(pop,dt,Lxy)
+	movePeriodic(pop,dt,Ld)
 
 	pop.relocate()
 
