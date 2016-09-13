@@ -91,18 +91,42 @@ def potEnergy(pop,phi):
 	return PE
 
 def distrDG0(pop,rho,D,S):
-	rhoD = df.Function()
+	rhoD = df.Function(D)
 	mesh = rho.function_space().mesh()
 	for c in df.cells(mesh):
 		cindex = c.index()
-		dofindex = dofmap.cell_dofs(cindex)[0]
+		dofindex = D.dofmap().cell_dofs(cindex)[0]
 		cellcharge = 0
 		da = c.volume()
 		for particle in pop[cindex]:
 			cellcharge += particle.properties['q']/da
 		rhoD.vector()[dofindex] = cellcharge
 
-	rho = project(rhoD,S)
+	rho = df.project(rhoD,S)
+
+	return rho
+
+def distrCG1(pop,rho,da):
+
+	S = rho.function_space()
+	mesh = S.mesh()
+	for c in df.cells(mesh):
+		cindex = c.index()
+		dofindex = S.dofmap().cell_dofs(cindex)
+
+		accum = np.zeros(3)
+		for p in pop[cindex]:
+
+			pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
+												p.pos,
+												c.get_vertex_coordinates(),
+												c.orientation())
+
+			q=p.properties['q']
+			accum += (q/da)*pop.Sbasis_matrix.T[0]
+
+		rho.vector()[dofindex] += accum
+
 
 class Particle:
 	__slots__ = ['pos', 'vel', 'properties']		# changed

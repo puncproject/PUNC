@@ -200,60 +200,11 @@ for n in xrange(1,Nt+1):
 
 	print "    Accumulating charges"
 
-	rhoD = Function(D)
-	dofmap = D.dofmap()
-
-	## Simply count particles
-	#for c in cells(mesh):
-	#	cindex = c.index()
-	#	dofindex = dofmap.cell_dofs(cindex)[0]
-	#	try:
-	#		count = len(pop.particle_map[cindex])
-	#	except:
-	#		count = 0
-	##	print cindex, count
-	#	rhoD.vector()[dofindex] = count
-
-	## Add up different charges, dictionary variant
-	#for c in cells(mesh):
-	#	cindex = c.index()
-	#	dofindex = dofmap.cell_dofs(cindex)[0]
-	#	cellcharge = 0
-	#	for particle in pop.particle_map[cindex].particles:
-	#		cellcharge += particle.properties['q']
-	#	rhoD.vector()[dofindex] = cellcharge
-
+	rho = Function(S)
 	if(not cgspace):
-		# Add up different charges, list variant
-		for c in cells(mesh):
-			cindex = c.index()
-			dofindex = dofmap.cell_dofs(cindex)[0]
-			cellcharge = 0
-			for particle in pop[cindex]:
-				cellcharge += particle.properties['q']/(da)
-			rhoD.vector()[dofindex] = cellcharge
-
-		rho = project(rhoD,S)
+		rho = distrDG0(pop,rho,D,S)
 	else:
-		dofmap = S.dofmap()
-		rho = Function(S) # zero
-
-		for c in cells(mesh):
-			cindex = c.index()
-			dofindex = dofmap.cell_dofs(cindex)
-
-			accum = np.zeros(3)
-			for p in pop[cindex]:
-
-				pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
-													p.pos,
-													c.get_vertex_coordinates(),
-													c.orientation())
-
-				q=p.properties['q']
-				accum += (q/da)*pop.Sbasis_matrix.T[0]
-
-			rho.vector()[dofindex] += accum
+		distrCG1(pop,rho,da)
 
 	if(show_plot): plot(rhoD)
 	if(show_plot): plot(rho)
