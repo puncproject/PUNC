@@ -29,6 +29,8 @@ class Punc(object):
 
 		assert has_linear_algebra_backend("PETSc")
 		parameters["linear_algebra_backend"] = "PETSc"
+		set_log_level(WARNING)
+		np.random.seed(666)
 
 		#
 		# FUNCTION SPACE (discontinuous scalar, scalar, vector)
@@ -116,6 +118,7 @@ class Punc(object):
 			for particle in cell:
 				particle.pos += dt*particle.vel
 				particle.pos %= L
+		self.pop.relocate()
 
 	def potEnergy(self):
 
@@ -339,7 +342,8 @@ class Population(list):
 				n_duplicit = len(np.where(all_found > 1)[0])
 				print 'There are %d duplicit particles' % n_duplicit
 
-	def addRandomSine(self,Np,Ld,amp):
+	def addSine(self,Np,Ld,amp,method='random'):
+		assert method in ['random','lattice']
 
 		q = np.array([-1., 1.])
 		m = np.array([1., 1836.])
@@ -349,51 +353,44 @@ class Population(list):
 		m *= multiplicity
 		qm = q/m
 
-		# Electrons
-		pos = RandomRectangle(Point(0,0),Point(Ld)).generate(Np)
-		pos[:,0] += amp*np.sin(pos[:,0])
-		qTemp = q[0]*np.ones(len(pos))
-		mTemp = m[0]*np.ones(len(pos))
-		qmTemp = qm[0]*np.ones(len(pos))
-		self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
+		if method=='random':
+			# Electrons
+			pos = RandomRectangle(Point(0,0),Point(Ld)).generate(Np)
+			pos[:,0] += amp*np.sin(pos[:,0])
+			qTemp = q[0]*np.ones(len(pos))
+			mTemp = m[0]*np.ones(len(pos))
+			qmTemp = qm[0]*np.ones(len(pos))
+			self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
-		# Ions
-		pos = RandomRectangle(Point(0,0),Point(Ld)).generate(Np)
-		qTemp = q[1]*np.ones(len(pos))
-		mTemp = m[1]*np.ones(len(pos))
-		qmTemp = qm[1]*np.ones(len(pos))
-		self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
+			# Ions
+			pos = RandomRectangle(Point(0,0),Point(Ld)).generate(Np)
+			qTemp = q[1]*np.ones(len(pos))
+			mTemp = m[1]*np.ones(len(pos))
+			qmTemp = qm[1]*np.ones(len(pos))
+			self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
-	def addLatticeSine(self,Np,Ld,amp):
+		if method=='lattice':
 
-		q = np.array([-1., 1.])
-		m = np.array([1., 1836.])
+			x = np.arange(0,Ld[0],Ld[0]/Np[0])
+			y = np.arange(0,Ld[1],Ld[1]/Np[1])
+			x += amp*np.sin(x)
+			xcart = np.tile(x,Np[1])
+			ycart = np.repeat(y,Np[0])
+			pos = np.c_[xcart,ycart]
+			qTemp = q[0]*np.ones(len(pos))
+			mTemp = m[0]*np.ones(len(pos))
+			qmTemp = qm[0]*np.ones(len(pos))
+			self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
-		multiplicity = (np.prod(Ld)/np.prod(Np))*m[0]/(q[0]**2)
-		q *= multiplicity
-		m *= multiplicity
-		qm = q/m
-
-		x = np.arange(0,Ld[0],Ld[0]/Np[0])
-		y = np.arange(0,Ld[1],Ld[1]/Np[1])
-		x += amp*np.sin(x)
-		xcart = np.tile(x,Np[1])
-		ycart = np.repeat(y,Np[0])
-		pos = np.c_[xcart,ycart]
-		qTemp = q[0]*np.ones(len(pos))
-		mTemp = m[0]*np.ones(len(pos))
-		qmTemp = qm[0]*np.ones(len(pos))
-		self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
-
-		x = np.arange(0,Ld[0],Ld[0]/Np[0])
-		y = np.arange(0,Ld[1],Ld[1]/Np[1])
-		xcart = np.tile(x,Np[1])
-		ycart = np.repeat(y,Np[0])
-		pos = np.c_[xcart,ycart]
-		qTemp = q[1]*np.ones(len(pos))
-		mTemp = m[1]*np.ones(len(pos))
-		qmTemp = qm[1]*np.ones(len(pos))
-		self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
+			x = np.arange(0,Ld[0],Ld[0]/Np[0])
+			y = np.arange(0,Ld[1],Ld[1]/Np[1])
+			xcart = np.tile(x,Np[1])
+			ycart = np.repeat(y,Np[0])
+			pos = np.c_[xcart,ycart]
+			qTemp = q[1]*np.ones(len(pos))
+			mTemp = m[1]*np.ones(len(pos))
+			qmTemp = qm[1]*np.ones(len(pos))
+			self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
 	def relocate(self):
 		# Relocate particles on cells and processors
