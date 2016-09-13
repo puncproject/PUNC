@@ -11,11 +11,10 @@
 This module contains functionality for Lagrangian tracking of particles with
 DOLFIN
 '''
-
-import dolfin as df
+from dolfin import *
 import numpy as np
 import copy
-from itertools import izip
+from itertools import izip as zip
 from mpi4py import MPI as pyMPI
 from collections import defaultdict
 
@@ -28,7 +27,41 @@ comm = pyMPI.COMM_WORLD
 __UINT32_MAX__ = np.iinfo('uint32').max
 
 class Punc(object):
-	
+
+	def __init__(self,mesh,constr):
+
+		assert has_linear_algebra_backend("PETSc")
+		parameters["linear_algebra_backend"] = "PETSc"
+
+		#
+		# FUNCTION SPACE (discontinuous scalar, scalar, vector)
+		#
+		self.mesh = mesh
+		self.D =       FunctionSpace(mesh, 'DG', 0, constrained_domain=constr)
+		self.S =       FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
+		self.V = VectorFunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
+
+		#
+		# INITIALIZE SOLVER
+		#
+		phi = TrialFunction(self.S)
+		phi_ = TestFunction(self.S)
+
+		a = inner(nabla_grad(phi), nabla_grad(phi_))*dx
+		A = assemble(a)
+
+		self.solver = PETScKrylovSolver("cg")
+		self.solver.set_operator(A)
+
+		self.phi_ = phi_
+		self.phi = Function(self.S)
+
+		null_vec = Vector(self.phi.vector())
+		self.S.dofmap().set(null_vec, 1.0)
+		null_vec *= 1.0/null_vec.norm("l2")
+
+		self.null_space = VectorSpaceBasis([null_vec])
+		as_backend_type(A).set_nullspace(self.null_space)
 
 def myPlot(u,fName):
 	mesh = u.function_space().mesh()
@@ -43,28 +76,28 @@ def myPlot(u,fName):
 	c = ax.tricontourf(x, y, t, v)
 	fig.savefig(fName)
 
-class PeriodicBoundary(df.SubDomain):
+class PeriodicBoundary(SubDomain):
 
 	def __init__(self, Ld):
-		df.SubDomain.__init__(self)
+		SubDomain.__init__(self)
 		self.Ld = Ld
 
 	# Target domain
 	def inside(self, x, onBnd):
-		return bool(		any([df.near(a,0) for a in x])					# On any lower bound
-					and not any([df.near(a,b) for a,b in izip(x,self.Ld)])	# But not any upper bound
+		return bool(		any([near(a,0) for a in x])					# On any lower bound
+					and not any([near(a,b) for a,b in zip(x,self.Ld)])	# But not any upper bound
 					and onBnd)
 
 	# Map upper edges to lower edges
 	def map(self, x, y):
-		y[:] = [a-b if df.near(a,b) else a for a,b in izip(x,self.Ld)]
+		y[:] = [a-b if near(a,b) else a for a,b in zip(x,self.Ld)]
 
 def accel(pop,E,dt):
 
 	KE = 0.0
 
 	mesh = E.function_space().mesh()
-	for c in df.cells(mesh):
+	for c in cells(mesh):
 
 		E.restrict(		pop.Vcoefficients,
 						pop.Velement,
@@ -103,7 +136,7 @@ def potEnergy(pop,phi):
 	PE = 0
 
 	mesh = phi.function_space().mesh()
-	for c in df.cells(mesh):
+	for c in cells(mesh):
 		phi.restrict(	pop.Scoefficients,
 						pop.Selement,
 						c,
@@ -128,9 +161,9 @@ def distrDG0(pop,rho,D):
 	S = rho.function_space()
 	mesh = S.mesh()
 
-	rhoD = df.Function(D)
+	rhoD = Function(D)
 
-	for c in df.cells(mesh):
+	for c in cells(mesh):
 		cindex = c.index()
 		dofindex = D.dofmap().cell_dofs(cindex)[0]
 		cellcharge = 0
@@ -139,7 +172,7 @@ def distrDG0(pop,rho,D):
 			cellcharge += particle.properties['q']/da
 		rhoD.vector()[dofindex] = cellcharge
 
-	rho = df.project(rhoD,S)
+	rho = project(rhoD,S)
 
 	return rho
 
@@ -147,7 +180,7 @@ def distrCG1(pop,rho,da):
 
 	S = rho.function_space()
 	mesh = S.mesh()
-	for c in df.cells(mesh):
+	for c in cells(mesh):
 		cindex = c.index()
 		dofindex = S.dofmap().cell_dofs(cindex)
 
@@ -197,7 +230,7 @@ class Population(list):
 		self.mesh.init(2, 2)  # Cell-cell connectivity for neighbors of cell
 		self.tree = self.mesh.bounding_box_tree()  # Tree for isection comput.
 
-		for cell in df.cells(self.mesh):
+		for cell in cells(self.mesh):
 			self.append(list())
 
 		# Allocate some variables used to look up the vel
@@ -305,7 +338,7 @@ class Population(list):
 		qm = q/m
 
 		# Electrons
-		pos = RandomRectangle(df.Point(0,0),df.Point(Ld[0],Ld[1])).generate([Np[0],Np[1]])
+		pos = RandomRectangle(Point(0,0),Point(Ld)).generate(Np)
 		pos[:,0] += amp*np.sin(pos[:,0])
 		qTemp = q[0]*np.ones(len(pos))
 		mTemp = m[0]*np.ones(len(pos))
@@ -313,7 +346,7 @@ class Population(list):
 		self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
 
 		# Ions
-		pos = RandomRectangle(df.Point(0,0),df.Point(Ld[0],Ld[1])).generate([Np[0],Np[1]])
+		pos = RandomRectangle(Point(0,0),Point(Ld)).generate(Np)
 		qTemp = q[1]*np.ones(len(pos))
 		mTemp = m[1]*np.ones(len(pos))
 		qmTemp = qm[1]*np.ones(len(pos))
@@ -355,16 +388,16 @@ class Population(list):
 		# Map such that map[old_cell] = [(new_cell, particle_id), ...]
 		# Ie new destination of particles formerly in old_cell
 		new_cell_map = defaultdict(list)
-		for dfCell in df.cells(self.mesh):
+		for dfCell in cells(self.mesh):
 			cindex = dfCell.index()
 			cell = self[cindex]
 			for i, particle in enumerate(cell):
-				point = df.Point(*particle.pos)
+				point = Point(*particle.pos)
 				# Search only if particle moved outside original cell
 				if not dfCell.contains(point):
 					found = False
 					# Check neighbor cells
-					for neighbor in df.cells(dfCell):
+					for neighbor in cells(dfCell):
 						if neighbor.contains(point):
 							new_cell_id = neighbor.index()
 							found = True
@@ -431,7 +464,7 @@ class Population(list):
 		assert isinstance(particle, (Particle, np.ndarray))
 		if isinstance(particle, Particle):
 			# Convert particle to point
-			point = df.Point(*particle.pos)
+			point = Point(*particle.pos)
 			return self.tree.compute_first_entity_collision(point)
 		else:
 			return self.locate(Particle(particle))
@@ -509,7 +542,6 @@ from itertools import product
 
 comm = pyMPI.COMM_WORLD
 
-
 class RandomGenerator(object):
 	'''
 	Fill object by random points.
@@ -528,7 +560,7 @@ class RandomGenerator(object):
 
 	def generate(self, N, method='full'):
 		'Genererate points.'
-		assert len(N) == self.dim
+		assert (isinstance(N,int) and method == 'full') or len(N) == self.dim
 		assert method in ['full', 'tensor']
 
 		if self.rank == 0:
