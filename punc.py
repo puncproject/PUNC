@@ -15,6 +15,7 @@ DOLFIN
 import dolfin as df
 import numpy as np
 import copy
+from itertools import izip
 from mpi4py import MPI as pyMPI
 from collections import defaultdict
 
@@ -25,6 +26,9 @@ comm = pyMPI.COMM_WORLD
 
 # collisions tests return this value or -1 if there is no collision
 __UINT32_MAX__ = np.iinfo('uint32').max
+
+class Punc(object):
+	
 
 def myPlot(u,fName):
 	mesh = u.function_space().mesh()
@@ -48,12 +52,12 @@ class PeriodicBoundary(df.SubDomain):
 	# Target domain
 	def inside(self, x, onBnd):
 		return bool(		any([df.near(a,0) for a in x])					# On any lower bound
-					and not any([df.near(a,b) for a,b in zip(x,self.Ld)])	# But not any upper bound
+					and not any([df.near(a,b) for a,b in izip(x,self.Ld)])	# But not any upper bound
 					and onBnd)
 
 	# Map upper edges to lower edges
 	def map(self, x, y):
-		y[:] = [a-b if df.near(a,b) else a for a,b in zip(x,self.Ld)]
+		y[:] = [a-b if df.near(a,b) else a for a,b in izip(x,self.Ld)]
 
 def accel(pop,E,dt):
 
@@ -119,9 +123,13 @@ def potEnergy(pop,phi):
 
 	return PE
 
-def distrDG0(pop,rho,D,S):
+def distrDG0(pop,rho,D):
+
+	S = rho.function_space()
+	mesh = S.mesh()
+
 	rhoD = df.Function(D)
-	mesh = rho.function_space().mesh()
+
 	for c in df.cells(mesh):
 		cindex = c.index()
 		dofindex = D.dofmap().cell_dofs(cindex)[0]

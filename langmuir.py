@@ -6,7 +6,7 @@ from punc import *
 from WeightedGradient import weighted_gradient_matrix
 
 preview = False
-cgspace = True
+cgspace = False
 lattice = False
 
 show_plot = True if preview else False
@@ -26,7 +26,7 @@ Nc = 32*np.array([1,1])				# Number of cells
 delta = Ld/Nc						# Stepsizes
 Nt = 25 if not preview else 1		# Number of time steps
 dt = 0.0251327						# Time step
-Np = Nc*(16 if preview else 4)		# Number of particles 
+Np = Nc*(16 if preview else 4)		# Number of particles
 
 mesh = RectangleMesh(Point(0,0),Point(Ld),Nc[0],Nc[1])
 
@@ -114,7 +114,7 @@ for n in xrange(1,Nt+1):
 
 	rho = Function(S)
 	if(not cgspace):
-		rho = distrDG0(pop,rho,D,S)
+		rho = distrDG0(pop,rho,D)
 	else:
 		distrCG1(pop,rho,np.prod(delta))
 
