@@ -23,6 +23,7 @@ print "Generating mesh"
 
 Lx = 2*DOLFIN_PI
 Ly = 2*DOLFIN_PI
+Lxy = np.array([Lx,Ly])
 Nx = 32
 Ny = Nx
 deltax = Lx/(Nx-1)	# assumes periodic
@@ -30,7 +31,7 @@ deltay = Ly/(Ny-1)	# assumes periodic
 da = deltax*deltay if cgspace else deltax*deltay*0.5
 mesh = RectangleMesh(Point(0,0),Point(Lx,Ly),Nx,Ny)
 
-Nt = 250 if not preview else 1
+Nt = 25 if not preview else 1
 dt = 0.0251327
 
 if(show_plot): plot(mesh)
@@ -307,80 +308,12 @@ for n in xrange(1,Nt+1):
 
 	print "    Pushing particles"
 
-	t = df.Timer("push")
-
-
-	for c in cells(mesh):
-		cindex = c.index()
-		E.restrict(		pop.Vcoefficients,
-						pop.Velement,
-						c,
-						c.get_vertex_coordinates(),
-						c)
-		phi.restrict(	pop.Scoefficients,
-						pop.Selement,
-						c,
-						c.get_vertex_coordinates(),
-						c)
-
-		for p in pop[cindex]:
-			pop.Velement.evaluate_basis_all(	pop.Vbasis_matrix,
-												p.pos,
-												c.get_vertex_coordinates(),
-												c.orientation())
-			pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
-												p.pos,
-												c.get_vertex_coordinates(),
-												c.orientation())
-
-			Ei = np.dot(pop.Vcoefficients, pop.Vbasis_matrix)[:]
-			phii = np.dot(pop.Scoefficients, pop.Sbasis_matrix)[:]
-
-			q = p.properties['q']
-			m = p.properties['m']
-			qm = p.properties['qm']
-
-			fraction = 0.5 if n==1 else 1
-			inc = dt*fraction*qm*Ei
-			vel = p.vel
-
-			KE[n-1] += 0.5*m*np.dot(vel,vel+inc)
-			PE[n-1] += 0.5*q*phii
-
-			p.vel += inc
-			p.pos += dt*p.vel
-
-			p.pos[0] %= Lx
-			p.pos[1] %= Ly
-	"""
-	for c in pop:
-		for p in c:
-
-			Ei = E(p.pos)
-			phii = phi(p.pos)
-
-			q = p.properties['q']
-			m = p.properties['m']
-			qm = p.properties['qm']
-
-			fraction = 0.5 if n==1 else 1
-			inc = dt*fraction*qm*Ei
-			vel = p.vel
-
-			KE[n] += 0.5*m*np.dot(vel,vel+inc)
-
-			p.vel += inc
-			p.pos += dt*p.vel
-
-			PE[n] += 0.5*q*phii
-
-			p.pos[0] %= Lx
-			p.pos[1] %= Ly
-	"""
+	fraction = 0.5 if n==1 else 1.0
+	KE[n-1] = accel(pop,E,dt*fraction)
+	PE[n-1] = potEnergy(pop,phi)
+	movePeriodic(pop,dt,Lxy)
 
 	pop.relocate()
-
-	tPush += t.stop()
 
 KE[0]=0
 

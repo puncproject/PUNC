@@ -26,14 +26,92 @@ comm = pyMPI.COMM_WORLD
 # collisions tests return this value or -1 if there is no collision
 __UINT32_MAX__ = np.iinfo('uint32').max
 
+def accel(pop,E,dt):
+
+	KE = 0.0
+
+	mesh = E.function_space().mesh()
+	for c in df.cells(mesh):
+
+		E.restrict(		pop.Vcoefficients,
+						pop.Velement,
+						c,
+						c.get_vertex_coordinates(),
+						c)
+
+		for p in pop[c.index()]:
+			pop.Velement.evaluate_basis_all(	pop.Vbasis_matrix,
+												p.pos,
+												c.get_vertex_coordinates(),
+												c.orientation())
+
+			Ei = np.dot(pop.Vcoefficients, pop.Vbasis_matrix)[:]
+
+			m = p.properties['m']
+			qm = p.properties['qm']
+
+			inc = dt*qm*Ei
+			vel = p.vel
+
+			KE += 0.5*m*np.dot(vel,vel+inc)
+
+			p.vel += inc
+
+	return KE
+
+def movePeriodic(pop,dt,L):
+	for cell in pop:
+		for particle in cell:
+			particle.pos += dt*particle.vel
+			particle.pos %= L
+
+def potEnergy(pop,phi):
+
+	PE = 0
+
+	mesh = phi.function_space().mesh()
+	for c in df.cells(mesh):
+		phi.restrict(	pop.Scoefficients,
+						pop.Selement,
+						c,
+						c.get_vertex_coordinates(),
+						c)
+
+		for p in pop[c.index()]:
+			pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
+												p.pos,
+												c.get_vertex_coordinates(),
+												c.orientation())
+
+			phii = np.dot(pop.Scoefficients, pop.Sbasis_matrix)[:]
+
+			q = p.properties['q']
+			PE += 0.5*q*phii
+
+	return PE
+
+def distrDG0(pop,rho,D,S):
+	rhoD = df.Function()
+	mesh = rho.function_space().mesh()
+	for c in df.cells(mesh):
+		cindex = c.index()
+		dofindex = dofmap.cell_dofs(cindex)[0]
+		cellcharge = 0
+		da = c.volume()
+		for particle in pop[cindex]:
+			cellcharge += particle.properties['q']/da
+		rhoD.vector()[dofindex] = cellcharge
+
+	rho = project(rhoD,S)
+
 class Particle:
 	__slots__ = ['pos', 'vel', 'properties']		# changed
 	'Lagrangian particle with pos and some other passive properties.'
 	def __init__(self, x, v=0):
 		if(isinstance(x,Particle)): return x
-		self.pos = x
-		if(v==0): v=np.zeros(len(x))						# new
-		self.vel = v									# new
+		self.pos = np.array(x)
+		if(v==0): v=np.zeros(len(x))
+		self.vel = np.array(v)
 		self.properties = {}
 
 	def send(self, dest):
@@ -103,7 +181,7 @@ class Population(list):
 		self.tot_escaped_particles = np.zeros(self.num_processes, dtype='I')
 		# Dummy particle for receiving/sending at [0, 0, ...]
 		self.particle0 = Particle(np.zeros(self.mesh.geometry().dim()))
-		
+
 	def addParticles(self, list_of_particles, properties_d=None):
 		'''Add particles and search for their home on all processors.
 		   Note that list_of_particles must be same on all processes. Further
