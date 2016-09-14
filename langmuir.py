@@ -19,9 +19,9 @@ Nc = 32*np.array([1,1])				# Number of 'rectangles' in mesh
 Nt = 25 if not preview else 1		# Number of time steps
 dt = 0.0251327						# Time step
 
-mesh = RectangleMesh(Point(0,0),Point(Ld),Nc[0],Nc[1])
+mesh = RectangleMesh(Point(0,0),Point(Ld),*Nc)
 
-Npc = 8 if not preview else 128		# Number of particles per cell
+Npc = 8 if not preview else 128		# Number of particles per (triangular) cell
 Np = mesh.num_cells()*Npc			# Number of particles
 
 
