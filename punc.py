@@ -28,7 +28,7 @@ class Langmuir(object):
 
 		# Default values
 		self.Ld = 2*DOLFIN_PI*np.array([1,1])
-	xra	self.Nc = 32*np.array([1,1])
+		self.Nc = 32*np.array([1,1])
 		self.Nt = 25
 		self.dt = 0.1*2*DOLFIN_PI/self.Nt
 		self.Npc = 8
