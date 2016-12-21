@@ -171,6 +171,10 @@ class Punc(object):
 			else:
 				i = i+1
 
+		# Sort vertices to appear in the order FEniCS wants them for the DOFs
+		sortIndices = np.argsort(dofs)
+		vertices = vertices[sortIndices]
+
 		nDims = len(Ld)
 		limits = np.zeros([nDims,2])# - 0.001
 		limits[:,1] = Ld            # + 0.001
@@ -187,77 +191,13 @@ class Punc(object):
 		if nDims==3:
 			voronoi = pyvoro.compute_voronoi(vertices,limits,blockSize,periodic=[True]*3)		
 
-		self.dv = Function(self.S)
-		dvArr = self.dv.vector().array()
-		dvArr = [vcell['volume'] for vcell in voronoi] # changes dv by reference
+		self.dvInv = Function(self.S)
+		dvInvArr = self.dvInv.vector().array() # This is a reference/pointer
+		dvInvArr = [vcell['volume']**(-1) for vcell in voronoi]
 
 		# self.dv is now a FEniCS function which on the vertices of the FEM mesh
 		# equals the volume of the Voronoi cells created from those vertices.
 		# It's meaningless to evaluate self.dv in-between vertices.
-
-	def compVolume2(self,Ld,Npc=8):
-		nDims = len(Ld)
-		assert(nDims==3)
-		nVertices = self.S.dim()
-
-		vertices = np.zeros([nVertices,nDims])
-		for i in range(nDims):
-			expr = Expression("x[%d]"%i, degree=1)
-			vertices[:,i] = project(expr, self.S).vector().array()
-
-		unique = len({100*x[0]+10*x[1]+x[2] for x in np.round(vertices)})
-		print("%d unique of %d"%(unique,len(vertices)))
-
-		limits = np.zeros([nDims,2]) #- 0.1
-		limits[:,1] = Ld             #+ 0.1
-
-		# ~5 particles per block yields better performance.
-		nParticles = Npc*self.mesh.num_cells()
-		nBlocks = nParticles/5.0
-		nBlocksPerDim = int(nBlocks**(1/nDims)) # integer feels safer
-		blockSize = np.prod(Ld)**(1/nDims)/nBlocksPerDim
-
-		f = open("voronoi.txt","w")
-		for i in range(nVertices):
-			f.write("%d"%i)
-			for j in range(nDims):
-				f.write(" %f"%vertices[i,j])
-			f.write("\n")
-		f.close()
-
-		limitsStr = reduce(lambda a,b: a+" %f"%b, limits.flatten(), "")
-		cmd = "./voro++ -p%s voronoi.txt"%limitsStr
-		print(cmd)
-		time.sleep(2)
-		call(cmd,shell=True)
-		
-
-	def compVolume1(self,Ld,Npc=8):
-		nVertices = self.S.dim()
-		nDims = 2	# Hard coded to 2D for now.
-		
-		vertices = np.zeros([nVertices,nDims])
-		for i in range(nDims):
-			expr = Expression("x[%d]"%i, degree=1)
-			vertices[:,i] = project(expr, self.S).vector().array()
-
-		limits = np.zeros([nDims,2]) - 0.001
-		limits[:,1] = Ld             + 0.001
-
-		# Compute block size. ~5 particles per block yields better performance.
-		nParticles = Npc*self.mesh.num_cells()
-		nBlocks = nParticles/5.0
-		nBlocksPerDim = int(nBlocks**(1/nDims)) # integer feels safer to me
-		blockSize = np.prod(Ld)**(1/nDims)/nBlocksPerDim
-
-		if nDims==2:
-			voronoi = pyvoro.compute_2d_voronoi(vertices,limits,blockSize)#,periodic=[True]*2)
-		if nDims==3:
-			voronoi = pyvoro.compute_voronoi(vertices,limits,blockSize)#,periodic=[True]*3)
-
-		self.dv = Function(self.S)
-		dv = self.dv.vector().array()
-		dv = [voronoi[i]['volume'] for i in range(len(voronoi))]
 
 	def solve(self):
 
