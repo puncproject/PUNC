@@ -2,7 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 from punc import *
-from itertools import izip as zip, count
+from itertools import count
+
+if sys.version_info.major == 2:
+	from itertools import izip as zip
+	range = xrange
 
 
 print("Initializing solver")
@@ -10,7 +14,7 @@ langm = Langmuir()
 
 langm.Nt = 2
 
-N = 9
+N = 7
 
 dts = np.array([2**(-n) for n in range(3,N)])
 Ncs = np.array([2**n for n in range(3,N)])

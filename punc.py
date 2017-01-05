@@ -62,7 +62,7 @@ class Langmuir(object):
 		if Nc != None: self.Nc = Nc
 		if Ld != None: self.Ld = Ld
 		self.mesh = RectangleMesh(Point(0,0),Point(self.Ld),*self.Nc)
-		self.punc = Punc(self.mesh,PeriodicBoundary(self.Ld))
+		self.punc = Punc(self.mesh,self.Ld,PeriodicBoundary(self.Ld))
 		self.setPop() # finer grid => more particles => update population
 
 	def setTime(self, dt=None, Nt=None):
@@ -81,15 +81,15 @@ class Langmuir(object):
 	def run(self):
 		for n in xrange(1,self.Nt+1):
 
-			print "    Computing time-step %d"%n
+			print("    Computing time-step %d"%n)
 
-			print "        Accumulating charges"
+			print("        Accumulating charges")
 			self.punc.distr(np.prod(self.Ld/self.Nc))
 
-			print "        Solving potential"
+			print("        Solving potential")
 			self.punc.solve()
 
-			print "        Pushing particles"
+			print("        Pushing particles")
 
 			fraction = 0.5 if n==1 else 1.0
 			self.KE[n-1] = self.punc.accel(self.dt*fraction)
@@ -103,7 +103,7 @@ class Langmuir(object):
 
 class Punc(object):
 
-	def __init__(self,mesh,constr):
+	def __init__(self,mesh,Ld,constr):
 
 		assert has_linear_algebra_backend("PETSc")
 
@@ -148,6 +148,11 @@ class Punc(object):
 		#
 		self.pop = Population(self.S,self.V)
 
+		#
+		# COMPUTE VOLUME OF VORONOI CELLS
+		#
+		self.compVolume(Ld) # Add Npc to increase efficiency
+
 	def compVolume(self, Ld, Npc=8, bnd="Periodic"):
 
 		assert bnd=="Periodic"
@@ -155,7 +160,6 @@ class Punc(object):
 		mesh = self.S.mesh()
 		vertices = mesh.coordinates()
 		dofs = vertex_to_dof_map(self.S)
-#		doVePairs = list(zip(dofs,vertices))
 
 		# Remove those on upper bound (admittedly inefficient)
 		i = 0
@@ -165,7 +169,7 @@ class Punc(object):
 #			else:
 #				i = i+1
 		while i<len(vertices):
-			if any([near(a,b) for a,b in zip(vertices[i],Ld)]):
+			if any([near(a,b) for a,b in zip(vertices[i],list(Ld))]):
 				vertices = np.delete(vertices,[i],axis=0)
 				dofs = np.delete(dofs,[i],axis=0)
 			else:
@@ -191,13 +195,22 @@ class Punc(object):
 		if nDims==3:
 			voronoi = pyvoro.compute_voronoi(vertices,limits,blockSize,periodic=[True]*3)		
 
-		self.dvInv = Function(self.S)
-		dvInvArr = self.dvInv.vector().array() # This is a reference/pointer
+		dvArr = [vcell['volume'] for vcell in voronoi]
 		dvInvArr = [vcell['volume']**(-1) for vcell in voronoi]
+
+		self.dv = Function(self.S)
+		self.dvInv = Function(self.S)
+
+		# There must be some way to avoid this loop
+		for i in range(len(dvArr)):
+			self.dv.vector()[i] = dvArr[i]
+			self.dvInv.vector()[i] = dvInvArr[i]
 
 		# self.dv is now a FEniCS function which on the vertices of the FEM mesh
 		# equals the volume of the Voronoi cells created from those vertices.
-		# It's meaningless to evaluate self.dv in-between vertices.
+		# It's meaningless to evaluate self.dv in-between vertices. Since it's
+		# cheaper to multiply by its inverse we've computed self.dvInv too.
+		# We actually don't need self.dv except for debugging.
 
 	def solve(self):
 
@@ -275,9 +288,9 @@ class Punc(object):
 
 		return PE
 
-	def distr(self,da,method='CG1'):
-		assert method in ['CG1','DG0']
-		# da only used by CG1
+	def distr(self,da,method='CG1voro'):
+		assert method in ['CG1','DG0','CG1voro']
+		# da is the area/volume assumed to be constant, used only by CG1
 
 		pop = self.pop
 		self.rho = Function(self.S)	# Sets to zero
@@ -314,6 +327,28 @@ class Punc(object):
 					accum += (q/da)*pop.Sbasis_matrix.T[0]
 
 				self.rho.vector()[dofindex] += accum
+
+		if method == 'CG1voro':
+
+			for c in cells(self.mesh):
+				cindex = c.index()
+				dofindex = self.S.dofmap().cell_dofs(cindex)
+
+				accum = np.zeros(3)
+				for p in pop[cindex]:
+
+					pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
+														p.pos,
+														c.get_vertex_coordinates(),
+														c.orientation())
+
+					q=p.properties['q']
+					accum += q*pop.Sbasis_matrix.T[0]
+
+				self.rho.vector()[dofindex] += accum
+			
+			# Divide by area/volume
+			self.rho.vector()[:] *= self.dvInv.vector()
 
 def myPlot(u,fName):
 	mesh = u.function_space().mesh()
