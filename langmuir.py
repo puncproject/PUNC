@@ -1,93 +1,69 @@
-from dolfin import *
-import numpy as np
-import matplotlib.pyplot as plt
-import time
+import sys
 from punc import *
-from WeightedGradient import weighted_gradient_matrix
+from dolfin import *
 
 if sys.version_info.major == 2:
+	from itertools import izip as zip
 	range = xrange
 
-preview = False
+class Langmuir(object):
+	def __init__(self):
 
-#==============================================================================
-# GENERATE MESH
-#------------------------------------------------------------------------------
+		# Default values
+		self.Ld = 2*DOLFIN_PI*np.array([1,1])
+		self.Nc = 32*np.array([1,1])
+		self.Nt = 25
+		self.dt = 0.1*2*DOLFIN_PI/self.Nt
+		self.Npc = 8
+		self.amp = 0.01
 
-print "Initializing solver"
+		# Set up with default settings. Use set-functions to override.
+		self.setMesh()
+		self.setTime()
 
-Ld = 6.28*np.array([1,1])	# Length of domain
-Nc = 32*np.array([1,1])				# Number of 'rectangles' in mesh
+	def reinit(self):
+		self.setMesh()
+		self.setTime()
 
-Nt = 25 if not preview else 1		# Number of time steps
-dt = 0.251327						# Time step
+	def setMesh(self, Nc=None ,Ld=None):
+		if Nc != None: self.Nc = Nc
+		if Ld != None: self.Ld = Ld
+		self.mesh = RectangleMesh(Point(0,0),Point(self.Ld),*self.Nc)
+		self.punc = Punc(self.mesh,self.Ld,PeriodicBoundary(self.Ld))
+		self.setPop() # finer grid => more particles => update population
 
-#mesh = RectangleMesh(Point(0,0),Point(Ld),*Nc)
-mesh = Mesh("nonuniform.xml")
-if preview:
-	wiz = plot(mesh)
-	wiz.write_png("mesh")
+	def setTime(self, dt=None, Nt=None):
+		if dt != None: self.dt = dt
+		if Nt != None: self.Nt = Nt
+		self.KE = np.zeros(self.Nt)
+		self.PE = np.zeros(self.Nt)
+		self.TE = np.zeros(self.Nt)
 
-Npc = 8 if not preview else 2048	# Number of particles per (triangular) cell
-Np = mesh.num_cells()*Npc			# Number of particles
+	def setPop(self, Npc=None, amp=None):
+		if Npc != None: self.Npc = Npc
+		if amp != None: self.amp = amp
+		self.Np = self.mesh.num_cells()*self.Npc
+		self.punc.pop.addSine(self.Np,self.Ld,self.amp)
 
-# Average cell area
-daAvg = np.prod(Ld)/mesh.num_cells()
+	def run(self):
+		for n in xrange(1,self.Nt+1):
 
+			print("    Computing time-step %d"%n)
 
-punc = Punc(mesh,Ld,PeriodicBoundary(Ld))
+			print("        Accumulating charges")
+			self.punc.distr(np.prod(self.Ld/self.Nc))
 
-#==============================================================================
-# INITIALIZE PARTICLES
-#------------------------------------------------------------------------------
+			print("        Solving potential")
+			self.punc.solve()
 
-print "Initializing particles"
-punc.pop.addSine(Np,Ld,0.1)
+			print("        Pushing particles")
 
-#==============================================================================
-# TIME LOOP
-#------------------------------------------------------------------------------
+			fraction = 0.5 if n==1 else 1.0
+			self.KE[n-1] = self.punc.accel(self.dt*fraction)
+			self.PE[n-1] = self.punc.potEnergy()
+			self.punc.movePeriodic(self.dt,self.Ld)
 
-KE = np.zeros(Nt)
-PE = np.zeros(Nt)
-
-for n in range(1,Nt+1):
-
-	print("Computing time-step %d"%n)
-
-	print("    Accumulating charges")
-	punc.distr(daAvg,"CG1voro")
-	if preview:
-		wiz = plot(punc.rho)
-		wiz.write_png("rho")
-
-	print("    Solving potential")
-	punc.solve()
-	if preview: plot(punc.phi)
-
-	if not preview:
-		print("    Pushing particles")
-
-		fraction = 0.5 if n==1 else 1.0
-		KE[n-1] = punc.accel(dt*fraction)
-		PE[n-1] = punc.potEnergy()
-		punc.movePeriodic(dt,Ld)
-
-KE[0]=0
-
-if(preview): interactive()
-
-fig = plt.figure()
-plt.plot(range(Nt),KE)
-plt.plot(range(Nt),PE)
-plt.plot(range(Nt),PE+KE)
-plt.savefig('energy.png')
-
-TE = KE+PE
-TEdev = TE - TE[0]
-exdev = np.max(np.abs(TEdev))/TE[0]
-
-print("Maximum relative energy deviation: %f"%exdev)
-
-
-print("Finished")
+		self.KE[0] = 0 # assuming 0 initial velocity
+		self.TE = self.KE+self.PE
+		relError = (self.TE-self.TE[0])/self.TE[0]
+		return np.max(np.abs(relError))
