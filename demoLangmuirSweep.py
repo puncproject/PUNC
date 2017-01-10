@@ -1,13 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from punc import *
+from langmuir import *
 from itertools import count
-
-if sys.version_info.major == 2:
-	from itertools import izip as zip
-	range = xrange
-
+from dolfin import *
 
 print("Initializing solver")
 langm = Langmuir()
