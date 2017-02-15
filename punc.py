@@ -341,9 +341,12 @@ class Population(list):
 
 		self.S = S
 		self.mesh = S.mesh()
-		self.mesh.init(2, 2)  # Cell-cell connectivity for neighbors of cell
+		self.dim = self.mesh.topology().dim()
+#		self.mesh.init(2, 2)  # Cell-cell connectivity for neighbors of cell
+		self.mesh.init(0, self.dim)
 		self.tree = self.mesh.bounding_box_tree()  # Tree for isection comput.
 
+		# Create a list for each cell
 		for cell in cells(self.mesh):
 			self.append(list())
 
@@ -354,7 +357,6 @@ class Population(list):
 		# advantageous to compute the resctriction once for cell and only
 		# update basis_i(x) depending on x, i.e. particle where we make
 		# interpolation. This updaea mounts to computing the basis matrix
-		self.dim = self.mesh.topology().dim()
 
 		self.Velement = V.dolfin_element()
 		self.Vnum_tensor_entries = 1
@@ -376,8 +378,14 @@ class Population(list):
 		self.Sbasis_matrix = np.zeros((self.Selement.space_dimension(),
 									  self.Snum_tensor_entries))
 
-		# Allocate a dictionary to hold all particles
+		# Create a list of a set of neighbors for each cell
+		self.neighbors = list()
+		for cell in cells(self.mesh):
+			neigh = sum([vertex.entities(self.dim).tolist() for vertex in vertices(cell)], [])
+			neigh = set(neigh) - set([cell.index()])	
+			self.neighbors.append(neigh)
 
+		# Allocate a dictionary to hold all particles
 
 		# Allocate some MPI stuff
 		self.num_processes = comm.Get_size()
@@ -505,9 +513,9 @@ class Population(list):
 				if not dfCell.contains(point):
 					found = False
 					# Check neighbor cells
-					for neighbor in cells(dfCell):
-						if neighbor.contains(point):
-							new_cell_id = neighbor.index()
+					for neighbor in self.neighbors[dfCell.index()]:
+						if Cell(self.mesh,neighbor).contains(point):
+							new_cell_id = neighbor
 							found = True
 							break
 					# Do a completely new search if not found by now
