@@ -101,11 +101,6 @@ class Punc(object):
 
 		# Remove those on upper bound (admittedly inefficient)
 		i = 0
-#		while i<len(doVePairs):
-#			if any([near(a,b) for a,b in zip(doVePairs[i][1],Ld)]):
-#				doVePairs.pop(i)
-#			else:
-#				i = i+1
 		while i<len(vertices):
 			if any([near(a,b) for a,b in zip(vertices[i],list(Ld))]):
 				vertices = np.delete(vertices,[i],axis=0)
