@@ -1,14 +1,11 @@
+from __future__ import print_function, division
 from dolfin import *
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-
-import sys
-#sys.path.append('../src')
-#from punc import *
-
 from punc import *
 
+import sys
 if sys.version_info.major == 2:
 	range = xrange
 
@@ -18,7 +15,7 @@ preview = False
 # GENERATE MESH
 #------------------------------------------------------------------------------
 
-print "Initializing solver"
+print("Initializing solver")
 
 Ld = 6.28*np.array([1,1])	# Length of domain
 Nc = 32*np.array([1,1])				# Number of 'rectangles' in mesh
@@ -45,8 +42,11 @@ punc = Punc(mesh,Ld,PeriodicBoundary(Ld))
 # INITIALIZE PARTICLES
 #------------------------------------------------------------------------------
 
-print "Initializing particles"
+print("Initializing particles")
 punc.pop.addSine(Np,Ld,0.1)
+#vth = 0.0005
+#vd = [0.002,0]
+#punc.pop.setMaxwellian(vth,vd)
 
 #==============================================================================
 # TIME LOOP
@@ -54,6 +54,8 @@ punc.pop.addSine(Np,Ld,0.1)
 
 KE = np.zeros(Nt)
 PE = np.zeros(Nt)
+
+KE0 = punc.kineticEnergy()	# Initial kinetic energy computed differently
 
 for n in range(1,Nt+1):
 
@@ -77,7 +79,7 @@ for n in range(1,Nt+1):
 		PE[n-1] = punc.potEnergy()
 		punc.movePeriodic(dt,Ld)
 
-KE[0]=0
+KE[0]=KE0
 
 if(preview): interactive()
 
