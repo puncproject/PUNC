@@ -1,36 +1,99 @@
-# __authors__ = ('Sigvald Marholm <sigvaldm@fys.uio.no>',
-#				 'Mikael Mortensen <mikaem@math.uio.no>',
-#				 'Miroslav Kuchta <mirok@math.uio.no>')
-# __date__ = '2014-19-11'
-# __copyright__ = 'Copyright (C) 2011' + __authors__
+# __authors__ = ('Sigvald Marholm <sigvaldm@fys.uio.no>')
+# __date__ = '2017-02-22'
+# __copyright__ = 'Copyright (C) 2017' + __authors__
 # __license__  = 'GNU Lesser GPL version 3 or any later version'
 #
-# Based on fenicstools/LagrangianParticles
-#
+# Loosely based on fenicstools/LagrangianParticles by Mikeal Mortensen and
+# Miroslav Kuchta. Released under same license.
 
+# Imports important python 3 behaviour to ensure correct operation and
+# performance in python 2
 from __future__ import print_function, division
-from dolfin import *
-import numpy as np
-import copy
-from mpi4py import MPI as pyMPI
-from collections import defaultdict
-import pyvoro
-from subprocess import call
-import time
+
 import sys
 if sys.version_info.major == 2:
 	from itertools import izip as zip
 	range = xrange
 
-# Disable printing
-__DEBUG__ = False
+from dolfin import *
+import numpy as np
+from mpi4py import MPI as pyMPI
+from collections import defaultdict
+from itertools import count
+import pyvoro
 
 comm = pyMPI.COMM_WORLD
 
 # collisions tests return this value or -1 if there is no collision
 __UINT32_MAX__ = np.iinfo('uint32').max
 
-class PoissonSolver(object):
+"""
+
+Ld = ...
+mesh = ...
+
+E = VectorFunctionSpace(...)
+rho = Function(...)
+phi = Function(...)
+
+
+fsolver = PeriodicPoissonSolver()
+pop = Population()
+acc = Accelerator()
+mov = Mover()
+dist = Distributer()
+
+# Mark objects
+
+# Adding electrons
+vd, vth = ..., ...
+q, m, N = stdParticleParameters(mesh,Npc,qm,mme)
+xs = randomPoints(lambda x: ..., Ld, N)
+vs = maxwellian(vd, vth)
+pop.addParticles(xs,vs,q,m)
+
+# Adding ions
+vd, vth = ..., ...
+q, m, N = stdParticleParameters(mesh,Npc,qm,mme)
+xs = randomPoints(lambda x: ..., Ld, N)
+vs = maxwellian(vd, vth)
+pop.addParticles(xs,vs,q,m)
+
+# x, v given in n=0
+
+KE0 = kinEnergy(pop)
+
+Nt = ...
+for n in range(1,Nt):
+	dist.dist(pop,RHO)
+	bcs = boundaryConds(...)
+	PHI = fsolver.solve(RHO)		# PHI = fsolver.dirichlet_solver(RHO,bcs)
+	E = gradient(PHI)
+	PE[n-1] = potEnergy(RHO,PHI)
+	KE[n-1] = acc.acc(pop,E,(1-0.5*(n==1))*dt)	# v now at step n-0.5
+	mov.move(pop)								# x now at step n
+	objCurrent(...)
+	inject(...)
+	delete(...)
+
+KE[0] = KE0
+
+"""
+
+class PeriodicPoissonSolver(object):
+
+	def solve(self,rho,E):
+
+		L = self.rho*self.phi_*dx
+		b = assemble(L)
+
+		self.null_space.orthogonalize(b);
+
+		self.solver.solve(self.phi.vector(), b)
+
+		self.E = project(-grad(self.phi), self.CG1V)
+
+class PoissonSolver2(object):
 
 	def __init__(self, mesh, Ld, bnd):
 
@@ -88,62 +151,140 @@ class PoissonSolver(object):
 
 		self.E = project(-grad(self.phi), self.CG1V)
 
+class Accel:
 
-class Punc(object):
+	def __init__(self, mesh, bnd):
+		pass
 
-	def __init__(self,mesh,Ld,constr):
+class Distr:
 
-		assert has_linear_algebra_backend("PETSc")
+	def __init__(self, mesh, Ld, bnd="periodic"):
 
-		parameters["linear_algebra_backend"] = "PETSc"
-		set_log_level(WARNING)
-		np.random.seed(666)
+		assert bnd=="periodic"
 
-		#
-		# FUNCTION SPACE (discontinuous scalar, scalar, vector)
-		#
 		self.mesh = mesh
-		self.DG0 =       FunctionSpace(mesh, 'DG', 0, constrained_domain=constr)
-		self.CG1 =       FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
-		self.CG1V = VectorFunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
+		self.CG1 = FunctionSpace(mesh, 'CG', 1)
 
-		#
-		# INITIALIZE SOLVER
-		#
-		phi = TrialFunction(self.CG1)
-		phi_ = TestFunction(self.CG1)
+		vertices = mesh.coordinates()
+		dofs = vertex_to_dof_map(self.CG1)
 
-		a = inner(nabla_grad(phi), nabla_grad(phi_))*dx
-		A = assemble(a)
+		# Remove those on upper bound (admittedly inefficient)
+		i = 0
+		while i<len(vertices):
+			if any([near(a,b) for a,b in zip(vertices[i],list(Ld))]):
+				vertices = np.delete(vertices,[i],axis=0)
+				dofs = np.delete(dofs,[i],axis=0)
+			else:
+				i = i+1
 
-		self.solver = PETScKrylovSolver("cg")
-		self.solver.set_operator(A)
+		# Sort vertices to appear in the order FEniCS wants them for the DOFs
+		sortIndices = np.argsort(dofs)
+		vertices = vertices[sortIndices]
 
-		self.phi_ = phi_
-		self.phi = Function(self.CG1)
-		self.rho = Function(self.CG1)
-		self.E = Function(self.CG1V)
+		nDims = len(Ld)
+		limits = np.zeros([nDims,2])
+		limits[:,1] = Ld
 
-		null_vec = Vector(self.phi.vector())
-		self.CG1.dofmap().set(null_vec, 1.0)
-		null_vec *= 1.0/null_vec.norm("l2")
+		# ~5 particles (vertices) per block yields better performance.
+		nParticles = self.mesh.num_vertices()
+		nBlocks = nParticles/5.0
+		nBlocksPerDim = int(nBlocks**(1/nDims)) # integer feels safer
+		blockSize = np.prod(Ld)**(1/nDims)/nBlocksPerDim
 
-		self.null_space = VectorSpaceBasis([null_vec])
-		as_backend_type(A).set_nullspace(self.null_space)
+		if nParticles>24000:
+			print("Warning: The pyvoro library often experience problems with many particles. This despite the fact that voro++ should be well suited for big problems.")
 
-		#
-		# POPULATION
-		#
-		self.pop = Population(self.CG1,self.CG1V)
+		if nDims==1:
+			error("1D voronoi not implemented yet")
+		if nDims==2:
+			voronoi = pyvoro.compute_2d_voronoi(vertices,limits,blockSize,periodic=[True]*2)
+		if nDims==3:
+			voronoi = pyvoro.compute_voronoi(vertices,limits,blockSize,periodic=[True]*3)
 
-		#
-		# COMPUTE VOLUME OF VORONOI CELLS
-		#
-		self.compVolume(Ld) # Add Npc to increase efficiency
+		#dvArr = [vcell['volume'] for vcell in voronoi]
+		dvInvArr = [vcell['volume']**(-1) for vcell in voronoi]
 
-	def compVolume(self, Ld, Npc=8, bnd="Periodic"):
+		#self.dv = Function(self.CG1)
+		self.dvInv = Function(self.CG1)
 
-		assert bnd=="Periodic"
+		# There must be some way to avoid this loop
+		for i in range(len(dvInvArr)):
+			#self.dv.vector()[i] = dvArr[i]
+			self.dvInv.vector()[i] = dvInvArr[i]
+
+		# self.dv is now a FEniCS function which on the vertices of the FEM mesh
+		# equals the volume of the Voronoi cells created from those vertices.
+		# It's meaningless to evaluate self.dv in-between vertices. Since it's
+		# cheaper to multiply by its inverse we've computed self.dvInv too.
+		# We actually don't need self.dv except for debugging.
+
+	def distr(self,pop,rho):
+		# rho assumed to be CG1
+
+		element = self.CG1.dolfin_element()
+		sDim = element.space_dimension() # Number of nodes per element
+		basisMatrix = np.zeros((sDim,1))
+
+		rho.vector()[:] = 0
+
+		for cell in cells(self.mesh):
+			cellindex = cell.index()
+			dofindex = self.CG1.dofmap().cell_dofs(cellindex)
+
+			accum = np.zeros(sDim)
+			for particle in pop[cellindex]:
+
+				element.evaluate_basis_all(	basisMatrix,
+											particle.x,
+											cell.get_vertex_coordinates(),
+											cell.orientation())
+
+				accum += particle.q * basisMatrix.T[0]
+
+			rho.vector()[dofindex] += accum
+
+		# Divide by volume of Voronoi cell
+		rho.vector()[:] *= self.dvInv.vector()
+
+class Population(list):
+
+	def __init__(self, CG1, Ld):
+		self.CG1 = CG1
+		self.mesh = CG1.mesh()
+		self.Ld = Ld
+
+		# Allocate a list of particles for each cell
+		for cell in cells(self.mesh):
+			self.append(list())
+
+		# Create a list of sets of neighbors for each cell
+		self.tDim = self.mesh.topology().dim()
+		self.gDim = self.mesh.geometry().dim()
+		self.mesh.init(0, self.tDim)
+		self.tree = self.mesh.bounding_box_tree()
+		self.neighbors = list()
+		for cell in cells(self.mesh):
+			neigh = sum([vertex.entities(self.tDim).tolist() for vertex in vertices(cell)], [])
+			neigh = set(neigh) - set([cell.index()])
+			self.neighbors.append(neigh)
+
+		# Allocate some MPI stuff
+		self.num_processes = comm.Get_size()
+		self.myrank = comm.Get_rank()
+		self.all_processes = list(range(self.num_processes))
+		self.other_processes = list(range(self.num_processes))
+		self.other_processes.remove(self.myrank)
+		self.my_escaped_particles = np.zeros(1, dtype='I')
+		self.tot_escaped_particles = np.zeros(self.num_processes, dtype='I')
+		# Dummy particle for receiving/sending at [0, 0, ...]
+		vZero = np.zeros(self.gDim)
+		self.particle0 = Particle(vZero,vZero,1,1)
+
+		self.compVoronoi(Ld)
+
+	def compVoronoi(self, Ld, bnd="periodic"):
+
+		assert bnd=="periodic"
 
 		mesh = self.CG1.mesh()
 		vertices = mesh.coordinates()
@@ -163,32 +304,35 @@ class Punc(object):
 		vertices = vertices[sortIndices]
 
 		nDims = len(Ld)
-		limits = np.zeros([nDims,2])# - 0.001
-		limits[:,1] = Ld            # + 0.001
+		limits = np.zeros([nDims,2])
+		limits[:,1] = Ld
 
-		# ~5 particles per block yields better performance. Thus correctness of
-		# Npc is not actually important.
-		nParticles = Npc*self.mesh.num_cells()
+		# ~5 particles (vertices) per block yields better performance.
+		nParticles = self.mesh.num_vertices()
 		nBlocks = nParticles/5.0
 		nBlocksPerDim = int(nBlocks**(1/nDims)) # integer feels safer
 		blockSize = np.prod(Ld)**(1/nDims)/nBlocksPerDim
 
+		if nParticles>24000:
+			print("Warning: The pyvoro library often experience problems with many particles. This despite the fact that voro++ should be well suited for big problems.")
+
+		if nDims==1:
+			error("1D voronoi not implemented yet")
 		if nDims==2:
 			voronoi = pyvoro.compute_2d_voronoi(vertices,limits,blockSize,periodic=[True]*2)
 		if nDims==3:
 			voronoi = pyvoro.compute_voronoi(vertices,limits,blockSize,periodic=[True]*3)
 
-		dvArr = [vcell['volume'] for vcell in voronoi]
+		#dvArr = [vcell['volume'] for vcell in voronoi]
 		dvInvArr = [vcell['volume']**(-1) for vcell in voronoi]
 
-		self.dv = Function(self.CG1)
+		#self.dv = Function(self.CG1)
 		self.dvInv = Function(self.CG1)
 
 		# There must be some way to avoid this loop
-		for i in range(len(dvArr)):
-			self.dv.vector()[i] = dvArr[i]
+		for i in range(len(dvInvArr)):
+			#self.dv.vector()[i] = dvArr[i]
 			self.dvInv.vector()[i] = dvInvArr[i]
-
 
 		# self.dv is now a FEniCS function which on the vertices of the FEM mesh
 		# equals the volume of the Voronoi cells created from those vertices.
@@ -196,377 +340,34 @@ class Punc(object):
 		# cheaper to multiply by its inverse we've computed self.dvInv too.
 		# We actually don't need self.dv except for debugging.
 
-	def solve(self):
-
-		L = self.rho*self.phi_*dx
-		b = assemble(L)
-		self.null_space.orthogonalize(b);
-
-		self.solver.solve(self.phi.vector(), b)
-
-		self.E = project(-grad(self.phi), self.CG1V)
-
-	def accel(self,dt):
-
-		KE = 0.0
-
-		pop = self.pop
-
-		for c in cells(self.mesh):
-
-			self.E.restrict(pop.CG1Vcoefficients,
-							pop.CG1Velement,
-							c,
-							c.get_vertex_coordinates(),
-							c)
-
-			for p in pop[c.index()]:
-				pop.CG1Velement.evaluate_basis_all(	pop.CG1Vbasis_matrix,
-													p.pos,
-													c.get_vertex_coordinates(),
-													c.orientation())
-
-				Ei = np.dot(pop.CG1Vcoefficients, pop.CG1Vbasis_matrix)[:]
-
-				m = p.properties['m']
-				qm = p.properties['qm']
-
-				inc = dt*qm*Ei
-				vel = p.vel
-
-				KE += 0.5*m*np.dot(vel,vel+inc)
-
-				p.vel += inc
-
-		return KE
-
-	def kineticEnergy(self):
-		# Computes kinetic energy at current velocity time step.
-		# Useful for the first (zeroth) time step before velocity has between
-		# advanced half a timestep. To get velocity between two velocity time
-		# steps (e.g. at integer steps after the start-up) use accel() return.
-		KE = 0
-		for cell in self.pop:
-			for particle in cell:
-				m = particle.properties['m']
-				vel = particle.vel
-				KE += 0.5*m*np.dot(vel,vel)
-		return KE
-
-	def movePeriodic(self,dt,L):
-		for cell in self.pop:
-			for particle in cell:
-				particle.pos += dt*particle.vel
-				particle.pos %= L
-		self.pop.relocate()
-
-	def potEnergy(self):
-
-		PE = 0
-		pop = self.pop
-
-		for c in cells(self.mesh):
-			self.phi.restrict(	pop.CG1coefficients,
-								pop.CG1element,
-								c,
-								c.get_vertex_coordinates(),
-								c)
-
-			for p in pop[c.index()]:
-				pop.CG1element.evaluate_basis_all(	pop.CG1basis_matrix,
-													p.pos,
-													c.get_vertex_coordinates(),
-													c.orientation())
-
-				phii = np.dot(pop.CG1coefficients, pop.CG1basis_matrix)[:]
-
-				q = p.properties['q']
-				PE += 0.5*q*phii
-
-		return PE
-
-	def distr(self,da,method='CG1voro'):
-		assert method in ['CG1','DG0','CG1voro']
-		# da is the area/volume assumed to be constant, used only by CG1
-
-		pop = self.pop
-		self.rho = Function(self.CG1)	# Sets to zero
-
-		if method == 'DG0':
-			rhoD = Function(D)
-
-			for c in cells(self.mesh):
-				cindex = c.index()
-				dofindex = self.DG0.dofmap().cell_dofs(cindex)[0]
-				cellcharge = 0
-				da = c.volume()
-				for particle in pop[cindex]:
-					cellcharge += particle.properties['q']/da
-				rhoD.vector()[dofindex] = cellcharge
-
-			self.rho = project(rhoD,self.CG1)
-
-		if method == 'CG1':
-
-			for c in cells(self.mesh):
-				cindex = c.index()
-				dofindex = self.CG1.dofmap().cell_dofs(cindex)
-
-				accum = np.zeros(3)
-				for p in pop[cindex]:
-
-					pop.Selement.evaluate_basis_all(	pop.Sbasis_matrix,
-														p.pos,
-														c.get_vertex_coordinates(),
-														c.orientation())
-
-					q=p.properties['q']
-					accum += (q/da)*pop.Sbasis_matrix.T[0]
-
-				self.rho.vector()[dofindex] += accum
-
-		if method == 'CG1voro':
-
-			for c in cells(self.mesh):
-				cindex = c.index()
-				dofindex = self.CG1.dofmap().cell_dofs(cindex)
-
-				accum = np.zeros(3)
-				for p in pop[cindex]:
-
-					pop.CG1element.evaluate_basis_all(	pop.CG1basis_matrix,
-														p.pos,
-														c.get_vertex_coordinates(),
-														c.orientation())
-
-					q=p.properties['q']
-					accum += q*pop.CG1basis_matrix.T[0]
-
-				self.rho.vector()[dofindex] += accum
-
-			# Divide by area/volume
-			self.rho.vector()[:] *= self.dvInv.vector()
-
-def myPlot(u,fName):
-	mesh = u.function_space().mesh()
-	x = mesh.coordinates()[:,0]
-	v = u.compute_vertex_values(mesh)
-	y = mesh.coordinates()[:,1]
-	t = mesh.cells()
-
-	fig = plt.figure(figsize=(5,5))
-	ax  = fig.add_subplot(111)
-
-	c = ax.tricontourf(x, y, t, v)
-	fig.savefig(fName)
-
-class PeriodicBoundary(SubDomain):
-
-	def __init__(self, Ld):
-		SubDomain.__init__(self)
-		self.Ld = Ld
-
-	# Target domain
-	def inside(self, x, onBnd):
-		return bool(		any([near(a,0) for a in x])					# On any lower bound
-					and not any([near(a,b) for a,b in zip(x,self.Ld)])	# But not any upper bound
-					and onBnd)
-
-	# Map upper edges to lower edges
-	def map(self, x, y):
-		y[:] = [a-b if near(a,b) else a for a,b in zip(x,self.Ld)]
-
-class Particle:
-	__slots__ = ['pos', 'vel', 'properties']		# changed
-	'Lagrangian particle with pos and some other passive properties.'
-	def __init__(self, x, v=0):
-		if(isinstance(x,Particle)): return x
-		self.pos = np.array(x)
-		if(v==0): v=np.zeros(len(x))
-		self.vel = np.array(v)
-		self.properties = {}
-
-	def send(self, dest):
-		'Send particle to dest.'
-		comm.Send(self.pos, dest=dest)
-		comm.Send(self.vel, dest=dest)					# new
-		comm.send(self.properties, dest=dest)
-
-	def recv(self, source):
-		'Receive info of a new particle sent from source.'
-		comm.Recv(self.pos, source=source)
-		comm.Recv(self.vel, source=source)				# new
-		self.properties = comm.recv(source=source)
-
-class Population(list):
-	'Particles moved by the vel field in CG1V.'
-	def __init__(self, CG1, CG1V):
-		self.__debug = __DEBUG__
-
-		self.CG1 = CG1
-		self.mesh = CG1.mesh()
-		self.dim = self.mesh.topology().dim()
-#		self.mesh.init(2, 2)  # Cell-cell connectivity for neighbors of cell
-		self.mesh.init(0, self.dim)
-		self.tree = self.mesh.bounding_box_tree()  # Tree for isection comput.
-
-		# Create a list for each cell
-		for cell in cells(self.mesh):
-			self.append(list())
-
-		# Allocate some variables used to look up the vel
-		# vel is computed as U_i*basis_i where i is the dimension of
-		# element function space, U are coefficients and basis_i are element
-		# function space basis functions. For interpolation in cell it is
-		# advantageous to compute the resctriction once for cell and only
-		# update basis_i(x) depending on x, i.e. particle where we make
-		# interpolation. This updaea mounts to computing the basis matrix
-
-		self.CG1Velement = CG1V.dolfin_element()
-		self.CG1Vnum_tensor_entries = 1
-		for i in range(self.CG1Velement.value_rank()):
-			self.CG1Vnum_tensor_entries *= self.CG1Velement.value_dimension(i)
-		# For VectorFunctionSpace CG1 this is 3
-		self.CG1Vcoefficients = np.zeros(self.CG1Velement.space_dimension())
-		# For VectorFunctionSpace CG1 this is 3x3
-		self.CG1Vbasis_matrix = np.zeros((self.CG1Velement.space_dimension(),
-									  self.CG1Vnum_tensor_entries))
-
-		self.CG1element = CG1.dolfin_element()
-		self.CG1num_tensor_entries = 1
-		for i in range(self.CG1element.value_rank()):
-			self.CG1num_tensor_entries *= self.CG1element.value_dimension(i)
-		# For VectorFunctionSpace CG1 this is 3
-		self.CG1coefficients = np.zeros(self.CG1element.space_dimension())
-		# For VectorFunctionSpace CG1 this is 3x3
-		self.CG1basis_matrix = np.zeros((self.CG1element.space_dimension(),
-									  self.CG1num_tensor_entries))
-
-		# Create a list of a set of neighbors for each cell
-		self.neighbors = list()
-		for cell in cells(self.mesh):
-			neigh = sum([vertex.entities(self.dim).tolist() for vertex in vertices(cell)], [])
-			neigh = set(neigh) - set([cell.index()])
-			self.neighbors.append(neigh)
-
-		# Allocate a dictionary to hold all particles
-
-		# Allocate some MPI stuff
-		self.num_processes = comm.Get_size()
-		self.myrank = comm.Get_rank()
-		self.all_processes = list(range(self.num_processes))
-		self.other_processes = list(range(self.num_processes))
-		self.other_processes.remove(self.myrank)
-		self.my_escaped_particles = np.zeros(1, dtype='I')
-		self.tot_escaped_particles = np.zeros(self.num_processes, dtype='I')
-		# Dummy particle for receiving/sending at [0, 0, ...]
-		self.particle0 = Particle(np.zeros(self.mesh.geometry().dim()))
-
-	def addParticles(self, list_of_particles, properties_d=None, listVel = 0):
-		'''Add particles and search for their home on all processors.
-		   Note that list_of_particles must be same on all processes. Further
-		   every len(properties[property]) must equal len(list_of_particles).
-		'''
-		if properties_d is not None:
-			n = len(list_of_particles)
-			assert all(len(sub_list) == n
-					   for sub_list in properties_d.itervalues())
-			# Dictionary that will be used to feed properties of single
-			# particles
-			properties = properties_d.keys()
-			particle_properties = dict((key, 0) for key in properties)
-
-			has_properties = True
-		else:
-			has_properties = False
-
-		my_found = np.zeros(len(list_of_particles), 'I')
-		all_found = np.zeros(len(list_of_particles), 'I')
-		for i, particle in enumerate(list_of_particles):
-			c = self.locate(particle)
-			if not (c == -1 or c == __UINT32_MAX__):
+	def addParticles(self, xs, vs, qs, ms):
+		# Adds particles to the population and locates them on their home
+		# processor. xs is a list/array of position vectors. vs, qs and ms may
+		# be lists/arrays of velocity vectors, charges, and masses,
+		# respectively, or they may be only a single velocity vector, mass
+		# and/or charge if all particles should have the same value.
+
+		# Expand input to lists/arrays if necessary
+		if len(np.array(vs).shape)==1: vs = np.tile(vs,(len(xs),1))
+		if not isinstance(qs, (np.ndarray,list)): qs *= np.ones(len(xs))
+		if not isinstance(ms, (np.ndarray,list)): ms *= np.ones(len(xs))
+
+		# Keep track of which particles are located locally and globally
+		my_found = np.zeros(len(xs), np.int)
+		all_found = np.zeros(len(xs), np.int)
+
+		for i, x, v, q, m in zip(count(), xs, vs, qs, ms):
+			cell = self.locate(x)
+			if not (cell == -1 or cell == __UINT32_MAX__):
 				my_found[i] = True
-
-				self[c].append(Particle(particle))
-
-				if has_properties:
-					# Get values of properties for this particle
-					for key in properties:
-						particle_properties[key] = properties_d[key][i]
-					self[c][-1].properties.update(particle_properties)
+				self[cell].append(Particle(x, v, q, m))
 
 		# All particles must be found on some process
 		comm.Reduce(my_found, all_found, root=0)
 
 		if self.myrank == 0:
-			missing = np.where(all_found == 0)[0]
-			n_missing = len(missing)
-
-			assert n_missing == 0,\
-				'%d particles are not located in mesh' % n_missing
-
-			# Print particle info
-			if self.__debug:
-				for i in missing:
-					print('Missing', list_of_particles[i].pos)
-
-				n_duplicit = len(np.where(all_found > 1)[0])
-				print('There are %d duplicit particles' % n_duplicit)
-
-	def setMaxwellian(self,vth,vd):
-		for cell in self:
-			for particle in cell:
-				particle.vel = np.random.normal(vd,vth,len(particle.vel))
-
-	def addSine(self,Np,Ld,amp,method='random'):
-		assert method in ['random','lattice']
-
-		q = np.array([-1., 1.])
-		m = np.array([1., 1836.])
-
-		multiplicity = (np.prod(Ld)/np.prod(Np))*m[0]/(q[0]**2)
-		q *= multiplicity
-		m *= multiplicity
-		qm = q/m
-
-		if method=='random':
-			# Electrons
-			pos = RandomRectangle(Point(0,0),Point(Ld)).generate(Np)
-			pos[:,0] += amp*np.sin(pos[:,0])
-			qTemp = q[0]*np.ones(len(pos))
-			mTemp = m[0]*np.ones(len(pos))
-			qmTemp = qm[0]*np.ones(len(pos))
-			self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
-
-			# Ions
-			pos = RandomRectangle(Point(0,0),Point(Ld)).generate(Np)
-			qTemp = q[1]*np.ones(len(pos))
-			mTemp = m[1]*np.ones(len(pos))
-			qmTemp = qm[1]*np.ones(len(pos))
-			self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
-
-		if method=='lattice':
-
-			x = np.arange(0,Ld[0],Ld[0]/Np[0])
-			y = np.arange(0,Ld[1],Ld[1]/Np[1])
-			x += amp*np.sin(x)
-			xcart = np.tile(x,Np[1])
-			ycart = np.repeat(y,Np[0])
-			pos = np.c_[xcart,ycart]
-			qTemp = q[0]*np.ones(len(pos))
-			mTemp = m[0]*np.ones(len(pos))
-			qmTemp = qm[0]*np.ones(len(pos))
-			self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
-
-			x = np.arange(0,Ld[0],Ld[0]/Np[0])
-			y = np.arange(0,Ld[1],Ld[1]/Np[1])
-			xcart = np.tile(x,Np[1])
-			ycart = np.repeat(y,Np[0])
-			pos = np.c_[xcart,ycart]
-			qTemp = q[1]*np.ones(len(pos))
-			mTemp = m[1]*np.ones(len(pos))
-			qmTemp = qm[1]*np.ones(len(pos))
-			self.addParticles(pos,{'q':qTemp,'qm':qmTemp,'m':mTemp})
+			nMissing = len(np.where(all_found == 0)[0])
+			assert nMissing==0,'%d particles are not located in mesh'%nMissing
 
 	def relocate(self):
 		# Relocate particles on cells and processors
@@ -649,149 +450,104 @@ class Population(list):
 		assert isinstance(particle, (Particle, np.ndarray))
 		if isinstance(particle, Particle):
 			# Convert particle to point
-			point = Point(*particle.pos)
-			return self.tree.compute_first_entity_collision(point)
+			point = Point(*particle.x)
 		else:
-			return self.locate(Particle(particle))
+			point = Point(*particle)
+		return self.tree.compute_first_entity_collision(point)
 
-	def scatter(self, fig, skip=1):
-		'Scatter plot of all particles on process 0'
-		import matplotlib.colors as colors
-		import matplotlib.cm as cmx
+	def distr(self,rho):
+		# rho assumed to be CG1
 
-		ax = fig.gca()
+		element = self.CG1.dolfin_element()
+		sDim = element.space_dimension() # Number of nodes per element
+		basisMatrix = np.zeros((sDim,1))
 
-		p_map = self.particle_map
-		all_particles = np.zeros(self.num_processes, dtype='I')
-		my_particles = p_map.total_number_of_particles()
-		# Root learns about count of particles on all processes
-		comm.Gather(np.array([my_particles], 'I'), all_particles, root=0)
+		rho.vector()[:] = 0
 
-		# Slaves should send to master
-		if self.myrank > 0:
-			for cwp in p_map.itervalues():
-				for p in cwp.particles:
-					p.send(0)
-		else:
-			# Receive on master
-			received = defaultdict(list)
-			received[0] = [copy.copy(p.pos)
-						   for cwp in p_map.itervalues()
-						   for p in cwp.particles]
-			for proc in self.other_processes:
-				# Receive all_particles[proc]
-				for j in range(all_particles[proc]):
-					self.particle0.recv(proc)
-					received[proc].append(copy.copy(self.particle0.pos))
+		for cell in cells(self.mesh):
+			cellindex = cell.index()
+			dofindex = self.CG1.dofmap().cell_dofs(cellindex)
 
-			cmap = cmx.get_cmap('jet')
-			cnorm = colors.Normalize(vmin=0, vmax=self.num_processes)
-			scalarMap = cmx.ScalarMappable(norm=cnorm, cmap=cmap)
+			accum = np.zeros(sDim)
+			for particle in self[cellindex]:
 
-			for proc in received:
-				# Plot only if there is something to plot
-				particles = received[proc]
-				if len(particles) > 0:
-					xy = np.array(particles)
+				element.evaluate_basis_all(	basisMatrix,
+											particle.x,
+											cell.get_vertex_coordinates(),
+											cell.orientation())
 
-					ax.scatter(xy[::skip, 0], xy[::skip, 1],
-							   label='%d' % proc,
-							   c=scalarMap.to_rgba(proc),
-							   edgecolor='none')
-			ax.legend(loc='best')
-			ax.axis([0, 1, 0, 1])
+				accum += particle.q * basisMatrix.T[0]
 
-	def bar(self, fig):
-		'Bar plot of particle distribution.'
-		ax = fig.gca()
+			rho.vector()[dofindex] += accum
 
-		p_map = self.particle_map
-		all_particles = np.zeros(self.num_processes, dtype='I')
-		my_particles = p_map.total_number_of_particles()
-		# Root learns about count of particles on all processes
-		comm.Gather(np.array([my_particles], 'I'), all_particles, root=0)
+		# Divide by volume of Voronoi cell
+		rho.vector()[:] *= self.dvInv.vector()
 
-		if self.myrank == 0 and self.num_processes > 1:
-			ax.bar(np.array(self.all_processes)-0.25, all_particles, 0.5)
-			ax.set_xlabel('proc')
-			ax.set_ylabel('number of particles')
-			ax.set_xlim(-0.25, max(self.all_processes)+0.25)
-			return np.sum(all_particles)
-		else:
-			return None
+class Particle:
+	__slots__ = ['x', 'v', 'q', 'm']
+	def __init__(self, x, v, q, m):
+		assert(q!=0 and m!=0)
+		self.x = np.array(x)	# Position vector
+		self.v = np.array(v)	# Velocity vector
+		self.q = q				# Charge
+		self.m = m				# Mass
 
-# Simple initializers for particle poss
+	def send(self, dest):
+		comm.Send(self.x, dest=dest)
+		comm.Send(self.v, dest=dest)
+		comm.Send(self.q, dest=dest)
+		comm.Send(self.m, dest=dest)
 
-from math import pi, sqrt
-from itertools import product
+	def recv(self, source):
+		comm.Recv(self.x, source=source)
+		comm.Recv(self.v, source=source)
+		comm.Recv(self.q, source=source)
+		comm.Recv(self.m, source=source)
 
-comm = pyMPI.COMM_WORLD
+class PeriodicBoundary(SubDomain):
 
-class RandomGenerator(object):
-	'''
-	Fill object by random points.
-	'''
-	def __init__(self, domain, rule):
-		'''
-		Domain specifies bounding box for the shape and is used to generate
-		points. The rule filter points of inside the bounding box that are
-		axctually inside the shape.
-		'''
-		assert isinstance(domain, list)
-		self.domain = domain
-		self.rule = rule
-		self.dim = len(domain)
-		self.rank = comm.Get_rank()
+	def __init__(self, Ld):
+		SubDomain.__init__(self)
+		self.Ld = Ld
 
-	def generate(self, N, method='full'):
-		'Genererate points.'
-		assert (isinstance(N,int) and method == 'full') or len(N) == self.dim
-		assert method in ['full', 'tensor']
+	# Target domain
+	def inside(self, x, onBnd):
+		return bool(		any([near(a,0) for a in x])					# On any lower bound
+					and not any([near(a,b) for a,b in zip(x,self.Ld)])	# But not any upper bound
+					and onBnd)
 
-		if self.rank == 0:
-			# Generate random points for all coordinates
-			if method == 'full':
-				n_points = np.product(N)
-				points = np.random.rand(n_points, self.dim)
-				for i, (a, b) in enumerate(self.domain):
-					points[:, i] = a + points[:, i]*(b-a)
-			# Create points by tensor product of intervals
-			else:
-				# Values from [0, 1) used to create points between
-				# a, b - boundary
-				# points in each of the directiosn
-				shifts_i = np.array([np.random.rand(n) for n in N])
-				# Create candidates for each directions
-				points_i = (a+shifts_i[i]*(b-a)
-							for i, (a, b) in enumerate(self.domain))
-				# Cartesian product of directions yield n-d points
-				points = (np.array(point) for point in product(*points_i))
+	# Map upper edges to lower edges
+	def map(self, x, y):
+		y[:] = [a-b if near(a,b) else a for a,b in zip(x,self.Ld)]
 
+def randomPoints(pdf, Ld, N, pdfMax=1):
+	# Creates an array of N points randomly distributed according to pdf in a
+	# domain size given by Ld (and starting in the origin) using the Monte
+	# Carlo method. The pdf is assumed to have a max-value of 1 unless
+	# otherwise specified. Useful for creating arrays of position/velocity
+	# vectors of various distributions.
 
-			# Use rule to see which points are inside
-			points_inside = np.array(filter(self.rule, points))
-		else:
-			points_inside = None
+	Ld = np.array(Ld) # In case it's a list
+	dim = len(Ld)
+	points = np.array([]).reshape(0,dim)
 
-		points_inside = comm.bcast(points_inside, root=0)
+	while len(points)<N:
 
-		return points_inside
+		# Creates missing points
+		n = N-len(points)
+		newPoints = np.random.rand(n,dim+1) # Last value to be compared with pdf
+		newPoints *= np.append(Ld,pdfMax)	# Stretch axes
 
+		# Only keep points below pdf
+		newPoints = [x[0:dim] for x in newPoints if x[dim]<pdf(x[0:dim])]
+		newPoints = np.array(newPoints).reshape(-1,dim)
+		points = np.concatenate([points,newPoints])
 
-class RandomRectangle(RandomGenerator):
-	def __init__(self, ll, ur):
-		ax, ay = ll.x(), ll.y()
-		bx, by = ur.x(), ur.y()
-		assert ax < bx and ay < by
-		RandomGenerator.__init__(self, [[ax, bx], [ay, by]], lambda x: True)
+	return points
 
-
-class RandomCircle(RandomGenerator):
-	def __init__(self, center, radius):
-		assert radius > 0
-		domain = [[center[0]-radius, center[0]+radius],
-				  [center[1]-radius, center[1]+radius]]
-		RandomGenerator.__init__(self, domain,
-								 lambda x: sqrt((x[0]-center[0])**2 +
-												(x[1]-center[1])**2) < radius
-								 )
+def maxwellian(vd, vth, N):
+	# Returns N maxwellian velocity vectors with drift and thermal velocities
+	# vd and vth, respectively. If you have a list/array of position vectors
+	# pos an equivalen way to create them would be
+	# 	np.random.normal(vd, vth, pos.shape)
+	return np.random.normal(vd, vth, (N,len(vd)) )
