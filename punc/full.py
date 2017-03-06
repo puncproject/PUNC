@@ -1,1 +1,0 @@
-from punc.poisson import *
