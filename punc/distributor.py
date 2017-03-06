@@ -12,7 +12,7 @@ if sys.version_info.major == 2:
 	range = xrange
 
 #import dolfin as df
-from dolfin import *
+import dolfin as df
 import numpy as np
 import pyvoro
 
@@ -26,12 +26,12 @@ class Distributor:
 		self.mesh = V.mesh()
 
 		vertices = self.mesh.coordinates()
-		dofs = vertex_to_dof_map(self.V)
+		dofs = df.vertex_to_dof_map(self.V)
 
 		# Remove those on upper bound (admittedly inefficient)
 		i = 0
 		while i<len(vertices):
-			if any([near(a,b) for a,b in zip(vertices[i],list(Ld))]):
+			if any([df.near(a,b) for a,b in zip(vertices[i],list(Ld))]):
 				vertices = np.delete(vertices,[i],axis=0)
 				dofs = np.delete(dofs,[i],axis=0)
 			else:
@@ -64,8 +64,8 @@ class Distributor:
 		#dvArr = [vcell['volume'] for vcell in voronoi]
 		dvInvArr = [vcell['volume']**(-1) for vcell in voronoi]
 
-		#self.dv = Function(self.V)
-		self.dvInv = Function(self.V)
+		#self.dv = df.Function(self.V)
+		self.dvInv = df.Function(self.V)
 
 		# There must be some way to avoid this loop
 		for i in range(len(dvInvArr)):
@@ -85,9 +85,9 @@ class Distributor:
 		sDim = element.space_dimension() # Number of nodes per element
 		basisMatrix = np.zeros((sDim,1))
 
-		rho = Function(self.V)
+		rho = df.Function(self.V)
 
-		for cell in cells(self.mesh):
+		for cell in df.cells(self.mesh):
 			cellindex = cell.index()
 			dofindex = self.V.dofmap().cell_dofs(cellindex)
 

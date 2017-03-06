@@ -13,7 +13,7 @@ if sys.version_info.major == 2:
 	range = xrange
 
 #import dolfin as df
-from dolfin import *
+import dolfin as df
 import numpy as np
 from mpi4py import MPI as pyMPI
 from collections import defaultdict
@@ -51,7 +51,7 @@ class Population(list):
 		self.mesh = mesh
 
 		# Allocate a list of particles for each cell
-		for cell in cells(self.mesh):
+		for cell in df.cells(self.mesh):
 			self.append(list())
 
 		# Create a list of sets of neighbors for each cell
@@ -60,8 +60,8 @@ class Population(list):
 		self.mesh.init(0, self.tDim)
 		self.tree = self.mesh.bounding_box_tree()
 		self.neighbors = list()
-		for cell in cells(self.mesh):
-			neigh = sum([vertex.entities(self.tDim).tolist() for vertex in vertices(cell)], [])
+		for cell in df.cells(self.mesh):
+			neigh = sum([vertex.entities(self.tDim).tolist() for vertex in df.vertices(cell)], [])
 			neigh = set(neigh) - set([cell.index()])
 			self.neighbors.append(neigh)
 
@@ -128,17 +128,17 @@ class Population(list):
 		i.e. new destination of particles formerly in old_cell
 		"""
 		new_cell_map = defaultdict(list)
-		for dfCell in cells(self.mesh):
+		for dfCell in df.cells(self.mesh):
 			cindex = dfCell.index()
 			cell = self[cindex]
 			for i, particle in enumerate(cell):
-				point = Point(*particle.x)
+				point = df.Point(*particle.x)
 				# Search only if particle moved outside original cell
 				if not dfCell.contains(point):
 					found = False
 					# Check neighbor cells
 					for neighbor in self.neighbors[dfCell.index()]:
-						if Cell(self.mesh,neighbor).contains(point):
+						if df.Cell(self.mesh,neighbor).contains(point):
 							new_cell_id = neighbor
 							found = True
 							break
@@ -203,10 +203,10 @@ class Population(list):
 		'Find mesh cell that contains particle.'
 		assert isinstance(particle, (Particle, np.ndarray))
 		if isinstance(particle, Particle):
-			# Convert particle to point
-			point = Point(*particle.x)
+					# Convert particle to point
+			point = df.Point(*particle.x)
 		else:
-			point = Point(*particle)
+			point = df.Point(*particle)
 		return self.tree.compute_first_entity_collision(point)
 
 def stdSpecie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):

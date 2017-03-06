@@ -11,8 +11,7 @@ if sys.version_info.major == 2:
 	from itertools import izip as zip
 	range = xrange
 
-#import dolfin as df
-from dolfin import *
+import dolfin as df
 import numpy as np
 
 def accel(pop, E, dt):
@@ -26,7 +25,7 @@ def accel(pop, E, dt):
 	coefficients = np.zeros(sDim)
 
 	KE = 0.0
-	for cell in cells(mesh):
+	for cell in df.cells(mesh):
 
 		E.restrict(	coefficients,
 					element,

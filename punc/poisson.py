@@ -10,60 +10,60 @@ if sys.version_info.major == 2:
 	range = xrange
 
 #import dolfin as df
-from dolfin import *
+import dolfin as df
 import numpy as np
 
-class PeriodicBoundary(SubDomain):
+class PeriodicBoundary(df.SubDomain):
 
 	def __init__(self, Ld):
-		SubDomain.__init__(self)
+		df.SubDomain.__init__(self)
 		self.Ld = Ld
 
 	# Target domain
 	def inside(self, x, onBnd):
-		return bool(		any([near(a,0) for a in x])					# On any lower bound
-					and not any([near(a,b) for a,b in zip(x,self.Ld)])	# But not any upper bound
+		return bool(		any([df.near(a,0) for a in x])					# On any lower bound
+					and not any([df.near(a,b) for a,b in zip(x,self.Ld)])	# But not any upper bound
 					and onBnd)
 
 	# Map upper edges to lower edges
 	def map(self, x, y):
-		y[:] = [a-b if near(a,b) else a for a,b in zip(x,self.Ld)]
+		y[:] = [a-b if df.near(a,b) else a for a,b in zip(x,self.Ld)]
 
 class PoissonSolver:
 
 	def __init__(self, V):
 
-		self.solver = PETScKrylovSolver('gmres', 'hypre_amg')
+		self.solver = df.PETScKrylovSolver('gmres', 'hypre_amg')
 		self.solver.parameters['absolute_tolerance'] = 1e-14
 		self.solver.parameters['relative_tolerance'] = 1e-12
 		self.solver.parameters['maximum_iterations'] = 1000
 
 		self.V = V
 
-		phi = TrialFunction(V)
-		phi_ = TestFunction(V)
+		phi = df.TrialFunction(V)
+		phi_ = df.TestFunction(V)
 
-		a = inner(nabla_grad(phi), nabla_grad(phi_))*dx
-		A = assemble(a)
+		a = df.inner(df.nabla_grad(phi), df.nabla_grad(phi_))*df.dx
+		A = df.assemble(a)
 
 		self.solver.set_operator(A)
 		self.phi_ = phi_
 
-		phi = Function(V)
-		null_vec = Vector(phi.vector())
+		phi = df.Function(V)
+		null_vec = df.Vector(phi.vector())
 		V.dofmap().set(null_vec, 1.0)
 		null_vec *= 1.0/null_vec.norm("l2")
 
-		self.null_space = VectorSpaceBasis([null_vec])
-		as_backend_type(A).set_nullspace(self.null_space)
+		self.null_space = df.VectorSpaceBasis([null_vec])
+		df.as_backend_type(A).set_nullspace(self.null_space)
 
 	def solve(self, rho):
 
-		L = rho*self.phi_*dx
-		b = assemble(L)
+		L = rho*self.phi_*df.dx
+		b = df.assemble(L)
 		self.null_space.orthogonalize(b);
 
-		phi = Function(self.V)
+		phi = df.Function(self.V)
 		self.solver.solve(phi.vector(), b)
 
 		return phi
@@ -73,5 +73,5 @@ def EField(phi):
 	mesh = V.mesh()
 	degree = V.ufl_element().degree()
 	constr = V.constrained_domain
-	W = VectorFunctionSpace(mesh, 'CG', degree, constrained_domain=constr)
-	return project(-grad(phi), W)
+	W = df.VectorFunctionSpace(mesh, 'CG', degree, constrained_domain=constr)
+	return df.project(-df.grad(phi), W)

@@ -11,8 +11,7 @@ if sys.version_info.major == 2:
 	from itertools import izip as zip
 	range = xrange
 
-#import dolfin as df
-from dolfin import *
+import dolfin as df
 import numpy as np
 
 def kineticEnergy(pop):
@@ -40,7 +39,7 @@ def potentialEnergy(pop,phi):
 	basisMatrix = np.zeros((sDim,1))
 	coefficients = np.zeros(sDim)
 
-	for cell in cells(pop.mesh):
+	for cell in df.cells(pop.mesh):
 		phi.restrict(	coefficients,
 						element,
 						cell,
