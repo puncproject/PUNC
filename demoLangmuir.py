@@ -9,6 +9,7 @@ if sys.version_info.major == 2:
 from dolfin import *
 from punc import *
 from numpy import pi
+import numpy as np
 from matplotlib import pyplot as plt
 
 #==============================================================================
