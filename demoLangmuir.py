@@ -3,8 +3,8 @@
 from __future__ import print_function, division
 import sys
 if sys.version_info.major == 2:
-	from itertools import izip as zip
-	range = xrange
+    from itertools import izip as zip
+    range = xrange
 
 from dolfin import *
 from punc import *
@@ -16,9 +16,9 @@ from matplotlib import pyplot as plt
 # INITIALIZING FENICS
 #------------------------------------------------------------------------------
 
-nDims = 2							# Number of dimensions
-Ld = 6.28*np.ones(nDims)			# Length of domain
-Nr = 32*np.ones(nDims,dtype=int)	# Number of 'rectangles' in mesh
+nDims = 2                           # Number of dimensions
+Ld = 6.28*np.ones(nDims)            # Length of domain
+Nr = 32*np.ones(nDims,dtype=int)    # Number of 'rectangles' in mesh
 
 #mesh = RectangleMesh(Point(0,0),Point(Ld),*Nr)
 mesh = Mesh("mesh/nonuniform.xml")
@@ -43,13 +43,13 @@ PE = np.zeros(N-1)
 KE0 = kineticEnergy(pop)
 
 for n in range(1,N):
-	print("Computing timestep %d/%d"%(n,N-1))
-	rho = distr.distr(pop)
-	phi = poisson.solve(rho)
-	E = EField(phi)
-	PE[n-1] = potentialEnergy(pop, phi)
-	KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
-	movePeriodic(pop,Ld,dt)
+    print("Computing timestep %d/%d"%(n,N-1))
+    rho = distr.distr(pop)
+    phi = poisson.solve(rho)
+    E = EField(phi)
+    PE[n-1] = potentialEnergy(pop, phi)
+    KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
+    movePeriodic(pop,Ld,dt)
 
 KE[0] = KE0
 
