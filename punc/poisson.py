@@ -46,7 +46,7 @@ def dirichlet_bcs(V, facet_f, n_components = 0, phi0 = df.Constant(0.0), E0 = No
         bcs.append(bc0)
     return bcs
 
-class PoissonSolver:
+class PoissonSolverPeriodic:
 
 	def __init__(self, V):
 
@@ -74,47 +74,10 @@ class PoissonSolver:
 		self.null_space = df.VectorSpaceBasis([null_vec])
 		df.as_backend_type(A).set_nullspace(self.null_space)
 
-	def solve(self, rho):
-
-		L = rho*self.phi_*df.dx
-		b = df.assemble(L)
-		self.null_space.orthogonalize(b);
-
-		phi = df.Function(self.V)
-		self.solver.solve(phi.vector(), b)
-
-		return phi
-
-class PoissonSolverPeriodic:
-
-    def __init__(self, V):
-
-        self.solver = df.PETScKrylovSolver('gmres', 'hypre_amg')
-        self.solver.parameters['absolute_tolerance'] = 1e-14
-        self.solver.parameters['relative_tolerance'] = 1e-12
-        self.solver.parameters['maximum_iterations'] = 1000
-
-        self.V = V
-
-        phi = df.TrialFunction(V)
-        phi_ = df.TestFunction(V)
-
-        self.a = df.inner(df.nabla_grad(phi), df.nabla_grad(phi_))*df.dx
-        A = df.assemble(self.a)
-
-        self.solver.set_operator(A)
-        self.phi_ = phi_
-
-        phi = df.Function(V)
-        null_vec = df.Vector(phi.vector())
-        V.dofmap().set(null_vec, 1.0)
-        null_vec *= 1.0/null_vec.norm("l2")
-
-        self.null_space = df.VectorSpaceBasis([null_vec])
-        as_backend_type(A).set_nullspace(self.null_space)
-
     def solve(self, rho, object_bcs = None):
+
         L = rho*self.phi_*df.dx
+
         if object_bcs is None:
             b = df.assemble(L)
         else:
