@@ -3,7 +3,7 @@ from punc import *
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-
+from dolfin import *
 #==============================================================================
 # SETTING UP DOMAIN
 #------------------------------------------------------------------------------
@@ -17,7 +17,7 @@ if nDims==2: mesh = RectangleMesh(Point(0,0),Point(Ld),*Nc)
 if nDims==3: mesh = BoxMesh(Point(0,0,0),Point(Ld),*Nc)
 
 CG1 = FunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
-pop = Population(CG1, Ld)
+pop = Population(mesh)
 rho = Function(CG1)
 
 N = 100000
@@ -27,7 +27,7 @@ bins = 100
 # CREATING PARTICLES
 #------------------------------------------------------------------------------
 
-t = time.time()
+# t = time.time()
 A = 1.
 pos = randomPoints(lambda x: 1+A*np.sin(2*x[0]),Ld,N,1+A)
 
@@ -66,6 +66,7 @@ pop.addParticles(posIon,velIon,mul,500*mul)
 #plot(rho)
 
 
-distr = Distr(mesh, Ld)
-distr.distr(pop,rho)
+distr = Distributor(CG1, Ld)
+rho, q_rho = distr.distr(pop)
 plot(rho)
+interactive()
