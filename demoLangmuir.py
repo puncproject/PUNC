@@ -31,7 +31,7 @@ W = VectorFunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
 
 pop = Population(mesh)
 distr = Distributor(V, Ld)
-poisson = PoissonSolver(V)
+poisson = PoissonSolverPeriodic(V)
 
 initLangmuir(pop, Ld, 0, [0,0], 0.5, 2, 8)
 
@@ -43,13 +43,13 @@ PE = np.zeros(N-1)
 KE0 = kineticEnergy(pop)
 
 for n in range(1,N):
-    print("Computing timestep %d/%d"%(n,N-1))
-    rho = distr.distr(pop)
-    phi = poisson.solve(rho)
-    E = EField(phi)
-    PE[n-1] = potentialEnergy(pop, phi)
-    KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
-    movePeriodic(pop,Ld,dt)
+	print("Computing timestep %d/%d"%(n,N-1))
+	rho = distr.distr(pop)
+	phi = poisson.solve(rho)
+	E = electric_field(phi)
+	PE[n-1] = potentialEnergy(pop, phi)
+	KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
+	movePeriodic(pop,Ld,dt)
 
 KE[0] = KE0
 

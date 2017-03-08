@@ -11,6 +11,7 @@ from punc.pusher import *
 from punc.distributor import *
 from punc.population import *
 from punc.diagnostics import *
+from punc.mark_object import *
 
 """
 
