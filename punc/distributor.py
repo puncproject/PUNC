@@ -17,7 +17,7 @@ import pyvoro
 
 class Distributor:
 
-    def __init__(self, V, Ld, n_components, bnd="periodic"):
+    def __init__(self, V, Ld, bnd="periodic"):
 
         assert bnd=="periodic"
 
@@ -27,7 +27,7 @@ class Distributor:
         vertices = self.mesh.coordinates()
         dofs = df.vertex_to_dof_map(self.V)
 
-        self.n_components = n_components
+        # self.n_components = n_components
         # Remove those on upper bound (admittedly inefficient)
         i = 0
         while i<len(vertices):
@@ -78,7 +78,7 @@ class Distributor:
         # cheaper to multiply by its inverse we've computed self.dvInv too.
         # We actually don't need self.dv except for debugging.
 
-    def distr(self, pop, object_dofs):
+    def distr(self, pop, n_components = 0, object_dofs = []):
         # rho assumed to be CG1
 
         element = self.V.dolfin_element()
@@ -86,8 +86,8 @@ class Distributor:
         basisMatrix = np.zeros((sDim,1))
 
         rho = df.Function(self.V)
-        q_rho = [0.0]*self.n_components
-        
+        q_rho = [0.0]*n_components
+
         for cell in df.cells(self.mesh):
             cellindex = cell.index()
             dofindex = self.V.dofmap().cell_dofs(cellindex)
@@ -105,7 +105,7 @@ class Distributor:
             rho.vector()[dofindex] += accum
 
         # accumulate the interpolated charge on each object
-        for k in range(self.n_components):
+        for k in range(n_components):
             q_rho[k] = np.sum(rho.vector()[object_dofs[k]][0])
         # Divide by volume of Voronoi cell
         rho.vector()[:] *= self.dvInv.vector()

@@ -86,7 +86,7 @@ class Population(list):
         and/or charge if all particles should have the same value.
         """
 
-        if vs==None or qs==None or ms==None:
+        if vs is None or qs is None or ms is None:
             assert isinstance(xs,list)
             if len(xs)==0:
                 return
