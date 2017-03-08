@@ -10,7 +10,6 @@ def solve_electric_field(V, facet_f, n_components, outer_Dirichlet_bcs):
 
     Args:
          V           : FunctionSpace(mesh, "CG", 1)
-         W           : VectorFunctionSpace(mesh, 'DG', 0)
          facet_f     : contains the facets of each surface component
          n_components: number of surface components
          outer_Dirichlet_bcs: Dirichlet boundary condition, $\varPhi=0$, at the
@@ -32,14 +31,14 @@ def solve_electric_field(V, facet_f, n_components, outer_Dirichlet_bcs):
                 c = df.Constant(1.0)
             else:
                 c = df.Constant(0.0)
-            bc_j = df.DirichletBC(V, c, facet_f, j+1) # facet indexing starts at 1
+            bc_j = df.DirichletBC(V, c, facet_f, j)
             object_bcs.append(bc_j)
 
         # Source term: 0 everywhere
         rho = df.Function(V)
         phi = poisson.solve(rho, object_bcs)
         E = electric_field(phi)
-        #plot(phi, interactive=True)
+        df.plot(phi, interactive=True)
         E_object.append(E)
 
     return E_object
@@ -57,7 +56,6 @@ def capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0):
 
     Args:
          V           : FunctionSpace(mesh, "CG", 1)
-         W           : VectorFunctionSpace(mesh, 'DG', 0)
          mesh        : the mesh of the simulation domain
          facet_f     : contains the facets of each surface component
          n_components: number of surface components
@@ -76,7 +74,7 @@ def capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0):
     for i in range(n_components):
         for j in range(n_components):
             capacitance[i,j] = epsilon_0*\
-                               df.assemble(df.inner(E_object[j], -1*n)*ds(i+1))
+                               df.assemble(df.inner(E_object[j], -1*n)*ds(i))
 
     inv_capacitance = np.linalg.inv(capacitance)
     print("                               ")
@@ -162,7 +160,7 @@ if __name__=='__main__':
     circuits_info = [[1, 3], [2, 4]]
 
     mesh = df.Mesh("circuit.xml")
-    V = FunctionSpace(mesh, "CG", 1)
+    V = df.FunctionSpace(mesh, "CG", 1)
 
     d = mesh.geometry().dim()
     L = np.empty(2*d)
