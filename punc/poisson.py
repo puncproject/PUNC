@@ -6,8 +6,8 @@
 from __future__ import print_function, division
 import sys
 if sys.version_info.major == 2:
-	from itertools import izip as zip
-	range = xrange
+    from itertools import izip as zip
+    range = xrange
 
 #import dolfin as df
 import dolfin as df
@@ -15,19 +15,19 @@ import numpy as np
 
 class PeriodicBoundary(df.SubDomain):
 
-	def __init__(self, Ld):
-		df.SubDomain.__init__(self)
-		self.Ld = Ld
+    def __init__(self, Ld):
+        df.SubDomain.__init__(self)
+        self.Ld = Ld
 
-	# Target domain
-	def inside(self, x, onBnd):
-		return bool(		any([df.near(a,0) for a in x])					# On any lower bound
-					and not any([df.near(a,b) for a,b in zip(x,self.Ld)])	# But not any upper bound
-					and onBnd)
+    # Target domain
+    def inside(self, x, onBnd):
+        return bool(        any([df.near(a,0) for a in x])                  # On any lower bound
+                    and not any([df.near(a,b) for a,b in zip(x,self.Ld)])   # But not any upper bound
+                    and onBnd)
 
-	# Map upper edges to lower edges
-	def map(self, x, y):
-		y[:] = [a-b if df.near(a,b) else a for a,b in zip(x,self.Ld)]
+    # Map upper edges to lower edges
+    def map(self, x, y):
+        y[:] = [a-b if df.near(a,b) else a for a,b in zip(x,self.Ld)]
 
 def dirichlet_bcs(V, facet_f, n_components = 0, phi0 = df.Constant(0.0), E0 = None):
 
@@ -48,31 +48,31 @@ def dirichlet_bcs(V, facet_f, n_components = 0, phi0 = df.Constant(0.0), E0 = No
 
 class PoissonSolverPeriodic:
 
-	def __init__(self, V):
+    def __init__(self, V):
 
-		self.solver = df.PETScKrylovSolver('gmres', 'hypre_amg')
-		self.solver.parameters['absolute_tolerance'] = 1e-14
-		self.solver.parameters['relative_tolerance'] = 1e-12
-		self.solver.parameters['maximum_iterations'] = 1000
+        self.solver = df.PETScKrylovSolver('gmres', 'hypre_amg')
+        self.solver.parameters['absolute_tolerance'] = 1e-14
+        self.solver.parameters['relative_tolerance'] = 1e-12
+        self.solver.parameters['maximum_iterations'] = 1000
 
-		self.V = V
+        self.V = V
 
-		phi = df.TrialFunction(V)
-		phi_ = df.TestFunction(V)
+        phi = df.TrialFunction(V)
+        phi_ = df.TestFunction(V)
 
-		a = df.inner(df.nabla_grad(phi), df.nabla_grad(phi_))*df.dx
-		A = df.assemble(a)
+        a = df.inner(df.nabla_grad(phi), df.nabla_grad(phi_))*df.dx
+        A = df.assemble(a)
 
-		self.solver.set_operator(A)
-		self.phi_ = phi_
+        self.solver.set_operator(A)
+        self.phi_ = phi_
 
-		phi = df.Function(V)
-		null_vec = df.Vector(phi.vector())
-		V.dofmap().set(null_vec, 1.0)
-		null_vec *= 1.0/null_vec.norm("l2")
+        phi = df.Function(V)
+        null_vec = df.Vector(phi.vector())
+        V.dofmap().set(null_vec, 1.0)
+        null_vec *= 1.0/null_vec.norm("l2")
 
-		self.null_space = df.VectorSpaceBasis([null_vec])
-		df.as_backend_type(A).set_nullspace(self.null_space)
+        self.null_space = df.VectorSpaceBasis([null_vec])
+        df.as_backend_type(A).set_nullspace(self.null_space)
 
     def solve(self, rho, object_bcs = None):
 
@@ -86,9 +86,9 @@ class PoissonSolverPeriodic:
         self.null_space.orthogonalize(b)
 
         phi = df.Function(self.V)
-    	self.solver.solve(phi.vector(), b)
+        self.solver.solve(phi.vector(), b)
 
-    	return phi
+        return phi
 
 class PoissonSolverDirichlet:
 
@@ -128,135 +128,127 @@ class PoissonSolverDirichlet:
 
         return phi
 
-def EField(phi):
-	V = phi.ufl_function_space()
-	mesh = V.mesh()
-	degree = V.ufl_element().degree()
-	constr = V.constrained_domain
-	W = df.VectorFunctionSpace(mesh, 'CG', degree, constrained_domain=constr)
-	return df.project(-df.grad(phi), W)
-
-
-def electric_field(phi, constr = None):
-    """ This function calculates the gradiant of the electric potential, which
+def electric_field(phi):
+    """
+    This function calculates the gradient of the electric potential, which
     is the electric field:
 
             E = -\del\varPhi
 
     Args:
           phi   : The electric potential.
-          constr: constrained_domain
 
     returns:
           E: The electric field.
     """
-    V = phi.function_space()
+    V = phi.ufl_function_space()
     mesh = V.mesh()
     degree = V.ufl_element().degree()
+    constr = V.constrained_domain
     W = df.VectorFunctionSpace(mesh, 'CG', degree, constrained_domain=constr)
-    return df.project(-1*df.grad(phi), W)
+    return df.project(-df.grad(phi), W)
 
 if __name__=='__main__':
 
-	from mark_object import *
+    from mark_object import *
 
-	object_type = None
-	object_info = []
-	n_components = 0   # number of electrical components
+    object_type = None
+    object_info = []
+    n_components = 0   # number of electrical components
 
-	def test_periodic_solver():
-		# mesh = Mesh("demos/mesh/rectangle_periodic.xml")
-		Lx = 2*DOLFIN_PI
-		Ly = 2*DOLFIN_PI
-		Nx = 256
-		Ny = 256
-		mesh = df.RectangleMesh(df.Point(0,0),df.Point(Lx,Ly),Nx,Ny)
+    def test_periodic_solver():
+        # mesh = Mesh("demos/mesh/rectangle_periodic.xml")
+        Lx = 2*DOLFIN_PI
+        Ly = 2*DOLFIN_PI
+        Nx = 256
+        Ny = 256
+        mesh = df.RectangleMesh(df.Point(0,0),df.Point(Lx,Ly),Nx,Ny)
 
-		d = mesh.geometry().dim()
-		L = np.empty(2*d)
-		for i in range(d):
-		    l_min = mesh.coordinates()[:,i].min()
-		    l_max = mesh.coordinates()[:,i].max()
-		    L[i] = l_min
-		    L[d+i] = l_max
-
-
-		PBC = PeriodicBoundary([Lx,Ly])
-		V = df.FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
-
-		class Source(df.Expression):
-		    def eval(self, values, x):
-		        values[0] = sin(x[0])
-
-		class Exact(df.Expression):
-		    def eval(self, values, x):
-		        values[0] = sin(x[0])
-
-		f = Source(degree=2)
-		phi_e = Exact(degree=2)
-
-		poisson = PoissonSolverPeriodic(V)
-		phi = poisson.solve(f)
+        d = mesh.geometry().dim()
+        L = np.empty(2*d)
+        for i in range(d):
+            l_min = mesh.coordinates()[:,i].min()
+            l_max = mesh.coordinates()[:,i].max()
+            L[i] = l_min
+            L[d+i] = l_max
 
 
-		# error_l2 = errornorm(phi_e, phi, "L2")
-		# print("l2 norm: ", error_l2)
+        PBC = PeriodicBoundary([Lx,Ly])
+        V = df.FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
 
-		vertex_values_phi_e = phi_e.compute_vertex_values(mesh)
-		vertex_values_phi = phi.compute_vertex_values(mesh)
+        class Source(df.Expression):
+            def eval(self, values, x):
+                values[0] = sin(x[0])
 
-		error_max = np.max(vertex_values_phi_e - \
-		                    vertex_values_phi)
-		tol = 1E-9
-		msg = 'error_max = %g' %error_max
-		print(msg)
-		assert error_max < tol , msg
+        class Exact(df.Expression):
+            def eval(self, values, x):
+                values[0] = sin(x[0])
 
-		df.plot(phi, interactive=True)
-		df.plot(phi_e, mesh=mesh, interactive=True)
+        f = Source(degree=2)
+        phi_e = Exact(degree=2)
+
+        poisson = PoissonSolverPeriodic(V)
+        phi = poisson.solve(f)
 
 
-	def test_dirichlet_solver():
-		Lx = 1.0
-		Ly = 1.0
-		Nx = 100
-		Ny = 100
-		mesh = df.RectangleMesh(df.Point(0,0),df.Point(Lx,Ly),Nx,Ny)
-		df.plot(mesh, interactive=True)
-		V = df.FunctionSpace(mesh, "CG", 1)
-		d = mesh.geometry().dim()
+        # error_l2 = errornorm(phi_e, phi, "L2")
+        # print("l2 norm: ", error_l2)
 
-		L = np.empty(2*d)
-		for i in range(d):
-		    l_min = mesh.coordinates()[:,i].min()
-		    l_max = mesh.coordinates()[:,i].max()
-		    L[i] = l_min
-		    L[d+i] = l_max
+        vertex_values_phi_e = phi_e.compute_vertex_values(mesh)
+        vertex_values_phi = phi.compute_vertex_values(mesh)
 
-		u_D = df.Expression('1 + x[0]*x[0] + 2*x[1]*x[1]', degree=2)
-		f = df.Constant(-6.0)
+        error_max = np.max(vertex_values_phi_e - \
+                            vertex_values_phi)
+        tol = 1E-9
+        msg = 'error_max = %g' %error_max
+        print(msg)
+        assert error_max < tol , msg
 
-		facet_f = mark_boundaries(mesh, L, object_type, object_info, n_components)
-		plot(facet_f, interactive=True)
+        df.plot(phi, interactive=True)
+        df.plot(phi_e, mesh=mesh, interactive=True)
 
-		bcs = dirichlet_bcs(V, facet_f, n_components, phi0 = u_D)
 
-		poisson = PoissonSolverDirichlet(V, bcs)
-		phi = poisson.solve(f)
+    def test_dirichlet_solver():
+        Lx = 1.0
+        Ly = 1.0
+        Nx = 100
+        Ny = 100
+        mesh = df.RectangleMesh(df.Point(0,0),df.Point(Lx,Ly),Nx,Ny)
+        df.plot(mesh, interactive=True)
+        V = df.FunctionSpace(mesh, "CG", 1)
+        d = mesh.geometry().dim()
 
-		error_l2 = df.errornorm(u_D, phi, "L2")
-		print("l2 norm: ", error_l2)
+        L = np.empty(2*d)
+        for i in range(d):
+            l_min = mesh.coordinates()[:,i].min()
+            l_max = mesh.coordinates()[:,i].max()
+            L[i] = l_min
+            L[d+i] = l_max
 
-		vertex_values_u_D = u_D.compute_vertex_values(mesh)
-		vertex_values_phi = phi.compute_vertex_values(mesh)
+        u_D = df.Expression('1 + x[0]*x[0] + 2*x[1]*x[1]', degree=2)
+        f = df.Constant(-6.0)
 
-		error_max = np.max(vertex_values_u_D - \
-		                    vertex_values_phi)
-		tol = 1E-10
-		msg = 'error_max = %g' %error_max
-		assert error_max < tol , msg
+        facet_f = mark_boundaries(mesh, L, object_type, object_info, n_components)
+        plot(facet_f, interactive=True)
 
-		df.plot(phi, interactive=True)
+        bcs = dirichlet_bcs(V, facet_f, n_components, phi0 = u_D)
 
-	test_periodic_solver()
-	# test_dirichlet_solver()
+        poisson = PoissonSolverDirichlet(V, bcs)
+        phi = poisson.solve(f)
+
+        error_l2 = df.errornorm(u_D, phi, "L2")
+        print("l2 norm: ", error_l2)
+
+        vertex_values_u_D = u_D.compute_vertex_values(mesh)
+        vertex_values_phi = phi.compute_vertex_values(mesh)
+
+        error_max = np.max(vertex_values_u_D - \
+                            vertex_values_phi)
+        tol = 1E-10
+        msg = 'error_max = %g' %error_max
+        assert error_max < tol , msg
+
+        df.plot(phi, interactive=True)
+
+    test_periodic_solver()
+    # test_dirichlet_solver()
