@@ -41,7 +41,7 @@ def dirichlet_bcs(V, facet_f, n_components = 0, phi0 = df.Constant(0.0), E0 = No
                               Ex = -E0[0], Ey = -E0[1], Ez = -E0[2])
     bcs = []
     for i in range(2*d):
-        bc0 = df.DirichletBC(V, phi0, facet_f, (n_components+i+1))
+        bc0 = df.DirichletBC(V, phi0, facet_f, (n_components+i))
         bcs.append(bc0)
     return bcs
 
