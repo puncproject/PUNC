@@ -1,9 +1,9 @@
 """
-__all__ = [	"population",
-			"pusher",
-			"distributor",
-			"poisson",
-			"diagnostics"]
+__all__ = [ "population",
+            "pusher",
+            "distributor",
+            "poisson",
+            "diagnostics"]
 """
 
 from punc.poisson import *
@@ -55,21 +55,21 @@ pop.addParticles(xs,vs,q,m)
 KE0 = kinEnergy(pop)
 
 def func(x):
-	# return i if inside object i, 0 otherwise
+    # return i if inside object i, 0 otherwise
 
 Nt = ...
 for n in range(1,Nt):
-	dist.dist(pop,RHO)
-	bcs = boundaryConds(...)
-	PHI = fsolver.solve(RHO)		# PHI = fsolver.dirichlet_solver(RHO,bcs)
-	E = gradient(PHI)
-	PE[n-1] = potEnergy(RHO,PHI)
-	KE[n-1] = acc.acc(pop,E,(1-0.5*(n==1))*dt)	# v now at step n-0.5
-	mov.move(pop)								# x now at step n
-	pop.relocate(objects)
-	objCurrent(...)
-	inject(...)
-	delete(...)
+    dist.dist(pop,RHO)
+    bcs = boundaryConds(...)
+    PHI = fsolver.solve(RHO)        # PHI = fsolver.dirichlet_solver(RHO,bcs)
+    E = gradient(PHI)
+    PE[n-1] = potEnergy(RHO,PHI)
+    KE[n-1] = acc.acc(pop,E,(1-0.5*(n==1))*dt)  # v now at step n-0.5
+    mov.move(pop)                               # x now at step n
+    pop.relocate(objects)
+    objCurrent(...)
+    inject(...)
+    delete(...)
 
 KE[0] = KE0
 
