@@ -31,9 +31,9 @@ W = VectorFunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
 
 pop = Population(mesh)
 distr = Distributor(V, Ld)
-poisson = PoissonSolverPeriodic(V)
+poisson = PoissonSolver(V,remove_null_space=True)
 
-initLangmuir(pop, Ld, 0, [0,0], 0.5, 2, 8)
+initLangmuir(pop, Ld, 0, [0,0], 0.5, 1, 16)
 
 dt = 0.251327
 N = 30
