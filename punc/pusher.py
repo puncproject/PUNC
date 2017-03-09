@@ -53,9 +53,10 @@ def accel(pop, E, dt):
 
     return KE
 
-def movePeriodic(pop, Ld, dt):
+def movePeriodic(pop, Ld, dt, q_object = []):
     for cell in pop:
         for particle in cell:
             particle.x += dt*particle.v
             particle.x %= Ld
-    pop.relocate()
+    q_object = pop.relocate(q_object)
+    return q_object
