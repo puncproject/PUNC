@@ -68,7 +68,7 @@ def objects_dofs(V, facet_f, n_components):
             for v in df.vertices(f):
                 object_dofs.add(v2d[v.index()])
         object_dofs = list(object_dofs)
-        components_dofs.append(obj_dofs)
+        components_dofs.append(object_dofs)
     return components_dofs
 
 def mark_boundary_adjecent_cells(mesh):
