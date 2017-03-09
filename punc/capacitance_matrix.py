@@ -150,6 +150,8 @@ def circuits(inv_capacitance, circuits_info):
 if __name__=='__main__':
 
     from mark_object import *
+    import sys
+    sys.path.insert(0, '/home/diako/Documents/Software/punc')
     from get_object import *
 
     dim = 2
@@ -159,7 +161,7 @@ if __name__=='__main__':
 
     circuits_info = [[1, 3], [2, 4]]
 
-    mesh = df.Mesh("circuit.xml")
+    mesh = df.Mesh("../mesh/circuit.xml")
     V = df.FunctionSpace(mesh, "CG", 1)
 
     d = mesh.geometry().dim()

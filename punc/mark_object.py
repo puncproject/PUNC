@@ -239,7 +239,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     n_components = 4
     object_type = 'multi_circles'
-    mesh = df.Mesh("circuit.xml")
+    mesh = df.Mesh("../mesh/circuit.xml")
     d = mesh.topology().dim()
     L = np.empty(2*d)
     for i in range(d):
