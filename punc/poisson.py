@@ -45,16 +45,25 @@ def dirichlet_bcs(V, facet_f, n_components = 0, phi0 = df.Constant(0.0), E0 = No
         bcs.append(bc0)
     return bcs
 
-class PoissonSolverPeriodic:
+class PoissonSolver:
 
-    def __init__(self, V):
+    def __init__(self, V, bcs=[], remove_null_space=False):
+
+        # Make sure bcs is an iterable list
+        if isinstance(bcs,df.fem.bcs.DirichletBC):
+            bcs = [bcs]
+
+        if bcs == None:
+            bcs = []
+
+        self.V = V
+        self.bcs = bcs
+        self.remove_null_space = remove_null_space
 
         self.solver = df.PETScKrylovSolver('gmres', 'hypre_amg')
         self.solver.parameters['absolute_tolerance'] = 1e-14
         self.solver.parameters['relative_tolerance'] = 1e-12
         self.solver.parameters['maximum_iterations'] = 1000
-
-        self.V = V
 
         phi = df.TrialFunction(V)
         phi_ = df.TestFunction(V)
@@ -62,68 +71,50 @@ class PoissonSolverPeriodic:
         a = df.inner(df.nabla_grad(phi), df.nabla_grad(phi_))*df.dx
         A = df.assemble(a)
 
-        self.solver.set_operator(A)
+        for bc in bcs:
+            bc.apply(A)
+
+        if remove_null_space:
+            phi = df.Function(V)
+            null_vec = df.Vector(phi.vector())
+            V.dofmap().set(null_vec, 1.0)
+            null_vec *= 1.0/null_vec.norm("l2")
+
+            self.null_space = df.VectorSpaceBasis([null_vec])
+            df.as_backend_type(A).set_nullspace(self.null_space)
+
+        self.A = A
         self.phi_ = phi_
 
-        phi = df.Function(V)
-        null_vec = df.Vector(phi.vector())
-        V.dofmap().set(null_vec, 1.0)
-        null_vec *= 1.0/null_vec.norm("l2")
+    def solve(self, rho, bcs=[]):
 
-        self.null_space = df.VectorSpaceBasis([null_vec])
-        df.as_backend_type(A).set_nullspace(self.null_space)
+        # Make sure bcs is an iterable list
+        if isinstance(bcs,df.fem.bcs.DirichletBC):
+            bcs = [bcs]
 
-    def solve(self, rho, object_bcs = None):
-
-        L = rho*self.phi_*df.dx
-
-        if object_bcs is None:
-            b = df.assemble(L)
-        else:
-            A, b = df.assemble_system(self.a, L, object_bcs)
-
-        self.null_space.orthogonalize(b)
-
-        phi = df.Function(self.V)
-        self.solver.solve(phi.vector(), b)
-
-        return phi
-
-class PoissonSolverDirichlet:
-
-    def __init__(self, V, bcs):
-
-        self.solver = df.PETScKrylovSolver('gmres', 'hypre_amg')
-        self.solver.parameters['absolute_tolerance'] = 1e-14
-        self.solver.parameters['relative_tolerance'] = 1e-12
-        self.solver.parameters['maximum_iterations'] = 1000
-
-        self.V = V
-        self.bcs = bcs
-
-        phi = df.TrialFunction(V)
-        phi_ = df.TestFunction(V)
-
-        a = df.inner(df.nabla_grad(phi), df.nabla_grad(phi_))*df.dx
-        self.A = df.assemble(a)
-        [bc.apply(self.A) for bc in self.bcs]
-
-        self.phi_ = phi_
-
-    def solve(self, rho, object_bcs = None):
+        if bcs == None:
+            bcs = []
 
         L = rho*self.phi_*df.dx
         b = df.assemble(L)
-        [bc.apply(b) for bc in self.bcs]
+
+        for bc in self.bcs:
+            bc.apply(b)
+
+        for bc in bcs:
+            bc.apply(self.A)
+            bc.apply(b)
+
+        # NB: A may not be symmetric in this case. To get it symmetric we need
+        # to use assemble_system() but then we need to re-assemble A each time.
+        # It was guessed that any speed benefit of having A symmetric would be
+        # less than the speed cost of having to re-compute it. Tests welcome.
+
+        if self.remove_null_space:
+            self.null_space.orthogonalize(b)
 
         phi = df.Function(self.V)
-        if object_bcs is None:
-            self.solver.solve(self.A, phi.vector(), b)
-        else:
-            [bc.apply(self.A) for bc in object_bcs]
-            [bc.apply(b) for bc in object_bcs]
-
-            self.solver.solve(self.A, phi.vector(), b)
+        self.solver.solve(self.A, phi.vector(), b)
 
         return phi
 
