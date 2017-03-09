@@ -59,8 +59,8 @@ class PoissonSolverPeriodic:
         phi = df.TrialFunction(V)
         phi_ = df.TestFunction(V)
 
-        a = df.inner(df.nabla_grad(phi), df.nabla_grad(phi_))*df.dx
-        A = df.assemble(a)
+        self.a = df.inner(df.nabla_grad(phi), df.nabla_grad(phi_))*df.dx
+        A = df.assemble(self.a)
 
         self.solver.set_operator(A)
         self.phi_ = phi_
@@ -157,8 +157,8 @@ if __name__=='__main__':
 
     def test_periodic_solver():
         # mesh = Mesh("demos/mesh/rectangle_periodic.xml")
-        Lx = 2*DOLFIN_PI
-        Ly = 2*DOLFIN_PI
+        Lx = 2*df.DOLFIN_PI
+        Ly = 2*df.DOLFIN_PI
         Nx = 256
         Ny = 256
         mesh = df.RectangleMesh(df.Point(0,0),df.Point(Lx,Ly),Nx,Ny)
@@ -177,11 +177,11 @@ if __name__=='__main__':
 
         class Source(df.Expression):
             def eval(self, values, x):
-                values[0] = sin(x[0])
+                values[0] = np.sin(x[0])
 
         class Exact(df.Expression):
             def eval(self, values, x):
-                values[0] = sin(x[0])
+                values[0] = np.sin(x[0])
 
         f = Source(degree=2)
         phi_e = Exact(degree=2)

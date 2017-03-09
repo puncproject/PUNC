@@ -47,9 +47,10 @@ class Particle:
 
 class Population(list):
 
-    def __init__(self, mesh):
+    def __init__(self, mesh, object_type = None, object_info = []):
         self.mesh = mesh
-
+        self.object_info = object_info
+        self.object_type = object_type
         # Allocate a list of particles for each cell
         for cell in df.cells(self.mesh):
             self.append(list())
@@ -121,7 +122,7 @@ class Population(list):
             nMissing = len(np.where(all_found == 0)[0])
             assert nMissing==0,'%d particles are not located in mesh'%nMissing
 
-    def relocate(self):
+    def relocate(self, q_object):
         """
         Relocate particles on cells and processors
         map such that map[old_cell] = [(new_cell, particle_id), ...]
@@ -188,10 +189,51 @@ class Population(list):
                 for i in range(self.tot_escaped_particles[proc]):
                     self.particle0.recv(proc)
                     list_of_escaped_particles.append(copy.deepcopy(self.particle0))
+        # What to do with escaped particles
+        particles_inside_object = []
+        particles_outside_domain = []
 
+        for i in range(len(list_of_escaped_particles)):
+            particle = list_of_escaped_particles[i]
+            x = particle.x
+            q = particle.q
+            d = len(x)
+
+            if self.object_type == 'spherical_object':
+                if d == 2:
+                    s0 = [self.object_info[0], self.object_info[1]]
+                    r0 = self.object_info[2]
+                if d == 3:
+                    s0 = [self.object_info[0], self.object_info[1], self.object_info[2]]
+                    r0 = self.object_info[3]
+                if np.dot(x-s0, x-s0) < r0**2:
+                    particles_inside_object.append(i)
+
+        particles_outside_domain = set(particles_outside_domain)
+        particles_outside_domain  = list(particles_outside_domain)
+
+        particles_to_be_removed = []
+        particles_to_be_removed.extend(particles_inside_object)
+        particles_to_be_removed.extend(particles_outside_domain)
+        particles_to_be_removed.sort()
+
+        print("particles inside object: ", len(particles_inside_object))
+        print("particles_outside_domain: ", len(particles_outside_domain))
+        print("particles_to_be_removed: ", len(particles_to_be_removed))
+
+        # print("list_of_escaped_particles: ", list_of_escaped_particles)
+        if (not self.object_type is None):
+
+            # Remove particles inside the object and accumulate the charge
+            for i in reversed(particles_to_be_removed):
+                p = list_of_escaped_particles[i]
+                if i in particles_inside_object:
+                    q_object[0] += p.q
+                list_of_escaped_particles.remove(p)
         # Put all travelling particles on all processes, then perform new search
         travelling_particles = comm.bcast(list_of_escaped_particles, root=0)
         self.addParticles(travelling_particles)
+        return q_object
 
     def total_number_of_particles(self):
         'Return number of particles in total and on process.'
