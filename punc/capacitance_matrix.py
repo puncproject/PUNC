@@ -151,7 +151,9 @@ if __name__=='__main__':
 
     from mark_object import *
     import sys
-    sys.path.insert(0, '/home/diako/Documents/Software/punc')
+    from os.path import dirname, abspath
+    d = dirname(dirname(abspath(__file__)))
+    sys.path.insert(0, d)
     from get_object import *
 
     dim = 2

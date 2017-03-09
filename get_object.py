@@ -1,5 +1,6 @@
 from __future__ import print_function
 import numpy as np
+import os
 
 def single_circle():
     x0 = np.pi
