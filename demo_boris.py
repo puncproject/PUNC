@@ -50,7 +50,7 @@ pos[0] = xs
 for n in range(1,N):
     print("t: ", n)
     KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt, B)
-    q_object = movePeriodic(pop, Ld, dt)
+    movePeriodic(pop, Ld, dt)
 
     for cell in pop:
         for particle in cell:

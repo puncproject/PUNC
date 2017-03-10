@@ -102,11 +102,14 @@ inv_capacitance = capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0)
 #-------------------------------------------------------------------------------
 #         Get the solver
 #-------------------------------------------------------------------------------
-poisson = PoissonSolverPeriodic(V)
+poisson = PoissonSolver(V)
 #-------------------------------------------------------------------------------
 #             Add particles to the mesh
 #-------------------------------------------------------------------------------
-pop = Population(mesh, object_type, object_info)
+objects = []
+for i in range(n_components):
+    objects.append(Object(Sphere(object_info[3*i:3*(i+1)])))
+pop = Population(mesh, objects)
 distr = Distributor(V, Ld)
 #-------------------------------------------------------------------------------
 #             Add electrons to population
@@ -157,21 +160,14 @@ for n in range(1,N):
     E = electric_field(phi)
     PE[n-1] = potentialEnergy(pop, phi)
     KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
-    q_object = movePeriodic(pop, Ld, dt, q_object)
+    movePeriodic(pop, Ld, dt)
+    for (i, o) in enumerate(objects):
+        q_object[i] = o.charge
     print("Collected object charge: ", q_rho)
-    # tot_p = pop.total_number_of_particles()
-    # print("Total number of particles in the domain: ", tot_p)
+    tot_p = pop.total_number_of_particles()
+    print("Total number of particles in the domain: ", tot_p)
 
 KE[0] = KE0
-
-# plt.plot(KE,label="Kinetic Energy")
-# plt.plot(PE,label="Potential Energy")
-# plt.plot(KE+PE,label="Total Energy")
-# plt.legend(loc='lower right')
-# plt.grid()
-# plt.xlabel("Timestep")
-# plt.ylabel("Normalized Energy")
-# plt.show()
 
 plot(rho)
 plot(phi)

@@ -13,6 +13,7 @@ from punc.population import *
 from punc.diagnostics import *
 from punc.mark_object import *
 from punc.capacitance_matrix import *
+from punc.object import *
 
 """
 

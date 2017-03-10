@@ -19,7 +19,7 @@ def solve_electric_field(V, facet_f, n_components, outer_Dirichlet_bcs):
             A list of calculated electric fields for every surface componet.
     """
     # Solve Laplace equation for each electrical component
-    poisson = PoissonSolverDirichlet(V, outer_Dirichlet_bcs)
+    poisson = PoissonSolver(V, outer_Dirichlet_bcs)
 
     E_object = []
     for i in range(n_components):
@@ -38,7 +38,6 @@ def solve_electric_field(V, facet_f, n_components, outer_Dirichlet_bcs):
         rho = df.Function(V)
         phi = poisson.solve(rho, object_bcs)
         E = electric_field(phi)
-        df.plot(phi, interactive=True)
         E_object.append(E)
 
     return E_object
@@ -76,20 +75,7 @@ def capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0):
             capacitance[i,j] = epsilon_0*\
                                df.assemble(df.inner(E_object[j], -1*n)*ds(i))
 
-    inv_capacitance = np.linalg.inv(capacitance)
-    print("                               ")
-    print("Mutual capacitance matrix:     ")
-    print("                               ")
-    print(capacitance)
-    print("-------------------------------")
-    print("                               ")
-    print("Inverse of capacitance matrix: ")
-    print("                               ")
-    print(inv_capacitance)
-    print("-------------------------------")
-    print("                               ")
-
-    return inv_capacitance
+    return np.linalg.inv(capacitance)
 
 
 def circuits(inv_capacitance, circuits_info):
@@ -134,17 +120,6 @@ def circuits(inv_capacitance, circuits_info):
     for i in range(len(D_matrices)):
         inv_D_matrices.append(np.linalg.inv(D_matrices[i]))
 
-    print("                                          ")
-    print("Difference capacitance matrices:          ")
-    print("                                          ")
-    print(D_matrices)
-    print("------------------------------------------")
-    print("                                          ")
-    print("Inverse of difference capacitance matrix: ")
-    print("                                          ")
-    print(inv_D_matrices)
-    print("------------------------------------------")
-    print("                                          ")
     return inv_D_matrices
 
 if __name__=='__main__':

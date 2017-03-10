@@ -34,7 +34,7 @@ def accel(pop, E, dt, B = None):
                     cell,
                     cell.get_vertex_coordinates(),
                     cell)
-        if not B is None:
+        if B is not None:
             B.restrict( mag_coefficients,
                         element,
                         cell,
@@ -74,11 +74,10 @@ def accel(pop, E, dt, B = None):
 
     return KE
 
-def movePeriodic(pop, Ld, dt, q_object = []):
+def movePeriodic(pop, Ld, dt):
 
     for cell in pop:
         for particle in cell:
             particle.x += dt*particle.v
             particle.x %= Ld
-    q_object = pop.relocate(q_object)
-    return q_object
+    pop.relocate()
