@@ -177,7 +177,7 @@ if __name__=='__main__':
         f = Source(degree=2)
         phi_e = Exact(degree=2)
 
-        poisson = PoissonSolverPeriodic(V)
+        poisson = PoissonSolver(V, remove_null_space=True)
         phi = poisson.solve(f)
 
 
@@ -219,11 +219,11 @@ if __name__=='__main__':
         f = df.Constant(-6.0)
 
         facet_f = mark_boundaries(mesh, L, object_type, object_info, n_components)
-        plot(facet_f, interactive=True)
+        df.plot(facet_f, interactive=True)
 
         bcs = dirichlet_bcs(V, facet_f, n_components, phi0 = u_D)
 
-        poisson = PoissonSolverDirichlet(V, bcs)
+        poisson = PoissonSolver(V, bcs)
         phi = poisson.solve(f)
 
         error_l2 = df.errornorm(u_D, phi, "L2")

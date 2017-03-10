@@ -14,7 +14,7 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 
-def accel(pop, E, dt, B0 = None):
+def accel(pop, E, dt, B = None):
 
     W = E.function_space()
     mesh = W.mesh()
@@ -29,16 +29,17 @@ def accel(pop, E, dt, B0 = None):
     KE = 0.0
     for cell in df.cells(mesh):
 
-        B0.restrict( mag_coefficients,
-                    element,
-                    cell,
-                    cell.get_vertex_coordinates(),
-                    cell)
         E.restrict( coefficients,
                     element,
                     cell,
                     cell.get_vertex_coordinates(),
                     cell)
+        if not B is None:
+            B.restrict( mag_coefficients,
+                        element,
+                        cell,
+                        cell.get_vertex_coordinates(),
+                        cell)
 
         for particle in pop[cell.index()]:
             element.evaluate_basis_all( basisMatrix,
@@ -47,19 +48,19 @@ def accel(pop, E, dt, B0 = None):
                                         cell.orientation())
 
             Ei = np.dot(coefficients, basisMatrix)[:]
-            B0i = np.dot(mag_coefficients, basisMatrix)[:]
+            Bi = np.dot(mag_coefficients, basisMatrix)[:]
 
             m = particle.m
             q = particle.q
 
             vel = particle.v
 
-            if B0 is None:
+            if B is None:
                 inc = dt*(q/m)*Ei
                 particle.v += inc
             else:
                 assert dim == 3
-                t = np.tan((dt*q/(2.*m))*B0i)
+                t = np.tan((dt*q/(2.*m))*Bi)
                 s = 2.*t/(1.+t[0]**2+t[1]**2+t[2]**2)
                 v_minus = vel + 0.5*dt*(q/m)*Ei
                 v_minus_cross_t = np.cross(v_minus, t)
