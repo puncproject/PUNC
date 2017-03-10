@@ -237,7 +237,7 @@ class Population(list):
 
     def total_number_of_particles(self):
         'Return number of particles in total and on process.'
-        num_p = self.particle_map.total_number_of_particles()
+        num_p = reduce(lambda a, x: a+len(x), self, 0)
         tot_p = comm.allreduce(num_p)
         return (tot_p, num_p)
 
