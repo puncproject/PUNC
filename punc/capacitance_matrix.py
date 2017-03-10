@@ -112,9 +112,9 @@ def circuits(inv_capacitance, circuits_info):
         n_comp = len(circuit)
         for k in range(1, n_comp):
             for l in range(n_comp):
-                D_matrices[i][k-1,l] = \
-                                 inv_capacitance[circuit[k]-1, circuit[l]-1] -\
-                                 inv_capacitance[circuit[0]-1, circuit[l]-1]
+                D_matrices[i][k,l] = \
+                                 inv_capacitance[circuit[k], circuit[l]] -\
+                                 inv_capacitance[circuit[0], circuit[l]]
 
     inv_D_matrices = []
     for i in range(len(D_matrices)):
