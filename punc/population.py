@@ -97,7 +97,7 @@ class Population(list):
             vs = [p.v for p in ps]
             qs = [p.q for p in ps]
             ms = [p.m for p in ps]
-            addParticles(xs, vs, qs, ms)
+            self.addParticles(xs, vs, qs, ms)
             return
 
         # Expand input to lists/arrays if necessary
