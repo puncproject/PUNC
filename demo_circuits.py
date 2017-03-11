@@ -37,7 +37,7 @@ facet_f = mark_boundaries(mesh, L, object_type, object_info, n_components)
 #-------------------------------------------------------------------------------
 n_pr_cell = 8             # Number of particels per cell
 n_pr_super_particle = 8   # Number of particles per super particle
-tot_time = 20             # Total simulation time
+tot_time = 10             # Total simulation time
 dt = 0.251327             # Time step
 
 tot_volume = assemble(1*dx(mesh)) # Volume of simulation domain
@@ -106,7 +106,6 @@ inv_capacitance = capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0)
 circuits_info = [[0, 2], [1, 3]]
 bias_1 = 0.1
 bias_2 = 0.2
-bias_voltage = np.array([[bias_1, 0.0],[bias_2, 0.0]])
 inv_D = circuits(inv_capacitance, circuits_info)
 #-------------------------------------------------------------------------------
 #         Get the solver
@@ -155,7 +154,6 @@ Ld = [L[d], L[d+1]]
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
     rho, q_rho = distr.distr(pop, n_components, object_dofs)
-
     object_bcs = []
     for k in range(n_components):
         phi_object = 0.0
@@ -172,6 +170,7 @@ for n in range(1,N):
     for (i, o) in enumerate(objects):
         q_object[i] = o.charge
 
+    bias_voltage = np.array([[bias_1, 0.0],[bias_2, 0.0]])
     for k in range(len(circuits_info)):
         for l in circuits_info[k]:
             bias_voltage[k,-1] += (q_object[l] - q_rho[l])
@@ -185,8 +184,12 @@ KE[0] = KE0
 
 plot(rho)
 plot(phi)
-
+#
 ux = Constant((1,0))
 Ex = project(inner(E,ux),V)
 plot(Ex)
 interactive()
+
+File("rho.pvd") << rho
+File("phi.pvd") << phi
+File("E.pvd") << E

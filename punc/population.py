@@ -225,7 +225,7 @@ class Population(list):
                         break
 
             particles_outside_domain = list(particles_outside_domain)
-
+            
             # Remove particles inside the object
             for i in reversed(particles_outside_domain):
                 p = list_of_escaped_particles[i]
