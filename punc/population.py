@@ -225,7 +225,7 @@ class Population(list):
                         break
 
             particles_outside_domain = list(particles_outside_domain)
-            
+
             # Remove particles inside the object
             for i in reversed(particles_outside_domain):
                 p = list_of_escaped_particles[i]
@@ -320,6 +320,48 @@ def randomPoints(pdf, Ld, N, pdfMax=1):
 
     return points
 
+def random_points(pdf, Ld, N, pdfMax=1, objects=None):
+    """
+    Creates an array of N points randomly distributed according to pdf in a
+    domain size given by Ld (and starting in the origin) using the Monte
+    Carlo method. The pdf is assumed to have a max-value of 1 unless
+    otherwise specified. Useful for creating arrays of position/velocity
+    vectors of various distributions.
+
+    If the domain contains objects, the points inside the objects are removed.
+    """
+
+    Ld = np.array(Ld) # In case it's a list
+    dim = len(Ld)
+
+    assert not isinstance(pdf(np.ones(dim)),(list,np.ndarray)) ,\
+        "pdf returns non-scalar value"
+
+    points = np.array([]).reshape(0,dim)
+    while len(points)<N:
+
+        # Creates missing points
+        n = N-len(points)
+        newPoints = np.random.rand(n,dim+1) # Last value to be compared with pdf
+        newPoints *= np.append(Ld,pdfMax)   # Stretch axes
+
+        # Only keep points below pdf
+        newPoints = [x[0:dim] for x in newPoints if x[dim]<pdf(x[0:dim])]
+        newPoints = np.array(newPoints).reshape(-1,dim)
+
+        if objects is not None:
+            indices = []
+            for i, p in enumerate(newPoints):
+                for o in objects:
+                    o.is_inside(p, 0)
+                    if o.inside:
+                        indices.append(i)
+                        break
+            newPoints = np.delete(newPoints, indices, axis=0)
+        points = np.concatenate([points,newPoints])
+
+    return points
+
 def maxwellian(vd, vth, N):
     """
     Returns N maxwellian velocity vectors with drift and thermal velocity
@@ -377,5 +419,23 @@ def initLangmuir(pop, Ld, vd, vth, A, mode, Npc):
     q, m, N = stdSpecie(mesh, Ld, 1, 1836, Npc)
     pdf = lambda x: 1
     xs = randomPoints(pdf, Ld, N)
+    vs = maxwellian(vd, vth[1], xs.shape)
+    pop.addParticles(xs,vs,q,m)
+
+def init_objects(pop, objects, Ld, vd, vth, Npc):
+
+    mesh = pop.mesh
+
+    # Adding electrons
+    q, m, N = stdSpecie(mesh, Ld, -1, 1, Npc)
+    pdf = lambda x: 1
+    xs = random_points(pdf, Ld, N, objects=objects)
+    vs = maxwellian(vd, vth[0], xs.shape)
+    pop.addParticles(xs,vs,q,m)
+
+    # Adding ions
+    q, m, N = stdSpecie(mesh, Ld, 1, 1836, Npc)
+    pdf = lambda x: 1
+    xs = random_points(pdf, Ld, N, objects=objects)
     vs = maxwellian(vd, vth[1], xs.shape)
     pop.addParticles(xs,vs,q,m)

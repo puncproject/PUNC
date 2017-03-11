@@ -8,28 +8,25 @@ from dolfin import *
 import numpy as np
 from punc import *
 
-from get_object import *
-from initial_conditions import *
 from mesh_types import *
 
 #-------------------------------------------------------------------------------
 #                   Object type
 #-------------------------------------------------------------------------------
-random_domain = 'box'
-initial_type = 'spherical_object'
 object_type = 'spherical_object'
 #-------------------------------------------------------------------------------
-#                  Get the mesh
+#             Get the mesh and the information about the object
 #-------------------------------------------------------------------------------
 dim = 2
 n_components = 1
-mesh, L = mesh_with_object(dim, n_components, object_type)
+msh = ObjectMesh(dim, n_components, 'spherical_object')
+mesh, object_info, L = msh.mesh()
+
 d = mesh.geometry().dim()
-Ld = [L[d],L[d+1]]
+Ld = np.asarray(L[d:])
 #-------------------------------------------------------------------------------
 #           Mark the facets of the boundary and the object
 #-------------------------------------------------------------------------------
-object_info = get_object(d, object_type, n_components)
 facet_f = mark_boundaries(mesh, L, object_type, object_info, n_components)
 #-------------------------------------------------------------------------------
 #                       Simulation parameters
@@ -65,21 +62,9 @@ alpha_i = np.sqrt(kB*T_i/m_i) # Boltzmann factor
 
 q_e = -e         # Electric charge - electron
 q_i = Z*e        # Electric charge - ions
-w = (L[d]*L[d+1])/N_e  # Non-dimensionalization factor
 
 vd_x = 0.0; vd_y = 0.0; dv_z = 0.0;
-
-if d == 2:
-    vd = [vd_x, vd_y]
-if d == 3:
-    vd = [vd_x, vd_y, vd_z]
-
-sigma_e, sigma_i, mu_e, mu_i = [], [], [], []
-for i in range(d):
-    sigma_e.append(alpha_e)
-    sigma_i.append(alpha_i)
-    mu_e.append(vd[i])
-    mu_i.append(vd[i])
+vd = [vd_x, vd_y]  # Drift velocity
 #-------------------------------------------------------------------------------
 #            Create boundary conditions and function space
 #-------------------------------------------------------------------------------
@@ -90,12 +75,6 @@ V = FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
 #-------------------------------------------------------------------------------
 object_dofs = objects_dofs(V, facet_f, n_components)
 #-------------------------------------------------------------------------------
-#             Initialize particle positions and velocities
-#-------------------------------------------------------------------------------
-initial_positions, initial_velocities, properties, n_electrons = \
-initial_conditions(N_e, N_i, L, w, q_e, q_i, m_e, m_i, mu_e, mu_i, sigma_e,
-                   sigma_i, object_info, random_domain, initial_type)
-#-------------------------------------------------------------------------------
 #          The inverse of capacitance matrix of the object
 #-------------------------------------------------------------------------------
 inv_capacitance = capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0)
@@ -104,29 +83,21 @@ inv_capacitance = capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0)
 #-------------------------------------------------------------------------------
 poisson = PoissonSolver(V)
 #-------------------------------------------------------------------------------
-#             Add particles to the mesh
+#             Create the objects
 #-------------------------------------------------------------------------------
 objects = []
 for i in range(n_components):
-    objects.append(Object(Sphere(object_info[3*i:3*(i+1)])))
+    j = i*(dim+1)
+    s0 = object_info[j:j+dim]
+    r0 = object_info[j+dim]
+    func = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2
+    objects.append(Object(func))
+#-------------------------------------------------------------------------------
+#   Initialize particle positions and velocities, and populate the domain
+#-------------------------------------------------------------------------------
 pop = Population(mesh, objects)
 distr = Distributor(V, Ld)
-#-------------------------------------------------------------------------------
-#             Add electrons to population
-#-------------------------------------------------------------------------------
-xs = initial_positions[:N_e]
-vs = initial_velocities[:N_e]
-q = properties['q'][0]
-m = properties['m'][0]
-pop.addParticles(xs,vs,q,m)
-#-------------------------------------------------------------------------------
-#             Add ions to population
-#-------------------------------------------------------------------------------
-xs = initial_positions[N_e:]
-vs = initial_velocities[N_e:]
-q = properties['q'][-1]
-m = properties['m'][-1]
-pop.addParticles(xs,vs,q,m)
+init_objects(pop, objects, Ld, 0, [alpha_e,alpha_i], 8)
 #-------------------------------------------------------------------------------
 #             Initial object charge
 #-------------------------------------------------------------------------------
