@@ -8,7 +8,7 @@ from dolfin import *
 import numpy as np
 from punc import *
 
-from mesh_types import *
+from mesh import *
 
 #-------------------------------------------------------------------------------
 #          Get the mesh and the information about the object
@@ -107,7 +107,7 @@ distr = Distributor(V, Ld)
 
 pdf = [lambda x: 1, lambda x: 1]
 init = InitialConditions(pop, pdf, Ld, 0, [alpha_e,alpha_i], 8, objects)
-init.initialize()    
+init.initialize()
 #-------------------------------------------------------------------------------
 #             Initial object charge
 #-------------------------------------------------------------------------------
@@ -125,7 +125,7 @@ PE = np.zeros(N-1)
 KE0 = kineticEnergy(pop)
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
-    rho, q_rho = distr.distr(pop, n_components, object_dofs)
+    rho, q_rho = distr.distr(pop, object_dofs)
     object_bcs = []
     for k in range(n_components):
         phi_object = 0.0

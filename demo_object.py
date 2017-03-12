@@ -8,7 +8,7 @@ from dolfin import *
 import numpy as np
 from punc import *
 
-from mesh_types import *
+from mesh import *
 
 #-------------------------------------------------------------------------------
 #             Get the mesh and the information about the object
@@ -118,7 +118,7 @@ KE0 = kineticEnergy(pop)
 Ld = [L[d], L[d+1]]
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
-    rho, q_rho = distr.distr(pop, n_components, object_dofs)
+    rho, q_rho = distr.distr(pop, object_dofs)
 
     object_bcs = []
     for k in range(n_components):
