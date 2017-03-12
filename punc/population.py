@@ -219,8 +219,7 @@ class Population(list):
                             break
 
                 for o in self.objects:
-                    o.is_inside(x, q)
-                    if o.inside == True:
+                    if o.inside(x, q):
                         particles_outside_domain.update([i])
                         break
 
@@ -289,37 +288,6 @@ def stdSpecie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
 # PERHAPS STUFF BELOW THIS SHOULD GO INTO A SEPARATE MODULE? E.G. INIT. CONDS.?
 #------------------------------------------------------------------------------
 
-
-
-def randomPoints(pdf, Ld, N, pdfMax=1):
-    # Creates an array of N points randomly distributed according to pdf in a
-    # domain size given by Ld (and starting in the origin) using the Monte
-    # Carlo method. The pdf is assumed to have a max-value of 1 unless
-    # otherwise specified. Useful for creating arrays of position/velocity
-    # vectors of various distributions.
-
-    Ld = np.array(Ld) # In case it's a list
-    dim = len(Ld)
-
-    assert not isinstance(pdf(np.ones(dim)),(list,np.ndarray)) ,\
-        "pdf returns non-scalar value"
-
-    points = np.array([]).reshape(0,dim)
-
-    while len(points)<N:
-
-        # Creates missing points
-        n = N-len(points)
-        newPoints = np.random.rand(n,dim+1) # Last value to be compared with pdf
-        newPoints *= np.append(Ld,pdfMax)   # Stretch axes
-
-        # Only keep points below pdf
-        newPoints = [x[0:dim] for x in newPoints if x[dim]<pdf(x[0:dim])]
-        newPoints = np.array(newPoints).reshape(-1,dim)
-        points = np.concatenate([points,newPoints])
-
-    return points
-
 def random_points(pdf, Ld, N, pdfMax=1, objects=None):
     """
     Creates an array of N points randomly distributed according to pdf in a
@@ -353,8 +321,7 @@ def random_points(pdf, Ld, N, pdfMax=1, objects=None):
             indices = []
             for i, p in enumerate(newPoints):
                 for o in objects:
-                    o.is_inside(p, 0)
-                    if o.inside:
+                    if o.inside(p):
                         indices.append(i)
                         break
             newPoints = np.delete(newPoints, indices, axis=0)
@@ -411,31 +378,13 @@ def initLangmuir(pop, Ld, vd, vth, A, mode, Npc):
     # Adding electrons
     q, m, N = stdSpecie(mesh, Ld, -1, 1, Npc)
     pdf = lambda x: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0])
-    xs = randomPoints(pdf, Ld, N, pdfMax=1+A)
+    xs = random_points(pdf, Ld, N, pdfMax=1+A)
     vs = maxwellian(vd, vth[0], xs.shape)
     pop.addParticles(xs,vs,q,m)
 
     # Adding ions
     q, m, N = stdSpecie(mesh, Ld, 1, 1836, Npc)
     pdf = lambda x: 1
-    xs = randomPoints(pdf, Ld, N)
-    vs = maxwellian(vd, vth[1], xs.shape)
-    pop.addParticles(xs,vs,q,m)
-
-def init_objects(pop, objects, Ld, vd, vth, Npc):
-
-    mesh = pop.mesh
-
-    # Adding electrons
-    q, m, N = stdSpecie(mesh, Ld, -1, 1, Npc)
-    pdf = lambda x: 1
-    xs = random_points(pdf, Ld, N, objects=objects)
-    vs = maxwellian(vd, vth[0], xs.shape)
-    pop.addParticles(xs,vs,q,m)
-
-    # Adding ions
-    q, m, N = stdSpecie(mesh, Ld, 1, 1836, Npc)
-    pdf = lambda x: 1
-    xs = random_points(pdf, Ld, N, objects=objects)
+    xs = random_points(pdf, Ld, N)
     vs = maxwellian(vd, vth[1], xs.shape)
     pop.addParticles(xs,vs,q,m)

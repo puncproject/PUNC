@@ -1,16 +1,79 @@
 from __future__ import print_function
 import numpy as np
 import dolfin as df
-from mesh_types import *
+from mesh import *
 from punc import *
 
-def tests():
+def test_facet():
+    import matplotlib.pyplot as plt
+
+    dim = 2
+    n_components = 4
+    msh = ObjectMesh(dim, n_components, 'spherical_object')
+    mesh, object_info, L = msh.mesh()
+    d = mesh.topology().dim()
+
+    tol = 1e-8
+    objects = []
+    for i in range(n_components):
+        j = i*(dim+1)
+        s0 = object_info[j:j+dim]
+        r0 = object_info[j+dim]
+        func = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2+tol
+        objects.append(Object(func, i))
+
+    mk = Marker(mesh, L, objects)
+    facet_f = mk.markers()
+
+    df.plot(facet_f, interactive=True)
+
+def test_capacitance():
+
+    epsilon_0 = 1.0
+    dim = 2
+    n_components = 4
+    circuits_info = [[0, 2], [1, 3]]
+
+    msh = ObjectMesh(dim, n_components, 'spherical_object')
+    mesh, object_info, L = msh.mesh()
+
+    d = mesh.geometry().dim()
+    Ld = np.asarray(L[d:])
+    #-------------------------------------------------------------------------------
+    #           Create the objects
+    #-------------------------------------------------------------------------------
+    tol = 1e-8
+    objects = []
+    for i in range(n_components):
+        j = i*(dim+1)
+        s0 = object_info[j:j+dim]
+        r0 = object_info[j+dim]
+        func = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2+tol
+        objects.append(Object(func, i))
+    #-------------------------------------------------------------------------------
+    #           Mark the facets of the boundary and the object
+    #-------------------------------------------------------------------------------
+    mk = Marker(mesh, L, objects)
+    facet_f = mk.markers()
+
+    PBC = PeriodicBoundary(Ld)
+    V = df.FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
+    inv_capacitance = capacitance_matrix(V,
+                                         mesh,
+                                         facet_f,
+                                         n_components,
+                                         epsilon_0)
+
+    inv_D = circuits(inv_capacitance, circuits_info)
+    print("capacitance matrix: ", inv_capacitance)
+    print("Bias voltage matrix: ", inv_D)
+
+def test_object():
     dim = 2
     n_components = 1
     object_type = 'spherical_object'
     msh = ObjectMesh(dim, n_components, object_type)
     mesh, object_info, L = msh.mesh()
-    # object_info = get_object(dim, object_type, n_components)
 
     circles = []
     for i in range(n_components):
@@ -18,18 +81,17 @@ def tests():
         s0 = object_info[j:j+dim]
         r0 = object_info[j+dim]
         fun = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2
-        circles.append(Object(fun))
+        circles.append(Object(fun,i))
 
     x = np.array([np.pi, 0.5+np.pi])
     q = 10
-    circles[0].is_inside(x, q)
+    circles[0].inside(x, q)
     print("Circle: ", circles[0].inside, "  ", circles[0].charge)
 
     n_components = 4
     object_type = 'spherical_object'
     msh1 = ObjectMesh(dim, n_components, object_type)
     mesh, object_info, L = msh1.mesh()
-    # object_info = get_object(dim, object_type, n_components)
 
     objects = []
     for i in range(n_components):
@@ -37,13 +99,12 @@ def tests():
         s0 = object_info[j:j+dim]
         r0 = object_info[j+dim]
         fun = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2
-        objects.append(Object(fun))
+        objects.append(Object(fun,i))
 
     x = np.array([np.pi, 0.5+np.pi])
     q = 10
     for o in objects:
-        o.is_inside(x, q)
-        print("Circles: ", o.inside, "  ", o.charge)
+        print("Circles: ", o.inside(x, q), "  ", o.charge)
 
     dim = 3
     Ld = [2*np.pi,2*np.pi,2*np.pi]
@@ -51,7 +112,6 @@ def tests():
     object_type = 'cylindrical_object'
     msh = ObjectMesh(dim, n_components, object_type)
     mesh, object_info, L = msh.mesh()
-    # object_info = get_object(dim, object_type, n_components)
 
     s = [object_info[0], object_info[1]]
     r = object_info[2]
@@ -61,11 +121,12 @@ def tests():
     z1 = (Lz+h)/2.      # Top point of cylinder
 
     fun = lambda x, z0=z0, z1=z1, s=s, r=r: ((x[2]>z0) and (x[2]<z1) and (np.dot(x[:2]-s, x[:2]-s) <= r**2))
-    cylinder = Object(fun)
+    cylinder = Object(fun,0)
 
     x = np.array([np.pi, 0.5+np.pi,np.pi])
     q = 100
-    cylinder.is_inside(x, q)
-    print("Cylinder: ", cylinder.inside, "  ", cylinder.charge)
+    print("Cylinder: ", cylinder.inside(x,q), "  ", cylinder.charge)
 
-tests()
+test_capacitance()
+test_facet()
+test_object()

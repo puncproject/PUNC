@@ -29,7 +29,7 @@ bins = 100
 
 # t = time.time()
 A = 1.
-pos = randomPoints(lambda x: 1+A*np.sin(2*x[0]),Ld,N,1+A)
+pos = random_points(lambda x: 1+A*np.sin(2*x[0]),Ld,N,1+A)
 
 plt.hist(pos[:,0],bins,facecolor='green',normed=1)
 x = np.linspace(0,Ld[0],bins)
@@ -50,7 +50,7 @@ if nDims==3: y *= 4*np.pi*v**2
 plt.plot(v,y,'r-')
 plt.show()
 
-posIon = randomPoints(lambda x: 0.5, Ld, N)
+posIon = random_points(lambda x: 0.5, Ld, N)
 velIon = np.array([0,0,0]) # Cold ions
 
 mul = np.prod(Ld)/N

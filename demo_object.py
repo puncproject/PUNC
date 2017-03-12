@@ -11,10 +11,6 @@ from punc import *
 from mesh_types import *
 
 #-------------------------------------------------------------------------------
-#                   Object type
-#-------------------------------------------------------------------------------
-object_type = 'spherical_object'
-#-------------------------------------------------------------------------------
 #             Get the mesh and the information about the object
 #-------------------------------------------------------------------------------
 dim = 2
@@ -25,9 +21,20 @@ mesh, object_info, L = msh.mesh()
 d = mesh.geometry().dim()
 Ld = np.asarray(L[d:])
 #-------------------------------------------------------------------------------
+#             Create the objects
+#-------------------------------------------------------------------------------
+objects = []
+for i in range(n_components):
+    j = i*(dim+1)
+    s0 = object_info[j:j+dim]
+    r0 = object_info[j+dim]
+    func = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2
+    objects.append(Object(func, i))
+#-------------------------------------------------------------------------------
 #           Mark the facets of the boundary and the object
 #-------------------------------------------------------------------------------
-facet_f = mark_boundaries(mesh, L, object_type, object_info, n_components)
+mk = Marker(mesh, L, objects)
+facet_f = mk.markers()
 #-------------------------------------------------------------------------------
 #                       Simulation parameters
 #-------------------------------------------------------------------------------
@@ -73,7 +80,9 @@ V = FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
 #-------------------------------------------------------------------------------
 #                  Get the object dofs
 #-------------------------------------------------------------------------------
-object_dofs = objects_dofs(V, facet_f, n_components)
+object_dofs = []
+for o in objects:
+    object_dofs.append(o.dofs(V, facet_f))
 #-------------------------------------------------------------------------------
 #          The inverse of capacitance matrix of the object
 #-------------------------------------------------------------------------------
@@ -83,21 +92,14 @@ inv_capacitance = capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0)
 #-------------------------------------------------------------------------------
 poisson = PoissonSolver(V)
 #-------------------------------------------------------------------------------
-#             Create the objects
-#-------------------------------------------------------------------------------
-objects = []
-for i in range(n_components):
-    j = i*(dim+1)
-    s0 = object_info[j:j+dim]
-    r0 = object_info[j+dim]
-    func = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2
-    objects.append(Object(func))
-#-------------------------------------------------------------------------------
 #   Initialize particle positions and velocities, and populate the domain
 #-------------------------------------------------------------------------------
 pop = Population(mesh, objects)
 distr = Distributor(V, Ld)
-init_objects(pop, objects, Ld, 0, [alpha_e,alpha_i], 8)
+
+pdf = [lambda x: 1, lambda x: 1]
+init = InitialConditions(pop, pdf, Ld, 0, [alpha_e,alpha_i], 8, objects)
+init.initialize()
 #-------------------------------------------------------------------------------
 #             Initial object charge
 #-------------------------------------------------------------------------------
@@ -117,7 +119,6 @@ Ld = [L[d], L[d+1]]
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
     rho, q_rho = distr.distr(pop, n_components, object_dofs)
-    print("Interpolated object charge: ", q_rho)
 
     object_bcs = []
     for k in range(n_components):
@@ -134,7 +135,6 @@ for n in range(1,N):
     movePeriodic(pop, Ld, dt)
     for (i, o) in enumerate(objects):
         q_object[i] = o.charge
-    print("Collected object charge: ", q_rho)
     tot_p = pop.total_number_of_particles()
     print("Total number of particles in the domain: ", tot_p)
 
