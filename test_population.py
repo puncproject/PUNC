@@ -39,7 +39,7 @@ def test_object():
         s0 = np.asarray(s[i])
         r0 = r[i]
         fun = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2
-        objects.append(Object(fun))
+        objects.append(Object(fun,i))
 
     points = random_points(pdf, Ld, N, pdfMax=1, objects=objects)
 
