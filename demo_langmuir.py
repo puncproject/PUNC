@@ -35,11 +35,12 @@ poisson = PoissonSolver(V,remove_null_space=True)
 
 # A = 0.5
 # mode = 1
+# pdfMax = 1+A
 # pdf = [lambda x, A=A, mode=mode, Ld=Ld: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0]),
 #        lambda x: 1]
 #
-# init = InitialConditions(pop, pdf, Ld, 0, [0, 0], 8)
-# init.initialize()
+# init = Initialize(pop, pdf, Ld, 0, [0, 0], 16, pdfMax)
+# init.initial_conditions()
 
 initLangmuir(pop, Ld, 0, [0,0], 0.5, 1, 16)
 

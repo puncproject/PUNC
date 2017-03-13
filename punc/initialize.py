@@ -114,17 +114,29 @@ def maxwellian(vd, vth, N):
 
     return np.random.normal(vd, vth, (N,d))
 
-class InitialConditions:
+def num_injected_particles(A, dt, n_p, v_n, alpha):
+    """
+    This function calculates the number of particles that needs to be injected
+    through a surface of the exterior boundary with area, A, based on a drifting
+    Maxwellian distribution, at each time step.
+    """
+    from math import erf
+    N = n_p*A*dt*( (alpha/(np.sqrt(2*np.pi)) * np.exp(-v_n**2/(2*alpha**2))) +\
+                    0.5*v_n*(1. + erf(v_n/(alpha*np.sqrt(2)))) )
+    return N
+
+class Initialize:
     """
     Initializes population pop with particles according to a prespecified
     probability distribution function, pdf, for each particle species
     (currently, only electrons and hydrogen ions) in the background plasma with
     thermal velocity vth and drift velocity vector vd. mesh and Ld is the mesh
     and it's size, while Npc is the number of simulation particles per cell per
-    specie. Normalization is such that angular electron plasma frequency is one. 
+    specie. Normalization is such that angular electron plasma frequency is one.
 
     """
-    def __init__(self, pop, pdf, Ld, vd, vth, Npc, objects=None):
+    def __init__(self, pop, pdf, Ld, vd, vth, Npc, pdfMax=1, dt=0.1,
+                                                                  objects=None):
         self.pop = pop
         self.mesh = pop.mesh
         self.pdf = pdf
@@ -132,16 +144,106 @@ class InitialConditions:
         self.vd = vd
         self.vth = vth
         self.Npc = Npc
+        self.pdfMax = pdfMax
+
+        self.dt = dt
+        self.dim = len(self.Ld)
         self.objects = objects
 
         self.num_species = 2
         self.charge = [-1, 1]
         self.mass = [1, 1836]
 
-    def initialize(self):
+    def initial_conditions(self):
         for i in range(self.num_species):
             q, m, N = stdSpecie(self.mesh, self.Ld, self.charge[i],
                                 self.mass[i], self.Npc)
-            xs = random_points(self.pdf[i], self.Ld, N, objects=self.objects)
+            xs = random_points(self.pdf[i], self.Ld, N, self.pdfMax,
+                                                        self.objects)
             vs = maxwellian(self.vd, self.vth[i], xs.shape)
             self.pop.addParticles(xs,vs,q,m)
+
+    def inject(self):
+        for i in range(self.num_species):
+            q, m, N = stdSpecie(self.mesh, self.Ld, self.charge[i],
+                                self.mass[i], self.Npc)
+            N /= np.prod(self.Ld)
+            n_particles, surfaces = self.initialize_injection(N, self.vth[i])
+            xs = self.get_xs(n_particles, surfaces)
+            vs = maxwellian(self.vd, self.vth[i], xs.shape)
+            xs, vs = self.inside(xs, vs)
+            self.pop.addParticles(xs,vs,q,m)
+
+    def get_xs(self, n_particles, surfaces):
+        n_tot = np.sum(n_particles)
+        xs = np.zeros((n_tot, self.dim))
+        tmp = np.array([np.sum(n_particles[:j+1]) for j in range(2*self.dim)])
+
+        for j in range(self.dim):
+            xs[tmp[2*j]:tmp[2*j+1], j] = self.Ld[j]
+        tmp = np.insert(tmp, 0, 0, axis=0)
+
+        slices = \
+        [list(j) for j in reversed(list(combinations(np.arange(0,self.dim),
+                                                                 self.dim-1)))]
+        k = 0
+        for j in range(2*self.dim):
+            pos = random_points(self.pdf, surfaces[j+k], n_particles[j])
+            if n_particles[j] != 0:
+                for l in range(len(slices[j+k])):
+                    xs[tmp[j]:tmp[j+1], slices[j+k][l]] = pos[:,l]
+            if j%(len(n_particles)/self.dim)==0:
+                k -= 1
+        return xs
+
+    def inside(self, xs, vs):
+        w_random = np.random.rand(len(vs))
+        if len(xs) != 0:
+            for j in range(self.dim):
+                xs[:,j]  += self.dt*w_random*vs[:,j]
+
+        outside = []
+        for j in range(len(xs)):
+            x = xs[j]
+            for k in range(self.dim):
+                if x[k] < 0.0 or x[k] > self.Ld[k]:
+                    outside.append(j)
+                    break
+        xs = np.delete(xs, outside, axis=0)
+        vs = np.delete(vs, outside, axis=0)
+        return xs, vs
+
+    def initialize_injection(self, N, sigma):
+
+        surfaces = [list(i) for i in reversed(list(combinations(self.Ld,
+                                                                self.dim-1)))]
+        surface_area = [np.prod(surfaces[i]) for i in range(self.dim)]
+
+        # The unit vector normal to outer boundary surfaces
+        unit_vec = np.identity(self.dim)
+        # Normal components of drift velocity
+        vd_normal = np.empty(2*self.dim)
+        s = -1 # To insure normal vectors point outward from the domain
+        j = 0
+        for i in range(2*self.dim):
+            si = s**i
+            if np.sign(si) == -1:
+                j += 1
+            vd_normal[i] = np.dot(self.vd, si*unit_vec[i-j])
+
+        n_particles = []
+        j = 0
+        for i in range(2*self.dim):
+            n_particles.append(num_injected_particles(surface_area[i+j],
+                                                      self.dt,
+                                                      N,
+                                                      vd_normal[i],
+                                                      sigma))
+            if i%(len(vd_normal)/self.dim)==0:
+                j -= 1
+
+        diff_e = [(i - int(i)) for i in n_particles]
+        n_particles = [int(i) for i in n_particles]
+        n_particles[0] += int(sum(diff_e))
+
+        return n_particles, surfaces

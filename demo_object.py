@@ -98,8 +98,8 @@ pop = Population(mesh, objects)
 distr = Distributor(V, Ld)
 
 pdf = [lambda x: 1, lambda x: 1]
-init = InitialConditions(pop, pdf, Ld, 0, [alpha_e,alpha_i], 8, objects)
-init.initialize()
+init = Initialize(pop, pdf, Ld, 0, [alpha_e,alpha_i], 8, objects=objects)
+init.initial_conditions()
 #-------------------------------------------------------------------------------
 #             Initial object charge
 #-------------------------------------------------------------------------------
