@@ -13,6 +13,8 @@ import numpy as np
 import copy
 import matplotlib.pyplot as plt
 
+show_plot = False
+
 """
 The solver should work for all of the following cases. Note that the null space
 should only be removed when no boundaries are dirichlet, that is, periodic
@@ -78,14 +80,15 @@ for i, N in enumerate(Ns):
 	order = ln(err[i]/err[i-1])/ln(h[i]/h[i-1]) if i>0 else 0
 	print("Running with N=%3d: h=%2.2E, E=%2.2E, order=%2.2E"%(N,h[i],err[i],order))
 
-	if i==len(Ns)-1:
+	if i==len(Ns)-1 and show_plot:
 		#plot(rho)
 		plot(phi)
 		interactive()
 
-plt.loglog(h,err)
-plt.grid()
-plt.title('Convergence of PUNC PoissonSolver class')
-plt.xlabel('Minimum cell diameter in mesh')
-plt.ylabel('L2 error norm')
-plt.show()
+if show_plot:
+	plt.loglog(h,err)
+	plt.grid()
+	plt.title('Convergence of PUNC PoissonSolver class')
+	plt.xlabel('Minimum cell diameter in mesh')
+	plt.ylabel('L2 error norm')
+	plt.show()

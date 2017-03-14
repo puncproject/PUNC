@@ -15,6 +15,10 @@ import dolfin as df
 import numpy as np
 import pyvoro
 
+# This is not yet parallelized
+#comm = pyMPI.COMM_WORLD
+""" comm.Get_rank() """
+
 class Distributor:
 
     def __init__(self, V, Ld, bnd="periodic"):
@@ -52,7 +56,7 @@ class Distributor:
         blockSize = np.prod(Ld)**(1/nDims)/nBlocksPerDim
 
         if nParticles>24000:
-            print("Warning: The pyvoro library often experience problems with many particles. This despite the fact that voro++ should be well suited for big problems.")
+            print("Warning: The pyvoro library often experience problems with many nodes. This despite the fact that voro++ should be well suited for big problems.")
 
         if nDims==1:
             error("1D voronoi not implemented yet")
@@ -61,16 +65,13 @@ class Distributor:
         if nDims==3:
             voronoi = pyvoro.compute_voronoi(vertices,limits,blockSize,periodic=[True]*3)
 
-        #dvArr = [vcell['volume'] for vcell in voronoi]
-        dvInvArr = [vcell['volume']**(-1) for vcell in voronoi]
-
+        #dvArr = np.array([vcell['volume'] for vcell in voronoi])
         #self.dv = df.Function(self.V)
-        self.dvInv = df.Function(self.V)
+        #self.dv.vector()[:] = dvArr
 
-        # There must be some way to avoid this loop
-        for i in range(len(dvInvArr)):
-            #self.dv.vector()[i] = dvArr[i]
-            self.dvInv.vector()[i] = dvInvArr[i]
+        dvInvArr = np.array([vcell['volume']**(-1) for vcell in voronoi])
+        self.dvInv = df.Function(self.V)
+        self.dvInv.vector()[:] = dvInvArr
 
         # self.dv is now a FEniCS function which on the vertices of the FEM mesh
         # equals the volume of the Voronoi cells created from those vertices.
