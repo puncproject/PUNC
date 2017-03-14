@@ -6,6 +6,7 @@ if sys.version_info.major == 2:
 
 import dolfin as df
 import numpy as np
+from itertools import combinations
 
 def stdSpecie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
     """
@@ -135,8 +136,9 @@ class Initialize:
     specie. Normalization is such that angular electron plasma frequency is one.
 
     """
-    def __init__(self, pop, pdf, Ld, vd, vth, Npc, pdfMax=1, dt=0.1,
-                                                                  objects=None):
+    def __init__(self, pop, pdf, Ld, vd, vth, Npc, pdfMax = 1, dt = 0.1,
+                 tot_time = 10, num_species = 2, charge = [-1,1],
+                 mass = [1, 1836], objects = None):
         self.pop = pop
         self.mesh = pop.mesh
         self.pdf = pdf
@@ -150,31 +152,28 @@ class Initialize:
         self.dim = len(self.Ld)
         self.objects = objects
 
-        self.num_species = 2
-        self.charge = [-1, 1]
-        self.mass = [1, 1836]
+        self.num_species = num_species
+        self.q = charge
+        self.m = mass
+
+        self.normalize()
+        self.initialize_injection()
 
     def initial_conditions(self):
         for i in range(self.num_species):
-            q, m, N = stdSpecie(self.mesh, self.Ld, self.charge[i],
-                                self.mass[i], self.Npc)
-            xs = random_points(self.pdf[i], self.Ld, N, self.pdfMax,
+            xs = random_points(self.pdf[i], self.Ld, self.N, self.pdfMax,
                                                         self.objects)
             vs = maxwellian(self.vd, self.vth[i], xs.shape)
-            self.pop.addParticles(xs,vs,q,m)
+            self.pop.addParticles(xs,vs,self.q[i],self.m[i])
 
     def inject(self):
         for i in range(self.num_species):
-            q, m, N = stdSpecie(self.mesh, self.Ld, self.charge[i],
-                                self.mass[i], self.Npc)
-            N /= np.prod(self.Ld)
-            n_particles, surfaces = self.initialize_injection(N, self.vth[i])
-            xs = self.get_xs(n_particles, surfaces)
+            xs = self.get_xs(self.pdf[i], self.n_particles[i], self.surfaces)
             vs = maxwellian(self.vd, self.vth[i], xs.shape)
             xs, vs = self.inside(xs, vs)
-            self.pop.addParticles(xs,vs,q,m)
+            self.pop.addParticles(xs,vs,self.q[i],self.m[i])
 
-    def get_xs(self, n_particles, surfaces):
+    def get_xs(self, pdf, n_particles, surfaces):
         n_tot = np.sum(n_particles)
         xs = np.zeros((n_tot, self.dim))
         tmp = np.array([np.sum(n_particles[:j+1]) for j in range(2*self.dim)])
@@ -188,7 +187,7 @@ class Initialize:
                                                                  self.dim-1)))]
         k = 0
         for j in range(2*self.dim):
-            pos = random_points(self.pdf, surfaces[j+k], n_particles[j])
+            pos = random_points(pdf, surfaces[j+k], n_particles[j])
             if n_particles[j] != 0:
                 for l in range(len(slices[j+k])):
                     xs[tmp[j]:tmp[j+1], slices[j+k][l]] = pos[:,l]
@@ -213,11 +212,11 @@ class Initialize:
         vs = np.delete(vs, outside, axis=0)
         return xs, vs
 
-    def initialize_injection(self, N, sigma):
+    def initialize_injection(self):
 
-        surfaces = [list(i) for i in reversed(list(combinations(self.Ld,
+        self.surfaces = [list(i) for i in reversed(list(combinations(self.Ld,
                                                                 self.dim-1)))]
-        surface_area = [np.prod(surfaces[i]) for i in range(self.dim)]
+        surface_area = [np.prod(self.surfaces[i]) for i in range(self.dim)]
 
         # The unit vector normal to outer boundary surfaces
         unit_vec = np.identity(self.dim)
@@ -231,19 +230,25 @@ class Initialize:
                 j += 1
             vd_normal[i] = np.dot(self.vd, si*unit_vec[i-j])
 
-        n_particles = []
-        j = 0
-        for i in range(2*self.dim):
-            n_particles.append(num_injected_particles(surface_area[i+j],
-                                                      self.dt,
-                                                      N,
-                                                      vd_normal[i],
-                                                      sigma))
-            if i%(len(vd_normal)/self.dim)==0:
-                j -= 1
+        self.n_particles = []
+        for i in range(self.num_species):
+            self.n_particles.append([])
+            k = 0
+            for j in range(2*self.dim):
+                self.n_particles[i].append(\
+                num_injected_particles(surface_area[j+k],
+                                       self.dt,
+                                       self.N/np.prod(self.Ld),
+                                       vd_normal[j],
+                                       self.vth[i]))
+                if j%(len(vd_normal)/self.dim)==0:
+                    k -= 1
 
-        diff_e = [(i - int(i)) for i in n_particles]
-        n_particles = [int(i) for i in n_particles]
-        n_particles[0] += int(sum(diff_e))
+            diff_e = [(j - int(j)) for j in self.n_particles[i]]
+            self.n_particles[i] = [int(j) for j in self.n_particles[i]]
+            self.n_particles[i][0] += int(sum(diff_e))
 
-        return n_particles, surfaces
+    def normalize(self):
+        for i in range(self.num_species):
+            self.q[i], self.m[i], self.N = \
+            stdSpecie(self.mesh, self.Ld, self.q[i], self.m[i], self.Npc)

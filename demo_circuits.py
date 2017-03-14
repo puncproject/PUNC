@@ -21,6 +21,20 @@ mesh, object_info, L = msh.mesh()
 d = mesh.geometry().dim()
 Ld = np.asarray(L[d:])
 #-------------------------------------------------------------------------------
+#            Create boundary conditions and function space
+#-------------------------------------------------------------------------------
+PBC = PeriodicBoundary(Ld)
+V = FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
+v2d = vertex_to_dof_map(V)
+#-------------------------------------------------------------------------------
+#        Create facet and cell functions to to mark the boundaries
+#-------------------------------------------------------------------------------
+facet_f = FacetFunction('size_t', mesh)
+facet_f.set_all(n_components+len(L))
+
+cell_f = CellFunction('size_t', mesh)
+cell_f.set_all(n_components)
+#-------------------------------------------------------------------------------
 #           Create the objects
 #-------------------------------------------------------------------------------
 tol = 1e-8
@@ -30,12 +44,21 @@ for i in range(n_components):
     s0 = object_info[j:j+dim]
     r0 = object_info[j+dim]
     func = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2+tol
-    objects.append(Object(func, i))
+    objects.append(Object(func, i, mesh, facet_f, cell_f, v2d))
 #-------------------------------------------------------------------------------
-#           Mark the facets of the boundary and the object
+#       Mark the facets at the surface of the object
+#       Mark the cell adjecet to the object
+#       Get the object dofs
 #-------------------------------------------------------------------------------
-mk = Marker(mesh, L, objects)
-facet_f = mk.markers()
+object_dofs = []
+for o in objects:
+    o.mark_facets()
+    o.mark_cells()
+    object_dofs.append(o.dofs())
+#-------------------------------------------------------------------------------
+#       Mark the exterior boundaries of the simulation domain
+#-------------------------------------------------------------------------------
+facet_f = mark_exterior_boundaries(facet_f, n_components, L)
 #-------------------------------------------------------------------------------
 #                       Simulation parameters
 #-------------------------------------------------------------------------------
@@ -74,17 +97,6 @@ q_i = Z*e        # Electric charge - ions
 vd_x = 0.0; vd_y = 0.0; dv_z = 0.0;
 vd = [vd_x, vd_y]  # Drift velocity
 #-------------------------------------------------------------------------------
-#            Create boundary conditions and function space
-#-------------------------------------------------------------------------------
-PBC = PeriodicBoundary(Ld)
-V = FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
-#-------------------------------------------------------------------------------
-#                  Get the object dofs
-#-------------------------------------------------------------------------------
-object_dofs = []
-for o in objects:
-    object_dofs.append(o.dofs(V, facet_f))
-#-------------------------------------------------------------------------------
 #          The inverse of capacitance matrix of the object
 #-------------------------------------------------------------------------------
 inv_capacitance = capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0)
@@ -106,7 +118,7 @@ pop = Population(mesh, objects)
 distr = Distributor(V, Ld)
 
 pdf = [lambda x: 1, lambda x: 1]
-init = Initialize(pop, pdf, Ld, 0, [alpha_e,alpha_i], 8, objects=objects)
+init = Initialize(pop, pdf, Ld, vd, [alpha_e,alpha_i], 8, objects=objects)
 init.initial_conditions()
 #-------------------------------------------------------------------------------
 #             Initial object charge

@@ -47,7 +47,7 @@ class Particle:
 
 class Population(list):
 
-    def __init__(self, mesh, objects = None, dirichlet = False):
+    def __init__(self, mesh, objects = [], dirichlet = False):
         self.mesh = mesh
         self.objects = objects
         self.dirichlet = dirichlet
@@ -206,7 +206,6 @@ class Population(list):
         """
         if (self.objects is not None or self.dirichlet):
             particles_outside_domain = set()
-
             for i in range(len(list_of_escaped_particles)):
                 particle = list_of_escaped_particles[i]
                 x = particle.x

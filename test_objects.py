@@ -13,6 +13,13 @@ def test_facet():
     mesh, object_info, L = msh.mesh()
     d = mesh.topology().dim()
 
+    PBC = PeriodicBoundary(L[d:])
+    V = df.FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
+    v2d = df.vertex_to_dof_map(V)
+    facet_f = df.FacetFunction('size_t', mesh)
+    facet_f.set_all(n_components+len(L))
+    cell_f = df.CellFunction('size_t', mesh)
+    cell_f.set_all(n_components)
     tol = 1e-8
     objects = []
     for i in range(n_components):
@@ -20,11 +27,11 @@ def test_facet():
         s0 = object_info[j:j+dim]
         r0 = object_info[j+dim]
         func = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2+tol
-        objects.append(Object(func, i))
+        objects.append(Object(func, i, mesh, facet_f, cell_f, v2d))
 
-    mk = Marker(mesh, L, objects)
-    facet_f = mk.markers()
-
+    for o in objects:
+        o.mark_facets()
+    facet_f = mark_exterior_boundaries(facet_f, n_components, L)
     df.plot(facet_f, interactive=True)
 
 def test_capacitance():
@@ -42,6 +49,13 @@ def test_capacitance():
     #-------------------------------------------------------------------------------
     #           Create the objects
     #-------------------------------------------------------------------------------
+    PBC = PeriodicBoundary(Ld)
+    V = df.FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
+    v2d = df.vertex_to_dof_map(V)
+    facet_f = df.FacetFunction('size_t', mesh)
+    facet_f.set_all(n_components+len(L))
+    cell_f = df.CellFunction('size_t', mesh)
+    cell_f.set_all(n_components)
     tol = 1e-8
     objects = []
     for i in range(n_components):
@@ -49,15 +63,11 @@ def test_capacitance():
         s0 = object_info[j:j+dim]
         r0 = object_info[j+dim]
         func = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2+tol
-        objects.append(Object(func, i))
-    #-------------------------------------------------------------------------------
-    #           Mark the facets of the boundary and the object
-    #-------------------------------------------------------------------------------
-    mk = Marker(mesh, L, objects)
-    facet_f = mk.markers()
+        objects.append(Object(func, i, mesh, facet_f, cell_f, v2d))
 
-    PBC = PeriodicBoundary(Ld)
-    V = df.FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
+    for o in objects:
+        o.mark_facets()
+    facet_f = mark_exterior_boundaries(facet_f, n_components, L)
     inv_capacitance = capacitance_matrix(V,
                                          mesh,
                                          facet_f,
@@ -75,13 +85,22 @@ def test_object():
     msh = ObjectMesh(dim, n_components, object_type)
     mesh, object_info, L = msh.mesh()
 
+    PBC = PeriodicBoundary(L[dim:])
+    V = df.FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
+    v2d = df.vertex_to_dof_map(V)
+    facet_f = df.FacetFunction('size_t', mesh)
+    facet_f.set_all(n_components+len(L))
+    cell_f = df.CellFunction('size_t', mesh)
+    cell_f.set_all(n_components)
+    tol = 1e-8
+
     circles = []
     for i in range(n_components):
         j = i*(dim+1)
         s0 = object_info[j:j+dim]
         r0 = object_info[j+dim]
         fun = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2
-        circles.append(Object(fun,i))
+        circles.append(Object(fun,i, mesh, facet_f, cell_f, v2d))
 
     x = np.array([np.pi, 0.5+np.pi])
     q = 10
@@ -99,7 +118,7 @@ def test_object():
         s0 = object_info[j:j+dim]
         r0 = object_info[j+dim]
         fun = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2
-        objects.append(Object(fun,i))
+        objects.append(Object(fun,i, mesh, facet_f, cell_f, v2d))
 
     x = np.array([np.pi, 0.5+np.pi])
     q = 10
@@ -121,7 +140,7 @@ def test_object():
     z1 = (Lz+h)/2.      # Top point of cylinder
 
     fun = lambda x, z0=z0, z1=z1, s=s, r=r: ((x[2]>z0) and (x[2]<z1) and (np.dot(x[:2]-s, x[:2]-s) <= r**2))
-    cylinder = Object(fun,0)
+    cylinder = Object(fun,0, mesh, facet_f, cell_f, v2d)
 
     x = np.array([np.pi, 0.5+np.pi,np.pi])
     q = 100
