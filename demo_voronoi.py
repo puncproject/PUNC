@@ -29,7 +29,7 @@ elif nDims == 2:
 mesh = Mesh("mesh/nonuniform_interval.xml")
 
 bnd = 'dirichlet'
-# bnd = 'periodic'
+bnd = 'periodic'
 
 constr = PeriodicBoundary(Ld) if bnd is 'periodic' else None
 V = FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)

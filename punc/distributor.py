@@ -33,57 +33,38 @@ class Distributor:
 
         if nDims==1:
 
-            print(vertices)
             vertices = vertices[:,0]
+
+            # Sort vertices in incresing order
             srt = np.argsort(vertices)
-            # if bnd == 'periodic':
-            #     srtBack = np.argsort(srt[:-1])
-            # else:
-            srtBack = np.argsort(srt)
-            print(srt)
-            print(srtBack)
-
             vertices = vertices[srt]
-            dual = 0.5*(vertices[1:]+vertices[:-1]) # dual (voronoi) grid
 
-            print("vertices:", len(vertices), "dual:", len(dual))
+            # Dual grid has nodes on average positions
+            dual = 0.5*(vertices[1:]+vertices[:-1])
 
+            # For finite non-periodic grid we must add edges
             if bnd == 'dirichlet':
-                print(dual.shape)
-                print(Ld.shape)
-                dual = np.concatenate([[0],dual,Ld]) # add ends
+                dual = np.concatenate([[0],dual,Ld])
 
+            # Compute volume of Voronoi cells
             volume = dual[1:]-dual[:-1]
 
-            print("dual after concat:",len(dual),"volume:",len(volume))
-
+            # Add volume of "wrapping" cell for periodic boundaries
             if bnd == 'periodic':
-                first = Ld[0]-dual[-1]+dual[0] # volume of periodic cell
+                first = Ld[0]-dual[-1]+dual[0]
                 volume = np.concatenate([[first],volume,[first]])
 
-            print("volume after concat:",len(volume))
-            print(volume)
+            # volume is now the Voronoi volume for the vertices in mesh
+            # sort volume back to same ordering as mesh.coordinates()
+            srt_back = np.argsort(srt)
+            volume = volume[srt_back]
 
-
-            volume = volume[srtBack]
-
+            # Store as Function using correct dof-ordering.
             v2d = df.vertex_to_dof_map(V)
-            # d2v = df.dof_to_vertex_map(V)
-
-            # volume = volume[v2d]
-            self.volume = volume
-            self.srt = srt
-            self.srtBack = srtBack
-
-            print("volume after sort:",len(volume))
-            print(volume)
-
-
             self.dv = df.Function(self.V)
-            print("len(dv)=%d, len(volume)=%d"%(len(self.dv.vector().array()),len(volume)))
             self.dv.vector()[v2d] = volume
-            # self.dvInv = df.Function(self.V)
-            # self.dvInv.vector()[:] = volume**(-1)
+            self.dvInv = df.Function(self.V)
+            self.dvInv.vector()[v2d] = volume**(-1)
 
         elif nDims==2 or nDims==3:
 
