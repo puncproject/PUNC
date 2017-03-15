@@ -1,7 +1,6 @@
 from __future__ import print_function
 import dolfin as df
 import numpy as np
-from marker import *
 
 
 def objects_bcs(objects, inv_cap_matrix):

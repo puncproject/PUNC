@@ -11,7 +11,6 @@ from punc.pusher import *
 from punc.distributor import *
 from punc.population import *
 from punc.diagnostics import *
-from punc.marker import *
 from punc.object import *
 from punc.initialize import *
 from punc.capacitance import *
