@@ -35,6 +35,19 @@ class SimpleMesh:
 	                                    *self.N)
 		return msh
 
+def get_mesh_circle():
+
+	class Circle(Object):
+		def inside(self, x, on_bnd):
+			return ...
+
+	objects[0] = Circle()
+
+	return mesh, objects
+
+def get_mesh_circuit():
+	return mesh, objects
+
 class ObjectMesh:
 
 	def __init__(self, d, n_components, object_type):

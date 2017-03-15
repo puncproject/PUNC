@@ -24,12 +24,20 @@ class Object:
         self.v2d = v2d
         self.charge = 0.0
 
+    """
     def inside(self, p, q = 0.0):
         if self.geometry(p):
             self.charge += q
             return True
         else:
             return False
+    """
+
+    def inside(self, x, on_bnd):
+        ....
+
+    def bc:
+        return DirichletBC(.....)
 
     def dofs(self):
         """

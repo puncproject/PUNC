@@ -131,8 +131,12 @@ KE0 = kineticEnergy(pop)
 Ld = [L[d], L[d+1]]
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
-    rho, q_rho = distr.distr(pop, object_dofs)
 
+    q = distr.distr(pop)
+
+    #rho, q_rho = distr.distr(pop, object_dofs)
+
+    """
     object_bcs = []
     for k in range(n_components):
         phi_object = 0.0
@@ -140,14 +144,25 @@ for n in range(1,N):
             phi_object += (q_object[j]-q_rho[j])*inv_capacitance[k,j]
         q_diff[k].assign(phi_object)
         object_bcs.append(DirichletBC(V, q_diff[k], facet_f, k))
+    """
+    for o in objects:
+        o.compute_potential(q, inv_cap_matrix)
+
+    object_bcs = [o.bc() for o in objects]
+
+    rho = distr.something(q)
 
     phi = poisson.solve(rho, object_bcs)
     E = electric_field(phi)
     PE[n-1] = potentialEnergy(pop, phi)
     KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
     movePeriodic(pop, Ld, dt)
+
+    """
     for (i, o) in enumerate(objects):
         q_object[i] = o.charge
+    """
+
     tot_p = pop.total_number_of_particles()
     print("Total number of particles in the domain: ", tot_p)
 
