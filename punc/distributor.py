@@ -21,19 +21,23 @@ import pyvoro
 
 class Distributor:
 
-    def __init__(self, V, Ld, bnd="periodic"):
+    def __init__(self, V, Ld, periodic=True):
+
+        # Expand to list
+        if isinstance(periodic,bool):
+            periodic = [periodic for x in Ld]
 
         self.V = V
         self.mesh = V.mesh()
-
-        vertices = self.mesh.coordinates()
-        dofs = df.vertex_to_dof_map(self.V)
 
         nDims = len(Ld)
 
         if nDims==1:
 
-            vertices = vertices[:,0]
+            # Extract single element
+            periodic = periodic[0]
+            
+            vertices = self.mesh.coordinates()[:,0]
 
             # Sort vertices in incresing order
             srt = np.argsort(vertices)
@@ -43,14 +47,14 @@ class Distributor:
             dual = 0.5*(vertices[1:]+vertices[:-1])
 
             # For finite non-periodic grid we must add edges
-            if bnd == 'dirichlet':
+            if not periodic:
                 dual = np.concatenate([[0],dual,Ld])
 
             # Compute volume of Voronoi cells
             volume = dual[1:]-dual[:-1]
 
             # Add volume of "wrapping" cell for periodic boundaries
-            if bnd == 'periodic':
+            if periodic:
                 first = Ld[0]-dual[-1]+dual[0]
                 volume = np.concatenate([[first],volume,[first]])
 
@@ -70,12 +74,15 @@ class Distributor:
 
             assert bnd=="periodic"
 
+            vertices = self.mesh.coordinates()
+            v2d = df.vertex_to_dof_map(self.V)
+
             # Remove those on upper bound (admittedly inefficient)
             i = 0
             while i<len(vertices):
                 if any([df.near(a,b) for a,b in zip(vertices[i],list(Ld))]):
                     vertices = np.delete(vertices,[i],axis=0)
-                    dofs = np.delete(dofs,[i],axis=0)
+                    v2d = np.delete(v2d,[i],axis=0)
                 else:
                     i = i+1
 
@@ -83,7 +90,7 @@ class Distributor:
             limits[:,1] = Ld
 
             # Sort vertices to appear in the order FEniCS wants them for the DOFs
-            sortIndices = np.argsort(dofs)
+            sortIndices = np.argsort(v2d)
             vertices = vertices[sortIndices]
 
 
@@ -96,8 +103,6 @@ class Distributor:
             if nParticles>24000:
                 print("Warning: The pyvoro library often experience problems with many nodes. This despite the fact that voro++ should be well suited for big problems.")
 
-            if nDims==1:
-                error("1D voronoi not implemented yet")
             if nDims==2:
                 voronoi = pyvoro.compute_2d_voronoi(vertices,limits,blockSize,periodic=[True]*2)
             if nDims==3:

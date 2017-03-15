@@ -28,12 +28,12 @@ elif nDims == 2:
 # mesh = Mesh("mesh/nonuniform.xml")
 mesh = Mesh("mesh/nonuniform_interval.xml")
 
-bnd = 'dirichlet'
-bnd = 'periodic'
 
-constr = PeriodicBoundary(Ld) if bnd is 'periodic' else None
+periodic = False
+
+constr = PeriodicBoundary(Ld) if periodic else None
 V = FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
 
-distr = Distributor(V, Ld, bnd)
+distr = Distributor(V, Ld, periodic)
 
 plot(distr.dv)
