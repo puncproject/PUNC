@@ -25,28 +25,46 @@ class SimpleMesh:
 	def __init__(self, Ld, N):
 		self.N = N
 		self.d = len(N)
-		L0 = [0.0]*self.d
-		self.L = L0 + Ld
+		self.Ld = Ld
 		self.mesh_types = [df.RectangleMesh, df.BoxMesh]
 
 	def mesh(self):
-		msh = self.mesh_types[self.d-2](df.Point(*self.L[:self.d]),
-		                                df.Point(*self.L[self.d:]),
+		msh = self.mesh_types[self.d-2](df.Point(*[0.0]*self.d),
+		                                df.Point(*self.Ld),
 	                                    *self.N)
 		return msh
 
 def get_mesh_circle():
+	mesh = df.Mesh("mesh/circle.xml")
+	dim = mesh.geometry().dim()
+	Ld = [0]*dim
+	for i in range(dim):
+		Ld[i] = mesh.coordinates()[:,i].max()
 
-	class Circle(Object):
-		def inside(self, x, on_bnd):
-			return ...
+	tol = 1e-8
+	class CircleTest(df.SubDomain):
+		def __init__(self, s, r):
+			self.s = s
+			self.r = r
+		def inside(self, x, on_boundary):
+			return on_boundary or np.dot(x-self.s, x-self.s) <= self.r**2+tol
 
-	objects[0] = Circle()
+	class Circle:
+		def __init__(self, s, r):
+			self.s = s
+			self.r = r
+			self.func =\
+			lambda x, s0 = s0, r0 = r0: np.dot(x-self.s, x-self.s) <= self.r**2+tol
 
-	return mesh, objects
+		def inside(self, x):
+			return self.func(x)
 
-def get_mesh_circuit():
-	return mesh, objects
+	s0, r0 = np.array([np.pi, np.pi]), 0.5
+
+	circle = Circle(s0,r0)
+	objects = [circle.inside]
+	return mesh, Ld, objects
+
 
 class ObjectMesh:
 
@@ -93,6 +111,11 @@ class ObjectMesh:
 
 if __name__=='__main__':
 
+	mesh, objects = get_mesh_circle()
+
+	a = [np.pi, 10*np.pi]
+	print(objects[0](a))
+
 	def test_simple():
 		from pylab import axis, show, triplot
 		Ld = [1., 2.]
@@ -129,4 +152,4 @@ if __name__=='__main__':
 		else:
 			df.plot(mesh, interactive=True)
 
-	test_objects()
+	# test_simple()

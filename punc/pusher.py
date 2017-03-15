@@ -110,13 +110,13 @@ def boris(pop, E, B, dt):
 
     return KE
 
-def movePeriodic(pop, Ld, dt):
+def movePeriodic(pop, Ld, dt, objects = []):
 
     for cell in pop:
         for particle in cell:
             particle.x += dt*particle.v
             particle.x %= Ld
-    pop.relocate()
+    pop.relocate(objects)
 
 def move(pop, Ld, dt):
 

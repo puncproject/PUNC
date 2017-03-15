@@ -11,73 +11,10 @@ from punc import *
 from mesh import *
 
 #-------------------------------------------------------------------------------
-#             Get the mesh and the information about the object
+#              Simulation and physical  parameters
 #-------------------------------------------------------------------------------
-dim = 2
-n_components = 1
-msh = ObjectMesh(dim, n_components, 'spherical_object')
-mesh, object_info, L = msh.mesh()
-
-d = mesh.geometry().dim()
-Ld = np.asarray(L[d:])
-#-------------------------------------------------------------------------------
-#            Create boundary conditions and function space
-#-------------------------------------------------------------------------------
-PBC = PeriodicBoundary(Ld)
-V = FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
-v2d = vertex_to_dof_map(V)
-#-------------------------------------------------------------------------------
-#        Create facet and cell functions to to mark the boundaries
-#-------------------------------------------------------------------------------
-facet_f = FacetFunction('size_t', mesh)
-facet_f.set_all(n_components+len(L))
-
-cell_f = CellFunction('size_t', mesh)
-cell_f.set_all(n_components)
-#-------------------------------------------------------------------------------
-#           Create the objects
-#-------------------------------------------------------------------------------
-tol = 1e-8
-objects = []
-for i in range(n_components):
-    j = i*(dim+1)
-    s0 = object_info[j:j+dim]
-    r0 = object_info[j+dim]
-    func = lambda x, s0 = s0, r0 = r0: np.dot(x-s0, x-s0) <= r0**2+tol
-    objects.append(Object(func, i, mesh, facet_f, cell_f, v2d))
-#-------------------------------------------------------------------------------
-#       Mark the facets at the surface of the object
-#       Mark the cell adjecet to the object
-#       Get the object dofs
-#-------------------------------------------------------------------------------
-object_dofs = []
-for o in objects:
-    o.mark_facets()
-    o.mark_cells()
-    object_dofs.append(o.dofs())
-#-------------------------------------------------------------------------------
-#       Mark the exterior boundaries of the simulation domain
-#-------------------------------------------------------------------------------
-facet_f = mark_exterior_boundaries(facet_f, n_components, L)
-#-------------------------------------------------------------------------------
-#                       Simulation parameters
-#-------------------------------------------------------------------------------
-n_pr_cell = 8             # Number of particels per cell
-n_pr_super_particle = 8   # Number of particles per super particle
 tot_time = 20             # Total simulation time
 dt = 0.251327             # Time step
-
-tot_volume = assemble(1*dx(mesh)) # Volume of simulation domain
-
-n_cells = mesh.num_cells()    # Number of cells
-N_e = n_pr_cell*n_cells       # Number of electrons
-N_i = n_pr_cell*n_cells       # Number of ions
-num_species = 2               # Number of species
-#-------------------------------------------------------------------------------
-#                       Physical parameters
-#-------------------------------------------------------------------------------
-n_plasma = N_e/tot_volume   # Plasma density
-
 epsilon_0 = 1.              # Permittivity of vacuum
 mu_0 = 1.                   # Permeability of vacuum
 T_e = 1.                    # Temperature - electrons
@@ -94,12 +31,25 @@ alpha_i = np.sqrt(kB*T_i/m_i) # Boltzmann factor
 q_e = -e         # Electric charge - electron
 q_i = Z*e        # Electric charge - ions
 
-vd_x = 0.0; vd_y = 0.0; dv_z = 0.0;
+vd_x = 0.0; vd_y = 0.0; 
 vd = np.array([vd_x, vd_y])  # Drift velocity
+#-------------------------------------------------------------------------------
+#             Get the mesh and the object
+#-------------------------------------------------------------------------------
+mesh, Ld, objects = get_mesh_circle()
+#-------------------------------------------------------------------------------
+#            Create boundary conditions and function space
+#-------------------------------------------------------------------------------
+PBC = PeriodicBoundary(Ld)
+V = FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
+#-------------------------------------------------------------------------------
+#             Initiate the objects
+#-------------------------------------------------------------------------------
+facet_f, objects = initiate_objects(V, objects, Ld)
 #-------------------------------------------------------------------------------
 #          The inverse of capacitance matrix of the object
 #-------------------------------------------------------------------------------
-inv_capacitance = capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0)
+inv_cap_matrix = capacitance_matrix(V, facet_f, len(objects), epsilon_0)
 #-------------------------------------------------------------------------------
 #         Get the solver
 #-------------------------------------------------------------------------------
@@ -107,20 +57,12 @@ poisson = PoissonSolver(V)
 #-------------------------------------------------------------------------------
 #   Initialize particle positions and velocities, and populate the domain
 #-------------------------------------------------------------------------------
-pop = Population(mesh, objects)
+pop = Population(mesh)
 distr = Distributor(V, Ld)
 
 pdf = [lambda x: 1, lambda x: 1]
 init = Initialize(pop, pdf, Ld, vd, [alpha_e,alpha_i], 8, objects=objects)
 init.initial_conditions()
-#-------------------------------------------------------------------------------
-#             Initial object charge
-#-------------------------------------------------------------------------------
-q_diff = []
-q_object = []
-for i in range(n_components):
-    q_diff.append(Constant(0.0))
-    q_object.append(0.0)
 #-------------------------------------------------------------------------------
 #             Time loop
 #-------------------------------------------------------------------------------
@@ -128,40 +70,19 @@ N = tot_time
 KE = np.zeros(N-1)
 PE = np.zeros(N-1)
 KE0 = kineticEnergy(pop)
-Ld = [L[d], L[d+1]]
+
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
 
-    q = distr.distr(pop)
+    rho = distr.distr(pop, objects)
 
-    #rho, q_rho = distr.distr(pop, object_dofs)
-
-    """
-    object_bcs = []
-    for k in range(n_components):
-        phi_object = 0.0
-        for j in range(n_components):
-            phi_object += (q_object[j]-q_rho[j])*inv_capacitance[k,j]
-        q_diff[k].assign(phi_object)
-        object_bcs.append(DirichletBC(V, q_diff[k], facet_f, k))
-    """
-    for o in objects:
-        o.compute_potential(q, inv_cap_matrix)
-
-    object_bcs = [o.bc() for o in objects]
-
-    rho = distr.something(q)
+    object_bcs = objects_bcs(objects, inv_cap_matrix)
 
     phi = poisson.solve(rho, object_bcs)
     E = electric_field(phi)
     PE[n-1] = potentialEnergy(pop, phi)
     KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
-    movePeriodic(pop, Ld, dt)
-
-    """
-    for (i, o) in enumerate(objects):
-        q_object[i] = o.charge
-    """
+    movePeriodic(pop, Ld, dt, objects)
 
     tot_p = pop.total_number_of_particles()
     print("Total number of particles in the domain: ", tot_p)

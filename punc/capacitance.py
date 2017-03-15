@@ -42,7 +42,7 @@ def solve_electric_field(V, facet_f, n_components, outer_Dirichlet_bcs):
 
     return E_object
 
-def capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0):
+def capacitance_matrix(V, facet_f, n_components, epsilon_0):
     """ This function calculates the mutual capacitance matrix, $C_{i,j}$.
     The elements of mutual capacitance matrix are given by:
 
@@ -63,6 +63,7 @@ def capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0):
     returns:
             The inverse of the mutual capacitance matrix
     """
+    mesh = V.mesh()
     outer_Dirichlet_bcs = dirichlet_bcs(V, facet_f, n_components)
     E_object = solve_electric_field(V, facet_f, n_components,
                                     outer_Dirichlet_bcs)
@@ -75,6 +76,7 @@ def capacitance_matrix(V, mesh, facet_f, n_components, epsilon_0):
             capacitance[i,j] = epsilon_0*\
                                df.assemble(df.inner(E_object[j], -1*n)*ds(i))
 
+    print(capacitance)
     return np.linalg.inv(capacitance)
 
 

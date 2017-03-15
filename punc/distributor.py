@@ -79,7 +79,7 @@ class Distributor:
         # cheaper to multiply by its inverse we've computed self.dvInv too.
         # We actually don't need self.dv except for debugging.
 
-    def distr(self, pop, object_dofs = []):
+    def distr(self, pop, objects = []):
         # rho assumed to be CG1
 
         element = self.V.dolfin_element()
@@ -87,9 +87,6 @@ class Distributor:
         basisMatrix = np.zeros((sDim,1))
 
         rho = df.Function(self.V)
-
-        n_components = len(object_dofs)
-        q_rho = [0.0]*n_components
 
         for cell in df.cells(self.mesh):
             cellindex = cell.index()
@@ -107,11 +104,10 @@ class Distributor:
 
             rho.vector()[dofindex] += accum
 
-        # accumulate the interpolated charge on each object
-        for k in range(n_components):
-            q_rho[k] = np.sum(rho.vector()[object_dofs[k]])
+        for o in objects:
+            o.set_q_rho(rho)
 
         # Divide by volume of Voronoi cell
         rho.vector()[:] *= self.dvInv.vector()
 
-        return rho, q_rho
+        return rho
