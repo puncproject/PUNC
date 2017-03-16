@@ -2,7 +2,6 @@ from __future__ import print_function
 import dolfin as df
 import numpy as np
 
-
 def objects_bcs(objects, inv_cap_matrix):
 
     bcs = [0.0]*len(objects)
@@ -55,6 +54,36 @@ def initiate_objects(V, objects, Ld):
 
     return facet_f, objects
 
+# Proposed new object (remove New from name)
+class ObjectNew(df.DirichletBC):
+
+    def __init__(self, V, sub_domain, method="topological"):
+        df.DirichletBC.__init__(self, V, Constant(0), sub_domain, method)
+        self.charge = 0
+        self.potential = 0
+
+    def set_potential(self, potential):
+        self.potential = potential
+        self.set_value(Constant(self.potential))
+
+    # Which of these are actually necessary?
+
+    def dofs(self):
+        pass
+
+    def vertices(self):
+        pass
+
+    def cells(self):
+        pass
+
+    def mark_facets(self):
+        pass
+
+    def mark_cells(self):
+        pass
+
+# Old class
 class Object:
     """
     This class is used to keep track of an object with a given id and

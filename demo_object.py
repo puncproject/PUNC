@@ -31,7 +31,7 @@ alpha_i = np.sqrt(kB*T_i/m_i) # Boltzmann factor
 q_e = -e         # Electric charge - electron
 q_i = Z*e        # Electric charge - ions
 
-vd_x = 0.0; vd_y = 0.0; 
+vd_x = 0.0; vd_y = 0.0;
 vd = np.array([vd_x, vd_y])  # Drift velocity
 #-------------------------------------------------------------------------------
 #             Get the mesh and the object
@@ -76,9 +76,39 @@ for n in range(1,N):
 
     rho = distr.distr(pop, objects)
 
-    object_bcs = objects_bcs(objects, inv_cap_matrix)
+    #object_bcs = objects_bcs(objects, inv_cap_matrix)
 
-    phi = poisson.solve(rho, object_bcs)
+    #rho, q_rho = distr.distr(pop, object_dofs)
+
+    """ Original code:
+    object_bcs = []
+    for k in range(n_components):
+        phi_object = 0.0
+        for j in range(n_components):
+            phi_object += (q_object[j]-q_rho[j])*inv_capacitance[k,j]
+        q_diff[k].assign(phi_object)
+        object_bcs.append(DirichletBC(V, q_diff[k], facet_f, k))
+    """
+
+    """ First suggestion:
+    for o in objects:
+        o.compute_potential(q, inv_cap_matrix)
+
+    object_bcs = [o.bc() for o in objects]
+    """
+
+    # New suggestion:
+    # Each object holds it's own charge
+    # This function computes the potentail for each object
+    inv_cap_matrix.compute_object_potentials(q, objects)
+
+    rho = distr.something(q)
+
+
+    # Since Object is inherited from DirichletBC it is actually a DirichletBC
+    # with some additional values such as charge. The list of objects can be
+    # passed directly to the solver.
+    phi = poisson.solve(rho, objects)
     E = electric_field(phi)
     PE[n-1] = potentialEnergy(pop, phi)
     KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)

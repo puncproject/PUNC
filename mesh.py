@@ -7,6 +7,11 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 
+"""
+Logically UnitMesh and SimpleMesh should be functions. No reason to let them be
+objects.
+"""
+
 class UnitMesh:
 
 	def __init__(self, N):
@@ -33,6 +38,13 @@ class SimpleMesh:
 		                                df.Point(*self.Ld),
 	                                    *self.N)
 		return msh
+
+def get_mesh_size(mesh):
+	"""
+	Returns a vector containing the size of the mesh presuming the mesh is
+	rectangular and starts in the origin.
+	"""
+	return np.max(mesh.coordinates(),0)
 
 def get_mesh_circle():
 	mesh = df.Mesh("mesh/circle.xml")
@@ -66,6 +78,8 @@ def get_mesh_circle():
 	return mesh, Ld, objects
 
 
+
+""" Should be completely removed """
 class ObjectMesh:
 
 	def __init__(self, d, n_components, object_type):
