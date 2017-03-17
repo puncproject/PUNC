@@ -116,7 +116,7 @@ def exec_voropp(points, indices, Ld, periodic):
 
     return volumes
 
-def voronoi_volume(V, Ld, periodic=True, tol=1e-13, inv=True, raw=False):
+def voronoi_volume(V, Ld, periodic=True, tol=1e-13, inv=True, raw=True):
     """
     Returns the volume of the Voronoi cells centered at the DOFs as a FEniCS
     function. V is the function space for the function to be returned (must be
@@ -162,7 +162,7 @@ def voronoi_volume(V, Ld, periodic=True, tol=1e-13, inv=True, raw=False):
         dv.vector()[:] = volumes
         return dv
 
-def voronoi_length(V, Ld, periodic=True, inv=True, raw=False):
+def voronoi_length(V, Ld, periodic=True, inv=True, raw=True):
     """
     Returns the length of 1D Voronoi cells centered at the DOFs as a FEniCS
     function. V is the function space for the function to be returned (must be
@@ -226,152 +226,50 @@ class Distributor:
 
         nDims = len(Ld)
 
-        if nDims==1:
+        assert all(periodic)
 
-            # Extract single element
-            periodic = periodic[0]
+        vertices = self.mesh.coordinates()
+        v2d = df.vertex_to_dof_map(self.V)
 
-            vertices = self.mesh.coordinates()[:,0]
+        # Remove those on upper bound (admittedly inefficient)
+        i = 0
+        while i<len(vertices):
+            if any([df.near(a,b) for a,b in zip(vertices[i],list(Ld))]):
+                vertices = np.delete(vertices,[i],axis=0)
+                v2d = np.delete(v2d,[i],axis=0)
+            else:
+                i = i+1
 
-            # Sort vertices in incresing order
-            srt = np.argsort(vertices)
-            vertices = vertices[srt]
+        limits = np.zeros([nDims,2])
+        limits[:,1] = Ld
 
-            # Dual grid has nodes on average positions
-            dual = 0.5*(vertices[1:]+vertices[:-1])
-
-            # For finite non-periodic grid we must add edges
-            if not periodic:
-                dual = np.concatenate([[0],dual,Ld])
-
-            # Compute volume of Voronoi cells
-            volume = dual[1:]-dual[:-1]
-
-            # Add volume of "wrapping" cell for periodic boundaries
-            if periodic:
-                first = Ld[0]-dual[-1]+dual[0]
-                volume = np.concatenate([[first],volume,[first]])
-
-            # volume is now the Voronoi volume for the vertices in mesh
-            # sort volume back to same ordering as mesh.coordinates()
-            srt_back = np.argsort(srt)
-            volume = volume[srt_back]
-
-            # Store as Function using correct dof-ordering.
-            v2d = df.vertex_to_dof_map(V)
-            self.dv = df.Function(self.V)
-            self.dv.vector()[v2d] = volume
-            self.dvInv = df.Function(self.V)
-            self.dvInv.vector()[v2d] = volume**(-1)
-
-        elif lib == 'pyvoro':
-
-            assert all(periodic)
-
-            vertices = self.mesh.coordinates()
-            v2d = df.vertex_to_dof_map(self.V)
-
-            # Remove those on upper bound (admittedly inefficient)
-            i = 0
-            while i<len(vertices):
-                if any([df.near(a,b) for a,b in zip(vertices[i],list(Ld))]):
-                    vertices = np.delete(vertices,[i],axis=0)
-                    v2d = np.delete(v2d,[i],axis=0)
-                else:
-                    i = i+1
-
-            limits = np.zeros([nDims,2])
-            limits[:,1] = Ld
-
-            # Sort vertices to appear in the order FEniCS wants them for the DOFs
-            sortIndices = np.argsort(v2d)
-            vertices = vertices[sortIndices]
+        # Sort vertices to appear in the order FEniCS wants them for the DOFs
+        sortIndices = np.argsort(v2d)
+        vertices = vertices[sortIndices]
 
 
-            # ~5 particles (vertices) per block yields better performance.
-            nParticles = self.mesh.num_vertices()
-            nBlocks = nParticles/5.0
-            nBlocksPerDim = int(nBlocks**(1/nDims)) # integer feels safer
-            blockSize = np.prod(Ld)**(1/nDims)/nBlocksPerDim
+        # ~5 particles (vertices) per block yields better performance.
+        nParticles = self.mesh.num_vertices()
+        nBlocks = nParticles/5.0
+        nBlocksPerDim = int(nBlocks**(1/nDims)) # integer feels safer
+        blockSize = np.prod(Ld)**(1/nDims)/nBlocksPerDim
 
-            if nParticles>24000:
-                print("Warning: The pyvoro library often experience problems with many nodes. This despite the fact that voro++ should be well suited for big problems.")
+        if nParticles>24000:
+            print("Warning: The pyvoro library often experience problems with many nodes. This despite the fact that voro++ should be well suited for big problems.")
 
-            if nDims==2:
-                voronoi = pyvoro.compute_2d_voronoi(vertices,limits,blockSize,periodic=[True]*2)
-            if nDims==3:
-                voronoi = pyvoro.compute_voronoi(vertices,limits,blockSize,periodic=[True]*3)
+        if nDims==2:
+            voronoi = pyvoro.compute_2d_voronoi(vertices,limits,blockSize,periodic=[True]*2)
+        if nDims==3:
+            voronoi = pyvoro.compute_voronoi(vertices,limits,blockSize,periodic=[True]*3)
 
-            dvArr = np.array([vcell['volume'] for vcell in voronoi])
-            self.dv = df.Function(self.V)
-            self.dv.vector()[:] = dvArr
-            self.dvArr = dvArr
+        dvArr = np.array([vcell['volume'] for vcell in voronoi])
+        self.dv = df.Function(self.V)
+        self.dv.vector()[:] = dvArr
+        self.dvArr = dvArr
 
-            dvInvArr = np.array([vcell['volume']**(-1) for vcell in voronoi])
-            self.dvInv = df.Function(self.V)
-            self.dvInv.vector()[:] = dvInvArr
-
-        elif lib == 'voro++':
-
-            print("Using voro++")
-
-            assert all(periodic)
-
-            vertices = self.mesh.coordinates()
-            v2d = df.vertex_to_dof_map(self.V)
-
-            # Remove those on upper bound (admittedly inefficient)
-            i = 0
-            while i<len(vertices):
-                if any([df.near(a,b) for a,b in zip(vertices[i],list(Ld))]):
-                    vertices = np.delete(vertices,[i],axis=0)
-                    v2d = np.delete(v2d,[i],axis=0)
-                else:
-                    i = i+1
-
-            limits = np.zeros([nDims,2])
-            limits[:,1] = Ld
-
-            # Sort vertices to appear in the order FEniCS wants them for the DOFs
-            sortIndices = np.argsort(v2d)
-            vertices = vertices[sortIndices]
-
-
-            # ~5 particles (vertices) per block yields better performance.
-            nParticles = self.mesh.num_vertices()
-            nBlocks = nParticles/5.0
-            nBlocksPerDim = int(nBlocks**(1/nDims)) # integer feels safer
-            blockSize = np.prod(Ld)**(1/nDims)/nBlocksPerDim
-
-            fname = 'voro_in.txt'
-            f = open(fname,'w')
-            for i,v in enumerate(vertices):
-                f.write("%d"%i + " %f"*nDims%tuple(v) + "\n")
-            f.close()
-
-            # args = "-p -o 0.0 %d 0.0 %d 0.0 %d %s"%(*,fname)
-
-            if nDims==2:
-                voronoi = pyvoro.compute_2d_voronoi(vertices,limits,blockSize,periodic=[True]*2)
-            if nDims==3:
-                voronoi = pyvoro.compute_voronoi(vertices,limits,blockSize,periodic=[True]*3)
-
-            #dvArr = np.array([vcell['volume'] for vcell in voronoi])
-            #self.dv = df.Function(self.V)
-            #self.dv.vector()[:] = dvArr
-
-            dvInvArr = np.array([vcell['volume']**(-1) for vcell in voronoi])
-            self.dvInv = df.Function(self.V)
-            self.dvInv.vector()[:] = dvInvArr
-
-        else:
-            print("Something's wrong")
-
-        # self.dv is now a FEniCS function which on the vertices of the FEM mesh
-        # equals the volume of the Voronoi cells created from those vertices.
-        # It's meaningless to evaluate self.dv in-between vertices. Since it's
-        # cheaper to multiply by its inverse we've computed self.dvInv too.
-        # We actually don't need self.dv except for debugging.
+        dvInvArr = np.array([vcell['volume']**(-1) for vcell in voronoi])
+        self.dvInv = df.Function(self.V)
+        self.dvInv.vector()[:] = dvInvArr
 
     def distr(self, pop, object_dofs = []):
         # rho assumed to be CG1
@@ -409,3 +307,33 @@ class Distributor:
         rho.vector()[:] *= self.dvInv.vector()
 
         return rho, q_rho
+
+
+def distribute(V, pop):
+
+    assert V.ufl_element().family() == 'Lagrange'
+    assert V.ufl_element().degree() == 1
+
+    element = V.dolfin_element()
+    s_dim = element.space_dimension() # Number of nodes per element
+    basisMatrix = np.zeros((s_dim,1))
+
+    rho = df.Function(V)
+
+    for cell in df.cells(V.mesh()):
+        cellindex = cell.index()
+        dofindex = V.dofmap().cell_dofs(cellindex)
+
+        accum = np.zeros(s_dim)
+        for particle in pop[cellindex]:
+
+            element.evaluate_basis_all( basisMatrix,
+                                        particle.x,
+                                        cell.get_vertex_coordinates(),
+                                        cell.orientation())
+
+            accum += particle.q * basisMatrix.T[0]
+
+        rho.vector()[dofindex] += accum
+
+    return rho
