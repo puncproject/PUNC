@@ -52,11 +52,6 @@ t = time.time()
 volumes = voronoi_volume(V, Ld, periodic, raw=True)
 print(time.time()-t,"s")
 
-print("Running pyvoro")
-t = time.time()
-distr = Distributor(V, Ld, periodic)
-print(time.time()-t,"s")
-
 print("Max difference:")
 print(max(abs(volumes-lengths.vector().array())))
 
