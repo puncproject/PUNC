@@ -13,14 +13,13 @@ if sys.version_info.major == 2:
 
 import dolfin as df
 import numpy as np
-import pyvoro
 import subprocess as sp
 import os
 import tempfile
 
 # This is not yet parallelized
 #comm = pyMPI.COMM_WORLD
-""" comm.Get_rank() """
+#...comm.Get_rank()
 
 def get_voronoi_points(V, Ld, periodic, tol=1e-13):
     """
@@ -210,104 +209,6 @@ def voronoi_length(V, Ld, periodic=True, inv=True, raw=True):
         return dv.vector().array()
     else:
         return dv
-
-class Distributor:
-
-    def __init__(self, V, Ld, periodic=True, lib='pyvoro'):
-
-        assert lib in ['pyvoro','voro++']
-
-        # Expand to list
-        if isinstance(periodic,bool):
-            periodic = [periodic for x in Ld]
-
-        self.V = V
-        self.mesh = V.mesh()
-
-        nDims = len(Ld)
-
-        assert all(periodic)
-
-        vertices = self.mesh.coordinates()
-        v2d = df.vertex_to_dof_map(self.V)
-
-        # Remove those on upper bound (admittedly inefficient)
-        i = 0
-        while i<len(vertices):
-            if any([df.near(a,b) for a,b in zip(vertices[i],list(Ld))]):
-                vertices = np.delete(vertices,[i],axis=0)
-                v2d = np.delete(v2d,[i],axis=0)
-            else:
-                i = i+1
-
-        limits = np.zeros([nDims,2])
-        limits[:,1] = Ld
-
-        # Sort vertices to appear in the order FEniCS wants them for the DOFs
-        sortIndices = np.argsort(v2d)
-        vertices = vertices[sortIndices]
-
-
-        # ~5 particles (vertices) per block yields better performance.
-        nParticles = self.mesh.num_vertices()
-        nBlocks = nParticles/5.0
-        nBlocksPerDim = int(nBlocks**(1/nDims)) # integer feels safer
-        blockSize = np.prod(Ld)**(1/nDims)/nBlocksPerDim
-
-        if nParticles>24000:
-            print("Warning: The pyvoro library often experience problems with many nodes. This despite the fact that voro++ should be well suited for big problems.")
-
-        if nDims==2:
-            voronoi = pyvoro.compute_2d_voronoi(vertices,limits,blockSize,periodic=[True]*2)
-        if nDims==3:
-            voronoi = pyvoro.compute_voronoi(vertices,limits,blockSize,periodic=[True]*3)
-
-        dvArr = np.array([vcell['volume'] for vcell in voronoi])
-        self.dv = df.Function(self.V)
-        self.dv.vector()[:] = dvArr
-        self.dvArr = dvArr
-
-        dvInvArr = np.array([vcell['volume']**(-1) for vcell in voronoi])
-        self.dvInv = df.Function(self.V)
-        self.dvInv.vector()[:] = dvInvArr
-
-    def distr(self, pop, object_dofs = []):
-        # rho assumed to be CG1
-
-        element = self.V.dolfin_element()
-        sDim = element.space_dimension() # Number of nodes per element
-        basisMatrix = np.zeros((sDim,1))
-
-        rho = df.Function(self.V)
-
-        n_components = len(object_dofs)
-        q_rho = [0.0]*n_components
-
-        for cell in df.cells(self.mesh):
-            cellindex = cell.index()
-            dofindex = self.V.dofmap().cell_dofs(cellindex)
-
-            accum = np.zeros(sDim)
-            for particle in pop[cellindex]:
-
-                element.evaluate_basis_all( basisMatrix,
-                                            particle.x,
-                                            cell.get_vertex_coordinates(),
-                                            cell.orientation())
-
-                accum += particle.q * basisMatrix.T[0]
-
-            rho.vector()[dofindex] += accum
-
-        # accumulate the interpolated charge on each object
-        for k in range(n_components):
-            q_rho[k] = np.sum(rho.vector()[object_dofs[k]])
-
-        # Divide by volume of Voronoi cell
-        rho.vector()[:] *= self.dvInv.vector()
-
-        return rho, q_rho
-
 
 def distribute(V, pop):
 
