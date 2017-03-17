@@ -16,9 +16,9 @@ if nDims==1: mesh = IntervalMesh(Nc[0],0.0,Ld[0])
 if nDims==2: mesh = RectangleMesh(Point(0,0),Point(Ld),*Nc)
 if nDims==3: mesh = BoxMesh(Point(0,0,0),Point(Ld),*Nc)
 
-CG1 = FunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
+V = FunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
 pop = Population(mesh)
-rho = Function(CG1)
+rho = Function(V)
 
 N = 100000
 bins = 100
@@ -65,8 +65,8 @@ pop.addParticles(posIon,velIon,mul,500*mul)
 #pop.distr(rho)
 #plot(rho)
 
-
-distr = Distributor(CG1, Ld)
-rho, q_rho = distr.distr(pop)
+dv_inv = voronoi_volume(V,Ld)
+rho = distribute(V,pop)
+rho.vector()[:] *= dv_inv
 plot(rho)
 interactive()
