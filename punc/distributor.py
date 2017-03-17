@@ -153,13 +153,62 @@ def voronoi_volume(V, Ld, periodic=True, tol=1e-13, inv=True, raw=False):
         "Some Voronoi cells are missing (have zero volume). Try increasing tol."
 
     if inv:
-        volumes**(-1)
+        volumes = volumes**(-1)
 
     if raw:
         return volumes
     else:
         dv = df.Function(V)
         dv.vector()[:] = volumes
+        return dv
+
+def voronoi_length(V, Ld, periodic=True, inv=True, raw=False):
+    """
+    Returns the length of 1D Voronoi cells centered at the DOFs as a FEniCS
+    function. V is the function space for the function to be returned (must be
+    CG1), Ld is the size of the domain and periodic indicates it's length.
+
+    See also voronoi_volume() which implements 1D, 2D and 3D using the Voro++
+    library. This is an independent 1D implementation for comparison.
+    """
+
+    vertices = V.mesh().coordinates()[:,0]
+
+    # Sort vertices in incresing order
+    srt = np.argsort(vertices)
+    vertices = vertices[srt]
+
+    # Dual grid has nodes on average positions
+    dual = 0.5*(vertices[1:]+vertices[:-1])
+
+    # For finite non-periodic grid we must add edges
+    if not periodic:
+        dual = np.concatenate([[0],dual,Ld])
+
+    # Compute volume of Voronoi cells
+    volume = dual[1:]-dual[:-1]
+
+    # Add volume of "wrapping" cell for periodic boundaries
+    if periodic:
+        first = Ld[0]-dual[-1]+dual[0]
+        volume = np.concatenate([[first],volume,[first]])
+
+    # volume is now the Voronoi volume for the vertices in mesh
+    # sort volume back to same ordering as mesh.coordinates()
+    srt_back = np.argsort(srt)
+    volume = volume[srt_back]
+
+    if inv:
+        volume = volume**(-1)
+
+    # Store as Function using correct dof-ordering.
+    v2d = df.vertex_to_dof_map(V)
+    dv = df.Function(V)
+    dv.vector()[v2d] = volume
+
+    if raw:
+        return dv.vector().array()
+    else:
         return dv
 
 class Distributor:

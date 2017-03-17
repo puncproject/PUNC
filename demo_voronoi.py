@@ -17,9 +17,9 @@ import time
 # INITIALIZING FENICS
 #------------------------------------------------------------------------------
 
-uniform = True
+uniform = False
 periodic = True
-nDims = 3                           # Number of dimensions
+nDims = 1                           # Number of dimensions
 
 Ld = 1*np.ones(nDims)               # Length of domain
 Nr = 64*np.ones(nDims,dtype=int)    # Number of 'rectangles' in mesh
@@ -42,6 +42,11 @@ else:
 constr = PeriodicBoundary(Ld) if periodic else None
 V = FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
 
+print("Running voronoi_length:")
+t = time.time()
+lengths = voronoi_length(V, Ld, periodic, raw=False)
+print(time.time()-t,"s")
+
 print("Running Voro++")
 t = time.time()
 volumes = voronoi_volume(V, Ld, periodic, raw=True)
@@ -53,4 +58,7 @@ distr = Distributor(V, Ld, periodic)
 print(time.time()-t,"s")
 
 print("Max difference:")
-print(max(abs(volumes-distr.dvArr)))
+print(max(abs(volumes-lengths.vector().array())))
+
+plot(lengths)
+interactive()
