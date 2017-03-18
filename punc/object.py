@@ -1,174 +1,143 @@
 from __future__ import print_function
 import dolfin as df
 import numpy as np
+import itertools as itr
 
-def objects_bcs(objects, inv_cap_matrix):
-
-    bcs = [0.0]*len(objects)
-    for i, o in enumerate(objects):
-        phi_object = 0.0
-        for j, p in enumerate(objects):
-            phi_object += (p.charge - p.q_rho)*inv_cap_matrix[i,j]
-        o.set_phi(phi_object)
-        bcs[i] = o.bc()
-
-    return bcs
-
-def initiate_objects(V, objects, Ld):
-
-    dim = len(Ld)
-    L = np.zeros(2*dim)
-    L[dim:] = Ld
-    n_components = len(objects)
-
-    mesh = V.mesh()
-    v2d = df.vertex_to_dof_map(V)
-
-    #---------------------------------------------------------------------------
-    #        Create facet and cell functions to to mark the boundaries
-    #---------------------------------------------------------------------------
-    facet_f = df.FacetFunction('size_t', mesh)
-    facet_f.set_all(n_components+2*dim)
-
-    cell_f = df.CellFunction('size_t', mesh)
-    cell_f.set_all(n_components)
-    #---------------------------------------------------------------------------
-    #           Create the objects
-    #---------------------------------------------------------------------------
-    for i in range(n_components):
-        objects[i] = Object(objects[i], i, V, mesh, facet_f, cell_f, v2d)
-
-    #---------------------------------------------------------------------------
-    #       Mark the exterior boundaries of the simulation domain
-    #---------------------------------------------------------------------------
-    for i in range(2*dim):
-        boundary = 'near((x[i]-l), 0, tol)'
-        boundary = df.CompiledSubDomain(boundary,
-                                        i = i%dim,
-                                        l = L[i],
-                                        tol = 1E-8)
-        boundary.mark(facet_f, (n_components+i))
-
-    for o in objects:
-        o.mark_facets()
-
-    return facet_f, objects
-
-# Proposed new object (remove New from name)
-class ObjectNew(df.DirichletBC):
+class Object(df.DirichletBC):
 
     def __init__(self, V, sub_domain, method="topological"):
-        df.DirichletBC.__init__(self, V, Constant(0), sub_domain, method)
+        df.DirichletBC.__init__(self, V, df.Constant(0), sub_domain, method)
         self.charge = 0
+        self.q_rho = 0
         self.potential = 0
-
-    def set_potential(self, potential):
-        self.potential = potential
-        self.set_value(Constant(self.potential))
-
-    # Which of these are actually necessary?
-
-    def dofs(self):
-        pass
-
-    def vertices(self):
-        pass
-
-    def cells(self):
-        pass
-
-    def mark_facets(self):
-        pass
-
-    def mark_cells(self):
-        pass
-
-# Old class
-class Object:
-    """
-    This class is used to keep track of an object with a given id and
-    geometry. It finds whether a particle is inside the object or not.
-    If the particle is inside the object it returns 'True' and adds the charge
-    of the particle to the accumulated charge of the object.
-
-    Object is also capable of marking the facets of the surface boundary of the
-    object, as well as the adjecent cells to the object.
-
-    It returns the dofs, the adjecent cells and the vertices of the boundary
-    nodes of the objects' surface.
-    """
-    def __init__(self, geometry, id, V, mesh, facet_f, cell_f, v2d):
-        self.geometry = geometry
-        self.id = id
+        self.dofs = self.get_boundary_values().keys()
+        self.inside = self.domain_args[0].inside
         self.V = V
-        self.mesh = mesh
-        self.facet_f = facet_f
-        self.cell_f = cell_f
-        self.v2d = v2d
-        self.charge = 0.0
-        self.q_rho = 0.0
-        self.phi = df.Constant(0.0)
-
-    def inside(self, x):
-        return self.geometry(x)
 
     def add_charge(self, q):
         self.charge += q
 
     def set_q_rho(self, q):
-        self.q_rho = np.sum(q.vector()[self.dofs()])
+        self.q_rho = np.sum(q.vector()[self.dofs])
 
-    def set_phi(self, phi):
-        self.phi.assign(phi)
-
-    def bc(self):
-        return df.DirichletBC(self.V, self.phi, self.facet_f, self.id)
-
-    def dofs(self):
-        """
-        Returns the dofs of the object
-        """
-        itr_facet = df.SubsetIterator(self.facet_f, self.id)
-        object_dofs = set()
-        for f in itr_facet:
-            for v in df.vertices(f):
-                object_dofs.add(self.v2d[v.index()])
-        return list(object_dofs)
+    def set_potential(self, potential):
+        self.potential = potential
+        self.set_value(df.Constant(self.potential))
 
     def vertices(self):
         """
         Returns the vertices of the surface of the object
-        """
-        itr_facet = df.SubsetIterator(self.facet_f, self.id)
-        object_vertices = set()
-        for f in itr_facet:
-            for v in df.vertices(f):
-                object_vertices.add(v.index())
-        return list(object_vertices)
 
-    def cells(self):
+        This information might be useful for calculating the current density
+        into the object surface
+        """
+        coords = self.V.mesh().coordinates()
+        d2v = df.dof_to_vertex_map(self.V)
+        vertex_indices = list(set(d2v[self.dofs]))
+        return coords[vertex_indices]
+
+    def cells(self, facet_f, id):
         """
         Returns the cells adjecent to the surface of the object
+
+        This information might be useful for calculating the current density
+        into the object surface
         """
-        D = self.mesh.topology().dim()
-        self.mesh.init(D-1,D) # Build connectivity between facets and cells
-        itr_facet = df.SubsetIterator(self.facet_f, self.id)
+        mesh = self.V.mesh()
+        D = mesh.topology().dim()
+        mesh.init(D-1,D) # Build connectivity between facets and cells
+        itr_facet = df.SubsetIterator(facet_f, id)
         object_adjacent_cells = []
         for f in itr_facet:
             object_adjacent_cells.append(f.entities(D)[0])
         return object_adjacent_cells
 
-    def mark_facets(self):
+    def mark_facets(self, facet_f, id):
         """
         Marks the surface facets of the object
-        """
-        object_boundary = df.AutoSubDomain(lambda x: self.inside(x))
-        object_boundary.mark(self.facet_f, self.id)
 
-    def mark_cells(self):
+        This function is needed for calculating the capacitance matrix
+        """
+        object_boundary = df.AutoSubDomain(lambda x: self.inside(x, True))
+        object_boundary.mark(facet_f, id)
+        return facet_f
+
+    def mark_cells(self, cell_f, facet_f, id):
         """
         Marks the cells adjecent to the object
+
+        This information might be useful for calculating the current density
+        into the object surface
         """
-        cells = self.cells()
+        cells = self.cells(facet_f, id)
         for c in cells:
-            self.cell_f[int(c)] = self.id
+            cell_f[int(c)] = id
+        return cell_f
+
+def compute_object_potentials(q, objects, inv_cap_matrix):
+    """
+    This function sets the interpolated charge to the objects, and then
+    calculates the object potential by using the inverse of capacitance matrix.
+    """
+    for o in objects:
+        o.set_q_rho(q)
+
+    for i, o in enumerate(objects):
+        potential = 0.0
+        for j, p in enumerate(objects):
+            potential += (p.charge - p.q_rho)*inv_cap_matrix[i,j]
+        o.set_potential(potential)
+
+class Circuit:
+
+    def __init__(self, objects, bias_0, bias_1):
+
+        self.objects = objects
+        self.bias_0 = bias_0
+        self.bias_1 = bias_1
+        self.charge = 0
+
+    def circuit_charge(self):
+        circuit_charge = 0.0
+        for o in self.objects:
+            circuit_charge += o.charge
+        self.charge = circuit_charge
+
+    def redistribute_charge(self, bias):
+        bias = np.dot(self.bias_1, bias)
+        for i, o in enumerate(self.objects):
+            o.charge = self.bias_0[i] + bias[i] + o.q_rho
+
+def redistribute_circuit_charge(circuits):
+    """
+    The total charge in each circuit is redistributed based on the predefined
+    relative bias potentials between the electrical components in the circuit.
+    """
+    num_circuits = len(circuits)
+    tot_charge = [0]*num_circuits
+    for i, c in enumerate(circuits):
+        c.circuit_charge()
+        tot_charge[i] = c.charge
+
+    for c in circuits:
+        c.redistribute_charge(tot_charge)
+
+def redistribute_charge_v2(objects, circuits_info, bias_potential, inv_bias_matrix):
+    """
+    This function redistributes the total charge in each circuit without using
+    the Circuit class.
+    """
+    num_circuits = len(circuits_info)
+    tot_charge = [0]*num_circuits
+
+    for i in range(num_circuits):
+        for j in circuits_info[i]:
+            obj = objects[j]
+            tot_charge[i] += obj.charge
+
+    bias_potential = list(itr.chain(*bias_potential)) + tot_charge
+
+    bias = np.dot(inv_bias_matrix, bias_potential)
+
+    for i, o in enumerate(objects):
+        o.charge = bias[i] + o.q_rho

@@ -79,14 +79,14 @@ class Distributor:
         # cheaper to multiply by its inverse we've computed self.dvInv too.
         # We actually don't need self.dv except for debugging.
 
-    def distr(self, pop, objects = []):
+    def distr(self, pop):
         # rho assumed to be CG1
 
         element = self.V.dolfin_element()
         sDim = element.space_dimension() # Number of nodes per element
         basisMatrix = np.zeros((sDim,1))
 
-        rho = df.Function(self.V)
+        q = df.Function(self.V)
 
         for cell in df.cells(self.mesh):
             cellindex = cell.index()
@@ -102,12 +102,11 @@ class Distributor:
 
                 accum += particle.q * basisMatrix.T[0]
 
-            rho.vector()[dofindex] += accum
+            q.vector()[dofindex] += accum
 
-        for o in objects:
-            o.set_q_rho(rho)
+        return q
 
+    def charge_density(self, q):
         # Divide by volume of Voronoi cell
-        rho.vector()[:] *= self.dvInv.vector()
-
-        return rho
+        q.vector()[:] *self.dvInv.vector()
+        return q

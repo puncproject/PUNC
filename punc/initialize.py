@@ -74,7 +74,7 @@ def random_points(pdf, Ld, N, pdfMax=1, objects=None):
             indices = []
             for i, p in enumerate(newPoints):
                 for o in objects:
-                    if o.inside(p):
+                    if o.inside(p, True):
                         indices.append(i)
                         break
             newPoints = np.delete(newPoints, indices, axis=0)
@@ -157,7 +157,7 @@ class Initialize:
         self.m = mass
 
         self.normalize()
-        self.initialize_injection()
+        # self.initialize_injection()
 
     def initial_conditions(self):
         for i in range(self.num_species):

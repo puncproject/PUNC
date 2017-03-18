@@ -20,7 +20,7 @@ nDims = 2                           # Number of dimensions
 Ld = 6.28*np.ones(nDims)            # Length of domain
 Nr = 32*np.ones(nDims,dtype=int)    # Number of 'rectangles' in mesh
 
-#mesh = RectangleMesh(Point(0,0),Point(Ld),*Nr)
+# mesh = RectangleMesh(Point(0,0),Point(Ld),*Nr)
 mesh = Mesh("mesh/nonuniform.xml")
 V = FunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
 W = VectorFunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
@@ -39,7 +39,7 @@ poisson = PoissonSolver(V,remove_null_space=True)
 # pdf = [lambda x, A=A, mode=mode, Ld=Ld: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0]),
 #        lambda x: 1]
 #
-# init = Initialize(pop, pdf, Ld, 0, [0, 0], 16, pdfMax)
+# init = Initialize(pop, pdf, Ld, [0,0], [0, 0], 16, pdfMax)
 # init.initial_conditions()
 
 initLangmuir(pop, Ld, 0, [0,0], 0.5, 1, 16)
@@ -52,13 +52,15 @@ PE = np.zeros(N-1)
 KE0 = kineticEnergy(pop)
 
 for n in range(1,N):
-	print("Computing timestep %d/%d"%(n,N-1))
-	rho, q_rho = distr.distr(pop)
-	phi = poisson.solve(rho)
-	E = electric_field(phi)
-	PE[n-1] = potentialEnergy(pop, phi)
-	KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
-	movePeriodic(pop,Ld,dt)
+    print("Computing timestep %d/%d"%(n,N-1))
+    rho = distr.distr(pop)
+    rho = distr.charge_density(rho)
+    phi = poisson.solve(rho)
+    E = electric_field(phi)
+    PE[n-1] = potentialEnergy(pop, phi)
+    KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
+    movePeriodic(pop,Ld,dt)
+    # pop.relocate()
 
 KE[0] = KE0
 

@@ -36,20 +36,21 @@ vd = np.array([vd_x, vd_y])  # Drift velocity
 #-------------------------------------------------------------------------------
 #             Get the mesh and the object
 #-------------------------------------------------------------------------------
-mesh, Ld, objects = get_mesh_circle()
+mesh, circles = get_mesh_circle()
+Ld = get_mesh_size(mesh)
+#-------------------------------------------------------------------------------
+#          The inverse of capacitance matrix of the object
+#-------------------------------------------------------------------------------
+inv_cap_matrix = cap_matrix(mesh, Ld, circles, epsilon_0)
 #-------------------------------------------------------------------------------
 #            Create boundary conditions and function space
 #-------------------------------------------------------------------------------
 PBC = PeriodicBoundary(Ld)
 V = FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
-#-------------------------------------------------------------------------------
-#             Initiate the objects
-#-------------------------------------------------------------------------------
-facet_f, objects = initiate_objects(V, objects, Ld)
-#-------------------------------------------------------------------------------
-#          The inverse of capacitance matrix of the object
-#-------------------------------------------------------------------------------
-inv_cap_matrix = capacitance_matrix(V, facet_f, len(objects), epsilon_0)
+
+objects = [None]*len(circles)
+for i, c in enumerate(circles):
+    objects[i] = Object(V, c)
 #-------------------------------------------------------------------------------
 #         Get the solver
 #-------------------------------------------------------------------------------
@@ -74,45 +75,18 @@ KE0 = kineticEnergy(pop)
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
 
-    rho = distr.distr(pop, objects)
+    q = distr.distr(pop)
 
-    #object_bcs = objects_bcs(objects, inv_cap_matrix)
+    compute_object_potentials(q, objects, inv_cap_matrix)
 
-    #rho, q_rho = distr.distr(pop, object_dofs)
+    rho = distr.charge_density(q)
 
-    """ Original code:
-    object_bcs = []
-    for k in range(n_components):
-        phi_object = 0.0
-        for j in range(n_components):
-            phi_object += (q_object[j]-q_rho[j])*inv_capacitance[k,j]
-        q_diff[k].assign(phi_object)
-        object_bcs.append(DirichletBC(V, q_diff[k], facet_f, k))
-    """
-
-    """ First suggestion:
-    for o in objects:
-        o.compute_potential(q, inv_cap_matrix)
-
-    object_bcs = [o.bc() for o in objects]
-    """
-
-    # New suggestion:
-    # Each object holds it's own charge
-    # This function computes the potentail for each object
-    inv_cap_matrix.compute_object_potentials(q, objects)
-
-    rho = distr.something(q)
-
-
-    # Since Object is inherited from DirichletBC it is actually a DirichletBC
-    # with some additional values such as charge. The list of objects can be
-    # passed directly to the solver.
     phi = poisson.solve(rho, objects)
     E = electric_field(phi)
     PE[n-1] = potentialEnergy(pop, phi)
     KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
-    movePeriodic(pop, Ld, dt, objects)
+    movePeriodic(pop, Ld, dt)
+    pop.relocate(objects)
 
     tot_p = pop.total_number_of_particles()
     print("Total number of particles in the domain: ", tot_p)

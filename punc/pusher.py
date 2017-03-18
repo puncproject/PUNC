@@ -53,6 +53,7 @@ def accel(pop, E, dt):
 
             particle.v += inc
 
+
     return KE
 
 def boris(pop, E, B, dt):
@@ -110,17 +111,15 @@ def boris(pop, E, B, dt):
 
     return KE
 
-def movePeriodic(pop, Ld, dt, objects = []):
+def movePeriodic(pop, Ld, dt):
 
     for cell in pop:
         for particle in cell:
             particle.x += dt*particle.v
             particle.x %= Ld
-    pop.relocate(objects)
 
 def move(pop, Ld, dt):
 
     for cell in pop:
         for particle in cell:
             particle.x += dt*particle.v
-    pop.relocate()
