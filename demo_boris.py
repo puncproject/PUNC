@@ -41,7 +41,7 @@ B = df.interpolate(df.Expression(("0", "0",
 #-------------------------------------------------------------------------------
 #             Time loop
 #-------------------------------------------------------------------------------
-N = 4580           # Number of time steps
+N = 300#4580           # Number of time steps
 dt = .01           # Time step
 KE = np.zeros(N-1)
 KE0 = kineticEnergy(pop)
@@ -51,6 +51,7 @@ for n in range(1,N):
     print("t: ", n)
     KE[n-1] = boris(pop,E,B,(1-0.5*(n==1))*dt)
     movePeriodic(pop, Ld, dt)
+    pop.relocate()
 
     for cell in pop:
         for particle in cell:

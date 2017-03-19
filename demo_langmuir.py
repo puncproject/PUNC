@@ -30,7 +30,6 @@ W = VectorFunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
 #------------------------------------------------------------------------------
 
 pop = Population(mesh)
-distr = Distributor(V, Ld)
 poisson = PoissonSolver(V,remove_null_space=True)
 dv_inv = voronoi_volume(V, Ld, True)
 
