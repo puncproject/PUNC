@@ -13,20 +13,72 @@ import dolfin as df
 import numpy as np
 
 class PeriodicBoundary(df.SubDomain):
+    """
+    Defines periodic exterior boundaries of a hypercube as a domain constraint
+    suitable for use in DOLFIN's FunctionSpace class. For instance if Ld is a
+    numpy array or list specifying the length of the domain:
 
-    def __init__(self, Ld):
+        constr = PeriodicBoundary(Ld)
+        V = FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
+
+    The domain is expected to start in the origin. The parameter 'periodic' is
+    used if only some axes are period, e.g. if only the y-direction is periodic:
+
+        periodic = [False,True,False]
+        constr = PeriodicBoundary(Ld,periodic)
+        V = FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
+    """
+
+    def __init__(self, Ld, periodic=True):
         df.SubDomain.__init__(self)
         self.Ld = Ld
 
-    # Target domain
-    def inside(self, x, onBnd):
-        return bool(        any([df.near(a,0) for a in x])                  # On any lower bound
-                    and not any([df.near(a,b) for a,b in zip(x,self.Ld)])   # But not any upper bound
-                    and onBnd)
+        if isinstance(periodic,bool):
+            periodic = [periodic]*3
 
-    # Map upper edges to lower edges
+        self.periodic = periodic
+
+    # Target domain
+    def inside(self, x, on_bnd):
+        return bool(on_bnd
+            and     any([(df.near(a,0) and p) for a,p in zip(x,self.periodic)]) # On any periodic lower bound
+            and not any([df.near(a,b) for a,b in zip(x,self.Ld)]))              # But not any upper bound
+
+
+    # Map upper periodic edges to lower edges
     def map(self, x, y):
-        y[:] = [a-b if df.near(a,b) else a for a,b in zip(x,self.Ld)]
+        y[:] = [a-b if (df.near(a,b) and p) else a for a,b,p in zip(x,self.Ld,self.periodic)]
+
+class NonPeriodicBoundary(df.SubDomain):
+    """
+    Defines non-periodic exterior boundaries of a hypercube as a subdomain
+    suitable for use in DOLFIN's DirichletBC class. The parameter 'periodic'
+    specifies which axes are periodic, and which are to be used for instance in
+    Dirichlet boundaries. The domain is expected to start in the origin.
+    Suitable to use together with PeriodicBoundary. E.g. if only the y-axis is
+    periodic and the other walls are Dirichlet boundaries:
+
+        periodic = [False,True,False]
+        constr = PeriodicBoundary(Ld,periodic)
+        bnd = NonPeriodicBoundary(Ld,periodic)
+        
+        V = FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
+        bc = DirichletBC(V, Constant(0), bnd)
+    """
+
+    def __init__(self, Ld, periodic=True):
+        df.SubDomain.__init__(self)
+        self.Ld = Ld
+
+        if isinstance(periodic,bool):
+            periodic = [periodic]*3
+
+        self.periodic = periodic
+
+    def inside(self, x, on_bnd):
+        return bool(on_bnd and (
+		      np.any([(df.near(a,0) and not p) for a,p in zip(x,self.periodic)]) or     # On non-periodic lower bound
+		      np.any([(df.near(a,b) and not p) for a,b,p in zip(x,self.Ld,self.periodic)]))) # Or non-periodic upper bound
 
 def dirichlet_bcs(V, facet_f, n_components = 0, phi0 = df.Constant(0.0), E0 = None):
 
