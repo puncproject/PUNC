@@ -41,7 +41,7 @@ Ld = get_mesh_size(mesh)
 #-------------------------------------------------------------------------------
 #          The inverse of capacitance matrix of the object
 #-------------------------------------------------------------------------------
-inv_cap_matrix = cap_matrix(mesh, Ld, circles, epsilon_0)
+inv_cap_matrix = capacitance_matrix(mesh, Ld, circles, epsilon_0)
 #-------------------------------------------------------------------------------
 #            Create boundary conditions and function space
 #-------------------------------------------------------------------------------

@@ -30,7 +30,8 @@ def markers(mesh, Ld, objects):
 
     return facet_f
 
-def exterior_boundaries(V, dim, facet_f, n_components):
+def exterior_boundaries(V, facet_f, n_components):
+    dim = V.mesh().geometry().dim()
     boundaries = [0]*2*dim
     for i in range(2*dim):
         boundaries[i] = df.DirichletBC(V, df.Constant(0.0), facet_f, n_components + i)
@@ -97,7 +98,7 @@ def capacitance_matrix(mesh, Ld, objects_boundaries, epsilon_0):
 
     facet_f = markers(mesh, Ld, objects)
 
-    exterior_bcs = exterior_boundaries(V, len(Ld), facet_f, len(objects))
+    exterior_bcs = exterior_boundaries(V, facet_f, len(objects))
 
     n_components = len(objects)
     capacitance = np.empty((n_components, n_components))

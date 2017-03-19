@@ -103,7 +103,7 @@ class Distributor:
                 accum += particle.q * basisMatrix.T[0]
 
             q.vector()[dofindex] += accum
-
+        # q.vector()[:] *self.dvInv.vector()
         return q
 
     def charge_density(self, q):

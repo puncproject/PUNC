@@ -61,7 +61,6 @@ def get_circles(circles, ind):
 	func = lambda x, s = s[ind], r = r: np.dot(x-s, x-s) <= r**2+tol
 	return Circle()
 
-# Not complete
 def get_mesh_circuit():
 
 	mesh = df.Mesh("mesh/circuit.xml")

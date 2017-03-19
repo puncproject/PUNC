@@ -42,10 +42,10 @@ poisson = PoissonSolver(V,remove_null_space=True)
 # init = Initialize(pop, pdf, Ld, [0,0], [0, 0], 16, pdfMax)
 # init.initial_conditions()
 
-initLangmuir(pop, Ld, 0, [0,0], 0.5, 1, 16)
+initLangmuir(pop, Ld, 0., [0.,0.], 0.5, 1., 16)
 
 dt = 0.251327
-N = 30
+N = 20
 
 KE = np.zeros(N-1)
 PE = np.zeros(N-1)
@@ -60,7 +60,7 @@ for n in range(1,N):
     PE[n-1] = potentialEnergy(pop, phi)
     KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
     movePeriodic(pop,Ld,dt)
-    # pop.relocate()
+    pop.relocate()
 
 KE[0] = KE0
 
