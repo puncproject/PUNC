@@ -11,7 +11,17 @@ from object import *
 import itertools as itr
 
 def markers(mesh, Ld, objects):
+    """
+    Marks the facets on the boundary of the objects.
 
+    Args:
+         mesh   : The mesh of the simulation domain
+         Ld     : The size of domain in each spatial direction
+         objects: A list containing all the objects
+
+    returns:
+            The marked facets of the objects.  
+    """
     dim = len(Ld)
     L = np.zeros(2*dim)
     L[dim:] = Ld
@@ -23,20 +33,7 @@ def markers(mesh, Ld, objects):
     for i, o in enumerate(objects):
         facet_f = o.mark_facets(facet_f, i)
 
-    for i in range(2*dim):
-        boundary = 'near((x[i]-l), 0, tol)'
-        boundary = df.CompiledSubDomain(boundary, i=i%dim, l=L[i], tol = 1E-8)
-        boundary.mark(facet_f, (n_components + i))
-
     return facet_f
-
-def exterior_boundaries(V, facet_f, n_components):
-    dim = V.mesh().geometry().dim()
-    boundaries = [0]*2*dim
-    for i in range(2*dim):
-        boundaries[i] = df.DirichletBC(V, df.Constant(0.0), facet_f, n_components + i)
-
-    return boundaries
 
 def solve_laplace(V, exterior_bcs, objects):
     """
@@ -94,7 +91,9 @@ def capacitance_matrix(mesh, Ld, circle):
 
     facet_f = markers(mesh, Ld, objects)
 
-    exterior_bcs = exterior_boundaries(V, facet_f, len(objects))
+    periodic = [False,False,False]
+    bnd = NonPeriodicBoundary(Ld,periodic)
+    exterior_bcs = df.DirichletBC(V, df.Constant(0), bnd)
 
     n_components = len(objects)
     capacitance = np.empty((n_components, n_components))
