@@ -27,7 +27,7 @@ def unit_mesh(N):
 def simple_mesh(Ld, N):
 	"""
 	Returns a mesh for a given list, Ld, containing the size of domain in each
-	spatial direction, and the corresponding number of cell divisions N. 
+	spatial direction, and the corresponding number of cell divisions N.
 	"""
 	d = len(N)
 	mesh_types = [df.RectangleMesh, df.BoxMesh]
@@ -95,7 +95,7 @@ class NonPeriodicBoundary(df.SubDomain):
         bc = DirichletBC(V, Constant(0), bnd)
     """
 
-    def __init__(self, Ld, periodic=True):
+    def __init__(self, Ld, periodic=False):
         df.SubDomain.__init__(self)
         self.Ld = Ld
 
