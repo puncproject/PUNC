@@ -20,7 +20,7 @@ def markers(mesh, Ld, objects):
          objects: A list containing all the objects
 
     returns:
-            The marked facets of the objects.  
+            The marked facets of the objects.
     """
     dim = len(Ld)
     L = np.zeros(2*dim)
@@ -35,7 +35,7 @@ def markers(mesh, Ld, objects):
 
     return facet_f
 
-def solve_laplace(V, exterior_bcs, objects):
+def solve_laplace(V, Ld, objects):
     """
     This function solves Laplace's equation, $\del^2\varPhi = 0$, for each
     surface component j with boundary condition $\varPhi = 1V$ on component j
@@ -50,6 +50,11 @@ def solve_laplace(V, exterior_bcs, objects):
             A list of calculated electric fields for every surface componet.
     """
     n_components = len(objects)
+
+    periodic = [False,False,False]
+    bnd = NonPeriodicBoundary(Ld,periodic)
+    exterior_bcs = df.DirichletBC(V, df.Constant(0), bnd)
+
     poisson = PoissonSolver(V, exterior_bcs)
 
     object_e_field = [0.0]*n_components
@@ -91,14 +96,10 @@ def capacitance_matrix(mesh, Ld, circle):
 
     facet_f = markers(mesh, Ld, objects)
 
-    periodic = [False,False,False]
-    bnd = NonPeriodicBoundary(Ld,periodic)
-    exterior_bcs = df.DirichletBC(V, df.Constant(0), bnd)
-
     n_components = len(objects)
     capacitance = np.empty((n_components, n_components))
 
-    object_e_field = solve_laplace(V, exterior_bcs, objects)
+    object_e_field = solve_laplace(V, Ld, objects)
 
     ds = df.Measure('ds', domain = mesh, subdomain_data = facet_f)
     n = df.FacetNormal(mesh)
