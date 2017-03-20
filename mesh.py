@@ -218,7 +218,7 @@ if __name__=='__main__':
 		show()
 
 
-	# test_simple()
+	test_simple()
 	# test_unit()
 	# test_circle_object()
 	# test_circuit()

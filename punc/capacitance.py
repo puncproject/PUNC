@@ -91,9 +91,6 @@ def capacitance_matrix(mesh, Ld, circle):
     """
     V = df.FunctionSpace(mesh, "CG", 1)
     objects = circle.get_objects(V)
-    # objects = [None]*len(objects_boundaries)
-    # for i, c in enumerate(objects_boundaries):
-    #     objects[i] = Object(V, c)
 
     facet_f = markers(mesh, Ld, objects)
 

@@ -27,7 +27,7 @@ def unit_mesh(N):
 def simple_mesh(Ld, N):
 	"""
 	Returns a mesh for a given list, Ld, containing the size of domain in each
-	spatial direction, and the corresponding number of cell divisions N.
+	spatial direction, and the corresponding number of cell divisions N. 
 	"""
 	d = len(N)
 	mesh_types = [df.RectangleMesh, df.BoxMesh]

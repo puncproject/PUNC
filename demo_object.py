@@ -49,7 +49,7 @@ inv_cap_matrix = capacitance_matrix(mesh, Ld, circle)
 PBC = PeriodicBoundary(Ld)
 V = FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
 #-------------------------------------------------------------------------------
-#             Get the object
+#             Get the object 
 #-------------------------------------------------------------------------------
 objects = circle.get_objects(V)
 #-------------------------------------------------------------------------------
