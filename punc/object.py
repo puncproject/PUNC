@@ -8,8 +8,8 @@ class Object(df.DirichletBC):
     def __init__(self, V, sub_domain, method="topological"):
         df.DirichletBC.__init__(self, V, df.Constant(0), sub_domain, method)
         self.charge = 0
-        self.q_rho = 0
-        self.potential = 0
+        self.q_rho = 0 # Should preferrably have a better name
+        self._potential = 0
         self.dofs = self.get_boundary_values().keys()
         self.inside = self.domain_args[0].inside
         self.V = V
@@ -21,8 +21,8 @@ class Object(df.DirichletBC):
         self.q_rho = np.sum(q.vector()[self.dofs])
 
     def set_potential(self, potential):
-        self.potential = potential
-        self.set_value(df.Constant(self.potential))
+        self._potential = potential
+        self.set_value(df.Constant(self._potential))
 
     def vertices(self):
         """
