@@ -6,6 +6,7 @@ if sys.version_info.major == 2:
 
 import dolfin as df
 import numpy as np
+from math import erf
 from itertools import combinations
 
 def stdSpecie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
@@ -121,7 +122,6 @@ def num_injected_particles(A, dt, n_p, v_n, alpha):
     through a surface of the exterior boundary with area, A, based on a drifting
     Maxwellian distribution, at each time step.
     """
-    from math import erf
     N = n_p*A*dt*( (alpha/(np.sqrt(2*np.pi)) * np.exp(-v_n**2/(2*alpha**2))) +\
                     0.5*v_n*(1. + erf(v_n/(alpha*np.sqrt(2)))) )
     return N
