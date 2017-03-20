@@ -45,7 +45,7 @@ poisson = PoissonSolver(V,remove_null_space=True)
 initLangmuir(pop, Ld, 0., [0.,0.], 0.5, 1., 16)
 
 dt = 0.251327
-N = 20
+N = 30
 
 KE = np.zeros(N-1)
 PE = np.zeros(N-1)
