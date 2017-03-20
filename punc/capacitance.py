@@ -10,35 +10,28 @@ import numpy as np
 from object import *
 import itertools as itr
 
-def markers(mesh, Ld, objects):
+def markers(mesh, objects):
+    """
+    Marks the facets on the boundary of the objects.
 
-    dim = len(Ld)
-    L = np.zeros(2*dim)
-    L[dim:] = Ld
+    Args:
+         mesh   : The mesh of the simulation domain
+         objects: A list containing all the objects
+
+    returns:
+            The marked facets of the objects.
+    """
     n_components = len(objects)
 
     facet_f = df.FacetFunction('size_t', mesh)
-    facet_f.set_all(n_components+2*dim)
+    facet_f.set_all(n_components)
 
     for i, o in enumerate(objects):
         facet_f = o.mark_facets(facet_f, i)
 
-    for i in range(2*dim):
-        boundary = 'near((x[i]-l), 0, tol)'
-        boundary = df.CompiledSubDomain(boundary, i=i%dim, l=L[i], tol = 1E-8)
-        boundary.mark(facet_f, (n_components + i))
-
     return facet_f
 
-def exterior_boundaries(V, facet_f, n_components):
-    dim = V.mesh().geometry().dim()
-    boundaries = [0]*2*dim
-    for i in range(2*dim):
-        boundaries[i] = df.DirichletBC(V, df.Constant(0.0), facet_f, n_components + i)
-
-    return boundaries
-
-def solve_Laplace(V, exterior_bcs, objects):
+def solve_laplace(V, Ld, objects):
     """
     This function solves Laplace's equation, $\del^2\varPhi = 0$, for each
     surface component j with boundary condition $\varPhi = 1V$ on component j
@@ -53,6 +46,11 @@ def solve_Laplace(V, exterior_bcs, objects):
             A list of calculated electric fields for every surface componet.
     """
     n_components = len(objects)
+
+    periodic = [False,False,False]
+    bnd = NonPeriodicBoundary(Ld,periodic)
+    exterior_bcs = df.DirichletBC(V, df.Constant(0), bnd)
+
     poisson = PoissonSolver(V, exterior_bcs)
 
     object_e_field = [0.0]*n_components
@@ -69,7 +67,7 @@ def solve_Laplace(V, exterior_bcs, objects):
 
     return object_e_field
 
-def capacitance_matrix(mesh, Ld, objects_boundaries, epsilon_0):
+def capacitance_matrix(mesh, Ld, objects_boundary):
     """
     This function calculates the mutual capacitance matrix, $C_{i,j}$.
     The elements of mutual capacitance matrix are given by:
@@ -84,26 +82,20 @@ def capacitance_matrix(mesh, Ld, objects_boundaries, epsilon_0):
     Args:
          mesh              : the mesh of the simulation domain
          Ld                : the size of the simulation domain
-         objects_boundaries: a list of objects represented by DirichletBC
-         epsilon_0         : Permittivity of vacuum
+         objects_boundary  : an object of objects given by DirichletBC
 
     returns:
             The inverse of the mutual capacitance matrix
     """
     V = df.FunctionSpace(mesh, "CG", 1)
+    objects = objects_boundary.get_objects(V)
 
-    objects = [None]*len(objects_boundaries)
-    for i, c in enumerate(objects_boundaries):
-        objects[i] = Object(V, c)
-
-    facet_f = markers(mesh, Ld, objects)
-
-    exterior_bcs = exterior_boundaries(V, facet_f, len(objects))
+    facet_f = markers(mesh, objects)
 
     n_components = len(objects)
     capacitance = np.empty((n_components, n_components))
 
-    object_e_field = solve_Laplace(V, exterior_bcs, objects)
+    object_e_field = solve_laplace(V, Ld, objects)
 
     ds = df.Measure('ds', domain = mesh, subdomain_data = facet_f)
     n = df.FacetNormal(mesh)
@@ -111,7 +103,7 @@ def capacitance_matrix(mesh, Ld, objects_boundaries, epsilon_0):
     for i in range(n_components):
         for j in range(n_components):
             capacitance[i,j] = \
-                  epsilon_0*df.assemble(df.inner(object_e_field[j], -1*n)*ds(i))
+                            df.assemble(df.inner(object_e_field[j], -1*n)*ds(i))
 
     return np.linalg.inv(capacitance)
 
