@@ -12,6 +12,35 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 
+def unit_mesh(N):
+	"""
+	Given a list of cell divisions, N, returns a mesh with unit size in each
+	spatial direction.
+	"""
+	d = len(N)
+	mesh_types = [df.UnitIntervalMesh,
+	     		  df.UnitSquareMesh,
+				  df.UnitCubeMesh]
+
+	return mesh_types[d-1](*N)
+
+def simple_mesh(Ld, N):
+	"""
+	Returns a mesh for a given list, Ld, containing the size of domain in each
+	spatial direction, and the corresponding number of cell divisions N.
+	"""
+	d = len(N)
+	mesh_types = [df.RectangleMesh, df.BoxMesh]
+
+	return mesh_types[d-2](df.Point(0,0,0), df.Point(*Ld), *N)
+
+def get_mesh_size(mesh):
+	"""
+	Returns a vector containing the size of the mesh presuming the mesh is
+	rectangular and starts in the origin.
+	"""
+	return np.max(mesh.coordinates(),0)
+
 class PeriodicBoundary(df.SubDomain):
     """
     Defines periodic exterior boundaries of a hypercube as a domain constraint
@@ -61,7 +90,7 @@ class NonPeriodicBoundary(df.SubDomain):
         periodic = [False,True,False]
         constr = PeriodicBoundary(Ld,periodic)
         bnd = NonPeriodicBoundary(Ld,periodic)
-        
+
         V = FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
         bc = DirichletBC(V, Constant(0), bnd)
     """

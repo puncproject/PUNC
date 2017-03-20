@@ -36,21 +36,22 @@ vd = np.array([vd_x, vd_y])  # Drift velocity
 #-------------------------------------------------------------------------------
 #             Get the mesh and the object
 #-------------------------------------------------------------------------------
-mesh, circles = get_mesh_circle()
+circle = CircleDomain()
+mesh = circle.get_mesh()
 Ld = get_mesh_size(mesh)
 #-------------------------------------------------------------------------------
 #          The inverse of capacitance matrix of the object
 #-------------------------------------------------------------------------------
-inv_cap_matrix = capacitance_matrix(mesh, Ld, circles, epsilon_0)
+inv_cap_matrix = capacitance_matrix(mesh, Ld, circle)
 #-------------------------------------------------------------------------------
 #            Create boundary conditions and function space
 #-------------------------------------------------------------------------------
 PBC = PeriodicBoundary(Ld)
 V = FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
-
-objects = [None]*len(circles)
-for i, c in enumerate(circles):
-    objects[i] = Object(V, c)
+#-------------------------------------------------------------------------------
+#             Get the object
+#-------------------------------------------------------------------------------
+objects = circle.get_objects(V)
 #-------------------------------------------------------------------------------
 #         Get the solver
 #-------------------------------------------------------------------------------

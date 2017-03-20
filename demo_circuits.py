@@ -36,12 +36,17 @@ vd = np.array([vd_x, vd_y])  # Drift velocity
 #-------------------------------------------------------------------------------
 #             Get the mesh and the object
 #-------------------------------------------------------------------------------
-mesh, circles, circuits_info, bias_potential = get_mesh_circuit()
+# mesh, circles, circuits_info, bias_potential = get_mesh_circuit()
+
+circles = CircuitDomain()
+mesh = circles.get_mesh()
 Ld = get_mesh_size(mesh)
+
+circuits_info, bias_potential = circles.get_circuits()
 #-------------------------------------------------------------------------------
 #          The inverse of capacitance matrix of the object
 #-------------------------------------------------------------------------------
-inv_cap_matrix = capacitance_matrix(mesh, Ld, circles, epsilon_0)
+inv_cap_matrix = capacitance_matrix(mesh, Ld, circles)
 # inv_D = bias_matrix(inv_cap_matrix, circuits_info)
 #-------------------------------------------------------------------------------
 #            Create boundary conditions and function space
@@ -49,9 +54,10 @@ inv_cap_matrix = capacitance_matrix(mesh, Ld, circles, epsilon_0)
 PBC = PeriodicBoundary(Ld)
 V = FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
 
-objects = [None]*len(circles)
-for i, c in enumerate(circles):
-    objects[i] = Object(V, c)
+objects = circles.get_objects(V)
+# objects = [None]*len(circles)
+# for i, c in enumerate(circles):
+#     objects[i] = Object(V, c)
 #-------------------------------------------------------------------------------
 #          The circuits and the relative potential bias
 #-------------------------------------------------------------------------------

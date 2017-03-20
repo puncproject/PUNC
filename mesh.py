@@ -8,122 +8,195 @@ import dolfin as df
 import numpy as np
 from punc import *
 
-def unit_mesh(N):
-
-	d = len(N)
-	mesh_types = [df.UnitIntervalMesh,
-	     		  df.UnitSquareMesh,
-				  df.UnitCubeMesh]
-
-	return mesh_types[d-1](*N)
-
-def simple_mesh(Ld, N):
-
-	d = len(N)
-	mesh_types = [df.RectangleMesh, df.BoxMesh]
-
-	return mesh_types[d-2](df.Point(0,0,0), df.Point(*Ld), *N)
-
-def get_mesh_size(mesh):
+def get_circles(index):
 	"""
-	Returns a vector containing the size of the mesh presuming the mesh is
-	rectangular and starts in the origin.
+	Returns circles corresponding to a predefined mesh.
 	"""
-	return np.max(mesh.coordinates(),0)
-
-def get_mesh_circle():
-
-	mesh = df.Mesh("mesh/circle.xml")
-
-	s0, r0 = np.array([np.pi, np.pi]), 0.5
-
 	tol = 1e-8
-	class Circle(df.SubDomain):
-		def inside(self, x, on_boundary):
-			return on_boundary and np.dot(x-s0, x-s0) <= r0**2+tol
-
-	objects = [Circle()]
-
-	return mesh, objects
-
-def get_circles(circles, ind):
-
 	r = 0.5
 	s = [np.array([np.pi, np.pi]), np.array([np.pi, np.pi + 3*r]),
 	     np.array([np.pi, np.pi - 3*r]), np.array([np.pi + 3*r, np.pi])]
-
-	tol = 1e-8
 
 	class Circle(df.SubDomain):
 		def inside(self, x, on_boundary):
 			return on_boundary and func(x)
 
-	func = lambda x, s = s[ind], r = r: np.dot(x-s, x-s) <= r**2+tol
+	func = lambda x, s = s[index], r = r: np.dot(x-s, x-s) <= r**2+tol
 	return Circle()
 
-def get_mesh_circuit():
+class CircleDomain:
+	"""
+	Return the mesh and creates the object for the circular object demo.
+	"""
+	def get_mesh(self):
+		return df.Mesh("mesh/circle.xml")
 
-	mesh = df.Mesh("mesh/circuit.xml")
+	def get_objects(self, V):
+		return [Object(V, get_circles(0))]
 
-	circuits_info = [[0, 2], [1, 3]]
-	bias_1 = [0.1]
-	bias_2 = [0.2]
-	bias_potential = [bias_1, bias_2]
+class CircuitDomain:
+	"""
+	Return the mesh and creates the objects for the demo of circuits.
+	"""
+	def get_mesh(self):
+		return df.Mesh("mesh/circuit.xml")
 
-	n_components = 4
-	circles = [None]*n_components
-	for i in range(n_components):
-		circles[i] = get_circles(circles[i], i)
+	def get_circuits(self):
+		circuits_info = [[0, 2], [1, 3]]
+		bias_potential = [[0.1], [0.2]]
+		return circuits_info, bias_potential
 
-	return mesh, circles, circuits_info, bias_potential
+	def get_objects(self, V):
+		n_components = 4
+		objects = [None]*n_components
+		for i in range(n_components):
+			objects[i] = Object(V, get_circles(i))
+		return objects
 
-# Not complete
-def get_mesh_sphere():
+class SphereDomain:
+	"""
+	Return the mesh and creates the object for the spherical object demo.
+	"""
+	def get_mesh(self):
+		return df.Mesh("mesh/sphere.xml")
 
-	mesh = df.Mesh("mesh/sphere.xml")
-	object_info = [np.pi, np.pi, np.pi, 0.5]
+	def get_objects(self, V):
+		tol = 1e-8
+		r = 0.5
+		s = np.array([np.pi, np.pi, np.pi])
+		class Sphere(df.SubDomain):
+			def inside(self, x, on_boundary):
+				return on_boundary and func(x)
 
-	return mesh
+		func = lambda x, s = s, r = r: np.dot(x-s, x-s) <= r**2+tol
+		return [Object(V, Sphere())]
 
-# Not complete
-def get_mesh_cylinder():
+class CylinderDomain:
+	"""
+	Return the mesh and creates the object for the cylindrical object demo.
+	"""
+	def get_mesh(self):
+		return df.Mesh('mesh/cylinder_object.xml')
 
-	mesh = df.Mesh('mesh/cylinder_object.xml')
-	object_info = [np.pi, np.pi, 0.5, 1.0]
-	return mesh
+	def get_objects(self, V):
+		tol = 1e-8
+		r = 0.5
+		h0, h = 2.0, 2*np.pi
+		z0 = (h-h0)/2.      # Bottom point of cylinder
+		z1 = (h+h0)/2.      # Top point of cylinder
+		s = np.array([np.pi, np.pi])
+		class Cylinder(df.SubDomain):
+			def inside(self, x, on_boundary):
+				return on_boundary and func(x)
+
+		func = lambda x, s = s, r = r, h = h: x[2] >= z0 and x[2] <= z1 and\
+		                                  np.dot(x[:-1]-s, x[:-1]-s) <= r**2+tol
+		return [Object(V, Cylinder())]
+
 
 if __name__=='__main__':
 
-	mesh, circles = get_mesh_circuit()
+	def test_cylinder():
+		circle = CylinderDomain()
+		mesh = circle.get_mesh()
+		Ld = get_mesh_size(mesh)
 
-	dim = mesh.geometry().dim()
+		V = df.FunctionSpace(mesh,'CG',1)
 
-	Ld = get_mesh_size(mesh)
+		objects = circle.get_objects(V)
 
-	V = df.FunctionSpace(mesh,'CG',1)
+		phi = [5,10,15, 20]
+		for i, obj in enumerate(objects):
+			obj.set_potential(phi[i])
+			print("phi: ", obj._potential)
+			print("inside: ", obj.inside([np.pi, np.pi, np.pi], True))
+			dof = obj.get_boundary_values().keys()#dofs
+			val = obj.get_boundary_values().values()
+			print("dofs: ", dof)
+			print("vals: ", val)
 
-	objects = [None]*len(circles)
-	for i, c in enumerate(circles):
-	    objects[i] = Object(V, c)
+			f = df.Function(V)
+			f.vector()[dof] = 5
+			df.plot(f, interactive=True)
+			obj.set_q_rho(f)
+			print("q_rho: ", obj.q_rho)
+			df.File("test_f.pvd") << f
 
-	# from IPython import embed; embed()
+	def test_sphere():
+		circle = SphereDomain()
+		mesh = circle.get_mesh()
+		Ld = get_mesh_size(mesh)
 
-	phi = [5,10,15, 20]
-	for i, obj in enumerate(objects):
-		obj.set_potential(phi[i])
-		print("phi: ", obj.potential)
-		print("inside: ", obj.inside([np.pi, np.pi], True))
-		dof = obj.get_boundary_values().keys()#dofs
-		val = obj.get_boundary_values().values()
-		print("dofs: ", dof)
-		print("vals: ", val)
+		V = df.FunctionSpace(mesh,'CG',1)
 
-		f = df.Function(V)
-		f.vector()[dof] = 5
-		df.plot(f, interactive=True)
-		obj.set_q_rho(f)
-		print("q_rho: ", obj.q_rho)
+		objects = circle.get_objects(V)
 
+		phi = [5,10,15, 20]
+		for i, obj in enumerate(objects):
+			obj.set_potential(phi[i])
+			print("phi: ", obj._potential)
+			print("inside: ", obj.inside([np.pi, np.pi, np.pi], True))
+			dof = obj.get_boundary_values().keys()#dofs
+			val = obj.get_boundary_values().values()
+			print("dofs: ", dof)
+			print("vals: ", val)
+
+			f = df.Function(V)
+			f.vector()[dof] = 5
+			df.plot(f, interactive=True)
+			obj.set_q_rho(f)
+			print("q_rho: ", obj.q_rho)
+			df.File("test_f.pvd") << f
+
+	def test_circuit():
+		circle = CircuitDomain()
+		mesh = circle.get_mesh()
+		Ld = get_mesh_size(mesh)
+
+		V = df.FunctionSpace(mesh,'CG',1)
+
+		objects = circle.get_objects(V)
+
+		phi = [5,10,15, 20]
+		for i, obj in enumerate(objects):
+			obj.set_potential(phi[i])
+			print("phi: ", obj._potential)
+			print("inside: ", obj.inside([np.pi, np.pi], True))
+			dof = obj.get_boundary_values().keys()#dofs
+			val = obj.get_boundary_values().values()
+			print("dofs: ", dof)
+			print("vals: ", val)
+
+			f = df.Function(V)
+			f.vector()[dof] = 5
+			df.plot(f, interactive=True)
+			obj.set_q_rho(f)
+			print("q_rho: ", obj.q_rho)
+
+	def test_circle_object():
+		circle = CircleDomain()
+		mesh = circle.get_mesh()
+		Ld = get_mesh_size(mesh)
+
+		V = df.FunctionSpace(mesh,'CG',1)
+
+		objects = circle.get_objects(V)
+
+		phi = [5,10,15, 20]
+		for i, obj in enumerate(objects):
+			obj.set_potential(phi[i])
+			print("phi: ", obj._potential)
+			print("inside: ", obj.inside([np.pi, np.pi], True))
+			dof = obj.get_boundary_values().keys()#dofs
+			val = obj.get_boundary_values().values()
+			print("dofs: ", dof)
+			print("vals: ", val)
+
+			f = df.Function(V)
+			f.vector()[dof] = 5
+			df.plot(f, interactive=True)
+			obj.set_q_rho(f)
+			print("q_rho: ", obj.q_rho)
 
 	def test_simple():
 		from pylab import axis, show, triplot
@@ -144,20 +217,10 @@ if __name__=='__main__':
 		axis('equal')
 		show()
 
-	def test_objects():
-		from pylab import axis, show, triplot
-		d = 3
-		n_components = 1
-		object_type = 'spherical_object' # 'cylindrical_object'
-		msh = ObjectMesh(d, n_components, object_type)
-		mesh, object_info, L = msh.mesh()
-		if d == 2:
-			coords = mesh.coordinates()
-			triplot(coords[:,0], coords[:,1], triangles=mesh.cells())
-			axis('equal')
-			show()
-		else:
-			df.plot(mesh, interactive=True)
 
 	# test_simple()
 	# test_unit()
+	# test_circle_object()
+	# test_circuit()
+	# test_sphere()
+	# test_cylinder()
