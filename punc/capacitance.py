@@ -38,7 +38,7 @@ def exterior_boundaries(V, facet_f, n_components):
 
     return boundaries
 
-def solve_Laplace(V, exterior_bcs, objects):
+def solve_laplace(V, exterior_bcs, objects):
     """
     This function solves Laplace's equation, $\del^2\varPhi = 0$, for each
     surface component j with boundary condition $\varPhi = 1V$ on component j
@@ -69,7 +69,7 @@ def solve_Laplace(V, exterior_bcs, objects):
 
     return object_e_field
 
-def capacitance_matrix(mesh, Ld, objects_boundaries, epsilon_0):
+def capacitance_matrix(mesh, Ld, circle):
     """
     This function calculates the mutual capacitance matrix, $C_{i,j}$.
     The elements of mutual capacitance matrix are given by:
@@ -85,16 +85,12 @@ def capacitance_matrix(mesh, Ld, objects_boundaries, epsilon_0):
          mesh              : the mesh of the simulation domain
          Ld                : the size of the simulation domain
          objects_boundaries: a list of objects represented by DirichletBC
-         epsilon_0         : Permittivity of vacuum
 
     returns:
             The inverse of the mutual capacitance matrix
     """
     V = df.FunctionSpace(mesh, "CG", 1)
-
-    objects = [None]*len(objects_boundaries)
-    for i, c in enumerate(objects_boundaries):
-        objects[i] = Object(V, c)
+    objects = circle.get_objects(V)
 
     facet_f = markers(mesh, Ld, objects)
 
@@ -103,7 +99,7 @@ def capacitance_matrix(mesh, Ld, objects_boundaries, epsilon_0):
     n_components = len(objects)
     capacitance = np.empty((n_components, n_components))
 
-    object_e_field = solve_Laplace(V, exterior_bcs, objects)
+    object_e_field = solve_laplace(V, exterior_bcs, objects)
 
     ds = df.Measure('ds', domain = mesh, subdomain_data = facet_f)
     n = df.FacetNormal(mesh)
@@ -111,7 +107,7 @@ def capacitance_matrix(mesh, Ld, objects_boundaries, epsilon_0):
     for i in range(n_components):
         for j in range(n_components):
             capacitance[i,j] = \
-                  epsilon_0*df.assemble(df.inner(object_e_field[j], -1*n)*ds(i))
+                            df.assemble(df.inner(object_e_field[j], -1*n)*ds(i))
 
     return np.linalg.inv(capacitance)
 
