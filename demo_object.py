@@ -82,14 +82,11 @@ for n in range(1,N):
     rho = distr.charge_density(q)
 
     phi = poisson.solve(rho, objects)
-    E = electric_field(phi)
+    E = electric_field(phi) 
     PE[n-1] = potentialEnergy(pop, phi)
     KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
     movePeriodic(pop, Ld, dt)
     pop.relocate(objects)
-
-    tot_p = pop.total_number_of_particles()
-    print("Total number of particles in the domain: ", tot_p)
 
 KE[0] = KE0
 

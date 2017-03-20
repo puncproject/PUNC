@@ -100,7 +100,7 @@ class Circuit:
     def circuit_charge(self):
         circuit_charge = 0.0
         for o in self.objects:
-            circuit_charge += o.charge
+            circuit_charge += (o.charge - o.q_rho)
         self.charge = circuit_charge
 
     def redistribute_charge(self, bias):
@@ -133,7 +133,7 @@ def redistribute_charge_v2(objects, circuits_info, bias_potential, inv_bias_matr
     for i in range(num_circuits):
         for j in circuits_info[i]:
             obj = objects[j]
-            tot_charge[i] += obj.charge
+            tot_charge[i] += (obj.charge - obj.q_rho)
 
     bias_potential = list(itr.chain(*bias_potential)) + tot_charge
 

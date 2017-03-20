@@ -42,7 +42,7 @@ Ld = get_mesh_size(mesh)
 #          The inverse of capacitance matrix of the object
 #-------------------------------------------------------------------------------
 inv_cap_matrix = capacitance_matrix(mesh, Ld, circles, epsilon_0)
-inv_D = bias_matrix(inv_cap_matrix, circuits_info)
+# inv_D = bias_matrix(inv_cap_matrix, circuits_info)
 #-------------------------------------------------------------------------------
 #            Create boundary conditions and function space
 #-------------------------------------------------------------------------------
@@ -55,7 +55,7 @@ for i, c in enumerate(circles):
 #-------------------------------------------------------------------------------
 #          The circuits and the relative potential bias
 #-------------------------------------------------------------------------------
-# circuits = init_circuits(objects, inv_cap_matrix, circuits_info, bias_potential)
+circuits = init_circuits(objects, inv_cap_matrix, circuits_info, bias_potential)
 #-------------------------------------------------------------------------------
 #         Get the solver
 #-------------------------------------------------------------------------------
@@ -93,15 +93,14 @@ for n in range(1,N):
     movePeriodic(pop, Ld, dt)
     pop.relocate(objects)
 
-    # redistribute_circuit_charge(circuits)
-    redistribute_charge_v2(objects, circuits_info, bias_potential, inv_D)
+    redistribute_circuit_charge(circuits)
+    # The second alternative without using the Circuit class:
+    # redistribute_charge_v2(objects, circuits_info, bias_potential, inv_D)
 
-    tot_p = pop.total_number_of_particles()
-    print("Total number of particles in the domain: ", tot_p)
 
 KE[0] = KE0
 
-File("phi.pvd") << phi
+# File("phi.pvd") << phi
 plot(rho)
 plot(phi)
 
