@@ -6,86 +6,130 @@ if sys.version_info.major == 2:
 
 import dolfin as df
 import numpy as np
+from punc import *
 
-class UnitMesh:
+def unit_mesh(N):
 
-	def __init__(self, N):
-		self.N = N
-		self.d = len(N)
-		self.mesh_types = [df.UnitIntervalMesh,
-						   df.UnitSquareMesh,
-						   df.UnitCubeMesh]
+	d = len(N)
+	mesh_types = [df.UnitIntervalMesh,
+	     		  df.UnitSquareMesh,
+				  df.UnitCubeMesh]
 
-	def mesh(self):
-		msh = self.mesh_types[self.d-1](*self.N)
-		return msh
+	return mesh_types[d-1](*N)
 
-class SimpleMesh:
+def simple_mesh(Ld, N):
 
-	def __init__(self, Ld, N):
-		self.N = N
-		self.d = len(N)
-		L0 = [0.0]*self.d
-		self.L = L0 + Ld
-		self.mesh_types = [df.RectangleMesh, df.BoxMesh]
+	d = len(N)
+	mesh_types = [df.RectangleMesh, df.BoxMesh]
 
-	def mesh(self):
-		msh = self.mesh_types[self.d-2](df.Point(*self.L[:self.d]),
-		                                df.Point(*self.L[self.d:]),
-	                                    *self.N)
-		return msh
+	return mesh_types[d-2](df.Point(0,0,0), df.Point(*Ld), *N)
 
-class ObjectMesh:
+def get_mesh_size(mesh):
+	"""
+	Returns a vector containing the size of the mesh presuming the mesh is
+	rectangular and starts in the origin.
+	"""
+	return np.max(mesh.coordinates(),0)
 
-	def __init__(self, d, n_components, object_type):
-		self.d = d
-		self.n_components = n_components
-		self.object_type = object_type
-		L = np.empty(2*self.d)
-		self.L = L
+def get_mesh_circle():
 
-	def mesh(self):
-		if (self.d == 2 and self.object_type == 'spherical_object'):
-			if self.n_components == 1:
-				msh = df.Mesh("mesh/circle.xml")
-				object_info = [np.pi, np.pi, 0.5]
-			elif self.n_components == 2:
-				msh = df.Mesh("mesh/capacitance2.xml")
-				r0 = 0.5; r1 = 0.5;
-				x0 = np.pi; x1 = np.pi;
-				y0 = np.pi; y1 = np.pi + 3*r1;
-				z0 = np.pi; z1 = np.pi;
-				object_info = [x0, y0, r0, x1, y1, r1]
-			elif self.n_components == 4:
-				msh = df.Mesh("mesh/circuit.xml")
-				r0 = 0.5; r1 = 0.5; r2 = 0.5; r3 = 0.5;
-				x0 = np.pi; x1 = np.pi; x2 = np.pi; x3 = np.pi + 3*r3;
-				y0 = np.pi; y1 = np.pi + 3*r1; y2 = np.pi - 3*r1; y3 = np.pi;
-				z0 = np.pi; z1 = np.pi; z2 = np.pi; z3 = np.pi;
-				object_info = [x0, y0, r0, x1, y1, r1, x2, y2, r2, x3, y3, r3]
-		if (self.d == 3 and self.object_type == 'spherical_object'):
-			if self.n_components == 1:
-				msh = df.Mesh("mesh/sphere.xml")
-				object_info = [np.pi, np.pi, np.pi, 0.5]
-		if self.object_type == 'cylindrical_object':
-			if self.n_components == 1:
-				msh = df.Mesh('mesh/cylinder_object.xml')
-				object_info = [np.pi, np.pi, 0.5, 1.0]
+	mesh = df.Mesh("mesh/circle.xml")
 
-		for i in range(self.d):
-		    self.L[i] = msh.coordinates()[:,i].min()
-		    self.L[self.d+i] = msh.coordinates()[:,i].max()
+	s0, r0 = np.array([np.pi, np.pi]), 0.5
 
-		return msh, object_info, self.L
+	tol = 1e-8
+	class Circle(df.SubDomain):
+		def inside(self, x, on_boundary):
+			return on_boundary and np.dot(x-s0, x-s0) <= r0**2+tol
+
+	objects = [Circle()]
+
+	return mesh, objects
+
+def get_circles(circles, ind):
+
+	r = 0.5
+	s = [np.array([np.pi, np.pi]), np.array([np.pi, np.pi + 3*r]),
+	     np.array([np.pi, np.pi - 3*r]), np.array([np.pi + 3*r, np.pi])]
+
+	tol = 1e-8
+
+	class Circle(df.SubDomain):
+		def inside(self, x, on_boundary):
+			return on_boundary and func(x)
+
+	func = lambda x, s = s[ind], r = r: np.dot(x-s, x-s) <= r**2+tol
+	return Circle()
+
+def get_mesh_circuit():
+
+	mesh = df.Mesh("mesh/circuit.xml")
+
+	circuits_info = [[0, 2], [1, 3]]
+	bias_1 = [0.1]
+	bias_2 = [0.2]
+	bias_potential = [bias_1, bias_2]
+
+	n_components = 4
+	circles = [None]*n_components
+	for i in range(n_components):
+		circles[i] = get_circles(circles[i], i)
+
+	return mesh, circles, circuits_info, bias_potential
+
+# Not complete
+def get_mesh_sphere():
+
+	mesh = df.Mesh("mesh/sphere.xml")
+	object_info = [np.pi, np.pi, np.pi, 0.5]
+
+	return mesh
+
+# Not complete
+def get_mesh_cylinder():
+
+	mesh = df.Mesh('mesh/cylinder_object.xml')
+	object_info = [np.pi, np.pi, 0.5, 1.0]
+	return mesh
 
 if __name__=='__main__':
+
+	mesh, circles = get_mesh_circuit()
+
+	dim = mesh.geometry().dim()
+
+	Ld = get_mesh_size(mesh)
+
+	V = df.FunctionSpace(mesh,'CG',1)
+
+	objects = [None]*len(circles)
+	for i, c in enumerate(circles):
+	    objects[i] = Object(V, c)
+
+	# from IPython import embed; embed()
+
+	phi = [5,10,15, 20]
+	for i, obj in enumerate(objects):
+		obj.set_potential(phi[i])
+		print("phi: ", obj.potential)
+		print("inside: ", obj.inside([np.pi, np.pi], True))
+		dof = obj.get_boundary_values().keys()#dofs
+		val = obj.get_boundary_values().values()
+		print("dofs: ", dof)
+		print("vals: ", val)
+
+		f = df.Function(V)
+		f.vector()[dof] = 5
+		df.plot(f, interactive=True)
+		obj.set_q_rho(f)
+		print("q_rho: ", obj.q_rho)
+
 
 	def test_simple():
 		from pylab import axis, show, triplot
 		Ld = [1., 2.]
 		N = [20, 10]
-		msh = SimpleMesh(Ld, N)
-		mesh = msh.mesh()
+		mesh = simple_mesh(Ld, N)
 		coords = mesh.coordinates()
 		triplot(coords[:,0], coords[:,1], triangles=mesh.cells())
 		axis('equal')
@@ -94,8 +138,7 @@ if __name__=='__main__':
 	def test_unit():
 		from pylab import axis, show, triplot
 		N = [20, 10]
-		msh = UnitMesh(N)
-		mesh = msh.mesh()
+		mesh = unit_mesh(N)
 		coords = mesh.coordinates()
 		triplot(coords[:,0], coords[:,1], triangles=mesh.cells())
 		axis('equal')
@@ -116,4 +159,5 @@ if __name__=='__main__':
 		else:
 			df.plot(mesh, interactive=True)
 
-	test_objects()
+	# test_simple()
+	# test_unit()

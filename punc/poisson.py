@@ -192,8 +192,6 @@ def electric_field(phi):
 
 if __name__=='__main__':
 
-    from mark_object import *
-
     object_type = None
     object_info = []
     n_components = 0   # number of electrical components

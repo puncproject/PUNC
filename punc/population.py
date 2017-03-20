@@ -47,10 +47,9 @@ class Particle:
 
 class Population(list):
 
-    def __init__(self, mesh, objects = [], dirichlet = False):
+    def __init__(self, mesh):
         self.mesh = mesh
-        self.objects = objects
-        self.dirichlet = dirichlet
+
         # Allocate a list of particles for each cell
         for cell in df.cells(self.mesh):
             self.append(list())
@@ -127,7 +126,7 @@ class Population(list):
             nMissing = len(np.where(all_found == 0)[0])
             assert nMissing==0,'%d particles are not located in mesh'%nMissing
 
-    def relocate(self):
+    def relocate(self, objects = [], dirichlet = False):
         """
         Relocate particles on cells and processors
         map such that map[old_cell] = [(new_cell, particle_id), ...]
@@ -204,21 +203,22 @@ class Population(list):
         the accumulated charge of the object, and then it is removed from the
         simulation.
         """
-        if (self.objects is not None or self.dirichlet):
+        if ((len(objects) != 0) or dirichlet):
             particles_outside_domain = set()
             for i in range(len(list_of_escaped_particles)):
                 particle = list_of_escaped_particles[i]
                 x = particle.x
                 q = particle.q
 
-                if self.dirichlet:
+                if dirichlet:
                     for (j,l) in enumerate(self.Ld):
                         if x[j] < 0.0 or x[j] > l:
                             particles_outside_domain.update([i])
                             break
 
-                for o in self.objects:
-                    if o.inside(x, q):
+                for o in objects:
+                    if o.inside(x, True):
+                        o.add_charge(q)
                         particles_outside_domain.update([i])
                         break
 

@@ -53,6 +53,7 @@ def accel(pop, E, dt):
 
             particle.v += inc
 
+
     return KE
 
 def boris(pop, E, B, dt):
@@ -99,15 +100,14 @@ def boris(pop, E, B, dt):
             t = np.tan((dt*q/(2.*m))*Bi)
             s = 2.*t/(1.+t[0]**2+t[1]**2+t[2]**2)
             v_minus = vel + 0.5*dt*(q/m)*Ei
+
+            KE += 0.5*m*np.dot(v_minus,v_minus)
+
             v_minus_cross_t = np.cross(v_minus, t)
             v_prime = v_minus + v_minus_cross_t
             v_prime_cross_s = np.cross(v_prime, s)
             v_plus = v_minus + v_prime_cross_s
-            inc = v_plus[:] + 0.5*dt*(q/m)*Ei
-
-            KE += 0.5*m*np.dot(vel,vel+inc)
-
-            particle.v = inc
+            particle.v = v_plus[:] + 0.5*dt*(q/m)*Ei
 
     return KE
 
@@ -117,11 +117,10 @@ def movePeriodic(pop, Ld, dt):
         for particle in cell:
             particle.x += dt*particle.v
             particle.x %= Ld
-    pop.relocate()
+    # pop.relocate()
 
 def move(pop, Ld, dt):
 
     for cell in pop:
         for particle in cell:
             particle.x += dt*particle.v
-    pop.relocate()

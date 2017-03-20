@@ -235,6 +235,7 @@ def distribute(V, pop):
 
             accum += particle.q * basisMatrix.T[0]
 
+
         rho.vector()[dofindex] += accum
 
     return rho
