@@ -142,6 +142,31 @@ def phi_boundary(B, v_drift):
     return df.Expression(phi, degree=1, Ex=E[0], Ey=E[1], Ez=E[2])
 
 class PoissonSolver:
+    """
+    Solves the Poisson Equation on the function space V:
+
+        div grad phi = rho
+
+    Example:
+
+        solver = PoissonSolver(V, bcs_stationary)
+        phi = solver.solve(rho, bcs)
+
+    solve() can be called multiple times while the stiffness matrix is
+    assembled only in the constructor to save computations.
+
+    Boundary conditions (bcs) can be applied either in solve() and/or in the
+    constructor if a boundary should always have the same condition. Overriding
+    boundaries in the constructor with boundaries in solve() is not tested but
+    may work. bcs can be a single DirichletBC object or Object object or a list
+    of such.
+
+    Periodic boundaries are specified indirectly through V. A handy class for
+    defining periodic boundaries is PeriodicBoundary. If all boundaries are
+    periodic and there are no objects in the simulation domain the Poisson
+    equation has a null space which renders the solution non-unique. To remove
+    this null space set remove_null_space=True in the constructor.
+    """
 
     def __init__(self, V, bcs=[], remove_null_space=False):
 
