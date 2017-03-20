@@ -61,7 +61,7 @@ class NonPeriodicBoundary(df.SubDomain):
         periodic = [False,True,False]
         constr = PeriodicBoundary(Ld,periodic)
         bnd = NonPeriodicBoundary(Ld,periodic)
-        
+
         V = FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
         bc = DirichletBC(V, Constant(0), bnd)
     """
@@ -80,22 +80,37 @@ class NonPeriodicBoundary(df.SubDomain):
 		      np.any([(df.near(a,0) and not p) for a,p in zip(x,self.periodic)]) or     # On non-periodic lower bound
 		      np.any([(df.near(a,b) and not p) for a,b,p in zip(x,self.Ld,self.periodic)]))) # Or non-periodic upper bound
 
-def dirichlet_bcs(V, facet_f, n_components = 0, phi0 = df.Constant(0.0), E0 = None):
+def phi_boundary(B, v_drift):
+    """
+    Returns a consistent DOLFIN expression of the potential phi for Dirichlet
+    boundaries when the magnetic field is B and the drift velocity v_drift.
+    v_drift is a vector of
 
-    d = V.mesh().geometry().dim()
-    if E0 is not None:
-        if d == 2:
-            phi0 = 'x[0]*Ex + x[1]*Ey'
-            phi0 = df.Expression(phi0, degree = 1, Ex = -E0[0], Ey = -E0[1])
-        if d == 3:
-            phi0 = 'x[0]*Ex + x[1]*Ey + x[2]*Ez'
-            phi0 = df.Expression(phi0, degree = 1,
-                              Ex = -E0[0], Ey = -E0[1], Ez = -E0[2])
-    bcs = []
-    for i in range(2*d):
-        bc0 = df.DirichletBC(V, phi0, facet_f, (n_components+i))
-        bcs.append(bc0)
-    return bcs
+    Arguments:
+        B       : Magnetic field vector. Should always be length 3 (even for 2D
+                  and 1D domains) or a scalar. If it's scalar it's taken to be
+                  in the z-direction.
+        v_drift : Drift velocity vector. Should have as many dimesnions as the
+                  domain.
+
+    Example:
+
+        bnd = NonPeriodicBoundary(Ld)
+        phi0 = phi_boundary(B, v_drift)
+        bc = DirichletBC(V, phi0, bnd)
+    """
+
+    d = len(v_drift)
+
+    if np.isscalar(B):
+        B = [0,0,B]
+
+    assert len(B)==3
+
+    E = -np.cross(v_drift,B)
+
+    phi = 'x[0]*Ex + x[1]*Ey + x[2]*Ez' # DOLFIN sets unused dimesnions to zero
+    return df.Expression(phi, degree=1, Ex=E[0], Ey=E[1], Ez=E[2])
 
 class PoissonSolver:
 
@@ -268,12 +283,9 @@ if __name__=='__main__':
         u_D = df.Expression('1 + x[0]*x[0] + 2*x[1]*x[1]', degree=2)
         f = df.Constant(-6.0)
 
-        facet_f = mark_boundaries(mesh, L, object_type, object_info, n_components)
-        df.plot(facet_f, interactive=True)
+        bc = DirichletBC(V, u_D, NonPeriodicBoundary(Ld))
 
-        bcs = dirichlet_bcs(V, facet_f, n_components, phi0 = u_D)
-
-        poisson = PoissonSolver(V, bcs)
+        poisson = PoissonSolver(V, bc)
         phi = poisson.solve(f)
 
         error_l2 = df.errornorm(u_D, phi, "L2")

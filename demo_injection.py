@@ -77,8 +77,8 @@ V = FunctionSpace(mesh, "CG", 1)
 #-------------------------------------------------------------------------------
 #         Get the solver
 #-------------------------------------------------------------------------------
-bcs = dirichlet_bcs(V, facet_f)
-poisson = PoissonSolver(V, bcs)
+bc = DirichletBC(V, Constant(0), NonPeriodicBoundary(Ld))
+poisson = PoissonSolver(V, bc)
 #-------------------------------------------------------------------------------
 #   Initialize particle positions and velocities, and populate the domain
 #-------------------------------------------------------------------------------
