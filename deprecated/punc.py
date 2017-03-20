@@ -318,7 +318,7 @@ class PeriodicBoundary(SubDomain):
 	def map(self, x, y):
 		y[:] = [a-b if near(a,b) else a for a,b in zip(x,self.Ld)]
 
-class Particle:
+class Particle(object):
 	__slots__ = ['pos', 'vel', 'properties']
 	'Lagrangian particle with pos and some other passive properties.'
 	def __init__(self, x, v=0):

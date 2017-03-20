@@ -88,7 +88,7 @@ def compute_object_potentials(q, objects, inv_cap_matrix):
             potential += (p.charge - p.q_rho)*inv_cap_matrix[i,j]
         o.set_potential(potential)
 
-class Circuit:
+class Circuit(object):
 
     def __init__(self, objects, bias_0, bias_1):
 

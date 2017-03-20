@@ -24,7 +24,7 @@ comm = pyMPI.COMM_WORLD
 # collisions tests return this value or -1 if there is no collision
 __UINT32_MAX__ = np.iinfo('uint32').max
 
-class Particle:
+class Particle(object):
     __slots__ = ['x', 'v', 'q', 'm']
     def __init__(self, x, v, q, m):
         assert(q!=0 and m!=0)

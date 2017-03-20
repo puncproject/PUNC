@@ -24,7 +24,7 @@ def get_circles(index):
 	func = lambda x, s = s[index], r = r: np.dot(x-s, x-s) <= r**2+tol
 	return Circle()
 
-class CircleDomain:
+class CircleDomain(object):
 	"""
 	Return the mesh and creates the object for the circular object demo.
 	"""
@@ -34,7 +34,7 @@ class CircleDomain:
 	def get_objects(self, V):
 		return [Object(V, get_circles(0))]
 
-class CircuitDomain:
+class CircuitDomain(object):
 	"""
 	Return the mesh and creates the objects for the demo of circuits.
 	"""
@@ -53,7 +53,7 @@ class CircuitDomain:
 			objects[i] = Object(V, get_circles(i))
 		return objects
 
-class SphereDomain:
+class SphereDomain(object):
 	"""
 	Return the mesh and creates the object for the spherical object demo.
 	"""
@@ -71,7 +71,7 @@ class SphereDomain:
 		func = lambda x, s = s, r = r: np.dot(x-s, x-s) <= r**2+tol
 		return [Object(V, Sphere())]
 
-class CylinderDomain:
+class CylinderDomain(object):
 	"""
 	Return the mesh and creates the object for the cylindrical object demo.
 	"""

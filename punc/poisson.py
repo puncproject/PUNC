@@ -141,7 +141,7 @@ def phi_boundary(B, v_drift):
     phi = 'x[0]*Ex + x[1]*Ey + x[2]*Ez' # DOLFIN sets unused dimesnions to zero
     return df.Expression(phi, degree=1, Ex=E[0], Ey=E[1], Ez=E[2])
 
-class PoissonSolver:
+class PoissonSolver(object):
     """
     Solves the Poisson Equation on the function space V:
 

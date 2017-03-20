@@ -126,7 +126,7 @@ def num_injected_particles(A, dt, n_p, v_n, alpha):
                     0.5*v_n*(1. + erf(v_n/(alpha*np.sqrt(2)))) )
     return N
 
-class Initialize:
+class Initialize(object):
     """
     Initializes population pop with particles according to a prespecified
     probability distribution function, pdf, for each particle species
