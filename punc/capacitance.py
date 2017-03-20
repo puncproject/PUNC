@@ -10,25 +10,21 @@ import numpy as np
 from object import *
 import itertools as itr
 
-def markers(mesh, Ld, objects):
+def markers(mesh, objects):
     """
     Marks the facets on the boundary of the objects.
 
     Args:
          mesh   : The mesh of the simulation domain
-         Ld     : The size of domain in each spatial direction
          objects: A list containing all the objects
 
     returns:
             The marked facets of the objects.
     """
-    dim = len(Ld)
-    L = np.zeros(2*dim)
-    L[dim:] = Ld
     n_components = len(objects)
 
     facet_f = df.FacetFunction('size_t', mesh)
-    facet_f.set_all(n_components+2*dim)
+    facet_f.set_all(n_components)
 
     for i, o in enumerate(objects):
         facet_f = o.mark_facets(facet_f, i)
@@ -71,7 +67,7 @@ def solve_laplace(V, Ld, objects):
 
     return object_e_field
 
-def capacitance_matrix(mesh, Ld, circle):
+def capacitance_matrix(mesh, Ld, objects_boundary):
     """
     This function calculates the mutual capacitance matrix, $C_{i,j}$.
     The elements of mutual capacitance matrix are given by:
@@ -86,15 +82,15 @@ def capacitance_matrix(mesh, Ld, circle):
     Args:
          mesh              : the mesh of the simulation domain
          Ld                : the size of the simulation domain
-         objects_boundaries: a list of objects represented by DirichletBC
+         objects_boundary  : an object of objects given by DirichletBC
 
     returns:
             The inverse of the mutual capacitance matrix
     """
     V = df.FunctionSpace(mesh, "CG", 1)
-    objects = circle.get_objects(V)
+    objects = objects_boundary.get_objects(V)
 
-    facet_f = markers(mesh, Ld, objects)
+    facet_f = markers(mesh, objects)
 
     n_components = len(objects)
     capacitance = np.empty((n_components, n_components))
