@@ -7,7 +7,7 @@ if sys.version_info.major == 2:
 from poisson import *
 import dolfin as df
 import numpy as np
-from object import *
+from objects import *
 import itertools as itr
 
 def markers(mesh, objects):
