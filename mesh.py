@@ -7,6 +7,7 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 from punc import *
+import itertools as itr
 
 def get_circles(index):
 	"""
@@ -41,10 +42,28 @@ class CircuitDomain(object):
 	def get_mesh(self):
 		return df.Mesh("mesh/circuit.xml")
 
-	def get_circuits(self):
+	def get_circuits(self, objects, inv_cap_matrix):
 		circuits_info = [[0, 2], [1, 3]]
 		bias_potential = [[0.1], [0.2]]
-		return circuits_info, bias_potential
+
+		num_circuits = len(circuits_info)
+		inv_bias_matrix = bias_matrix(inv_cap_matrix, circuits_info)
+
+		bias_potential = list(itr.chain(*bias_potential))
+
+		bias_0 = np.dot(inv_bias_matrix[:,:len(bias_potential)], bias_potential)
+
+		circuits = []
+		for i in range(num_circuits):
+		    circuit_comps = []
+		    circuit = circuits_info[i]
+		    for j in circuit:
+		        circuit_comps.append(objects[j])
+
+		    circuits.append(Circuit(circuit_comps, bias_0[circuit],\
+		                    inv_bias_matrix[circuit,len(bias_potential):]))
+
+		return circuits
 
 	def get_objects(self, V):
 		n_components = 4
