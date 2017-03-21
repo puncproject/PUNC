@@ -31,7 +31,7 @@ V        = df.FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
 objects = circle.get_objects(V)
 
 # Get the solver
-poisson = PoissonSolver(V)
+poisson = PoissonSolver(V, remove_null_space=True)
 
 # The inverse of capacitance matrix
 inv_cap_matrix = capacitance_matrix(V, poisson, objects)
