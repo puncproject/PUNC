@@ -121,23 +121,3 @@ def redistribute_circuit_charge(circuits):
 
     for c in circuits:
         c.redistribute_charge(tot_charge)
-
-def redistribute_charge_v2(objects, circuits_info, bias_potential, inv_bias_matrix):
-    """
-    This function redistributes the total charge in each circuit without using
-    the Circuit class.
-    """
-    num_circuits = len(circuits_info)
-    tot_charge = [0]*num_circuits
-
-    for i in range(num_circuits):
-        for j in circuits_info[i]:
-            obj = objects[j]
-            tot_charge[i] += (obj.charge - obj.q_rho)
-
-    bias_potential = list(itr.chain(*bias_potential)) + tot_charge
-
-    bias = np.dot(inv_bias_matrix, bias_potential)
-
-    for i, o in enumerate(objects):
-        o.charge = bias[i] + o.q_rho

@@ -157,7 +157,7 @@ class Initialize(object):
         self.m = mass
 
         self.normalize()
-        self.initialize_injection()
+        # self.initialize_injection()
 
     def initial_conditions(self):
         for i in range(self.num_species):

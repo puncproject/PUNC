@@ -135,24 +135,3 @@ def bias_matrix(inv_cap_matrix, circuits_info):
         s += len(circuit)-1
 
     return np.linalg.inv(bias_matrix)
-
-def init_circuits(objects, inv_cap_matrix, circuits_info, bias_potential):
-
-    num_circuits = len(circuits_info)
-    inv_bias_matrix = bias_matrix(inv_cap_matrix, circuits_info)
-
-    bias_potential = list(itr.chain(*bias_potential))
-
-    bias_0 = np.dot(inv_bias_matrix[:,:len(bias_potential)], bias_potential)
-
-    circuits = []
-    for i in range(num_circuits):
-        circuit_comps = []
-        circuit = circuits_info[i]
-        for j in circuit:
-            circuit_comps.append(objects[j])
-
-        circuits.append(Circuit(circuit_comps, bias_0[circuit],\
-                        inv_bias_matrix[circuit,len(bias_potential):]))
-
-    return circuits

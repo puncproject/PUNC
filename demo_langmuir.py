@@ -33,16 +33,15 @@ pop = Population(mesh)
 poisson = PoissonSolver(V,remove_null_space=True)
 dv_inv = voronoi_volume(V, Ld, True)
 
-# A = 0.5
-# mode = 1
-# pdfMax = 1+A
-# pdf = [lambda x, A=A, mode=mode, Ld=Ld: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0]),
-#        lambda x: 1]
-#
-# init = Initialize(pop, pdf, Ld, [0,0], [0, 0], 16, pdfMax)
-# init.initial_conditions()
+A = 0.5
+mode = 1
+pdfMax = 1+A
+pdf = [lambda x, A=A, mode=mode, Ld=Ld: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0]),
+       lambda x: 1]
 
-initLangmuir(pop, Ld, 0., [0.,0.], 0.5, 1., 16)
+init = Initialize(pop, pdf, Ld, [0,0], [0, 0], 16, pdfMax)
+init.initial_conditions()
+
 
 dt = 0.251327
 N = 30
