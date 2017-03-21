@@ -66,9 +66,9 @@ class CircuitDomain(object):
 		return circuits
 
 	def get_objects(self, V):
-		n_components = 4
-		objects = [None]*n_components
-		for i in range(n_components):
+		num_objects = 4
+		objects = [None]*num_objects
+		for i in range(num_objects):
 			objects[i] = Object(V, get_circles(i))
 		return objects
 

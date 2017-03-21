@@ -55,8 +55,8 @@ velIon = np.array([0,0,0]) # Cold ions
 
 mul = np.prod(Ld)/N
 
-pop.addParticles(pos,vel,-mul,mul)
-pop.addParticles(posIon,velIon,mul,500*mul)
+pop.add_particles(pos,vel,-mul,mul)
+pop.add_particles(posIon,velIon,mul,500*mul)
 
 #==============================================================================
 # COMPUTING FIELDS

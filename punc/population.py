@@ -55,18 +55,18 @@ class Population(list):
             self.append(list())
 
         # Create a list of sets of neighbors for each cell
-        self.tDim = self.mesh.topology().dim()
-        self.gDim = self.mesh.geometry().dim()
+        self.t_dim = self.mesh.topology().dim()
+        self.g_dim = self.mesh.geometry().dim()
 
         self.Ld = []
-        for j in range(self.gDim):
+        for j in range(self.g_dim):
             self.Ld.append(self.mesh.coordinates()[:,j].max())
 
-        self.mesh.init(0, self.tDim)
+        self.mesh.init(0, self.t_dim)
         self.tree = self.mesh.bounding_box_tree()
         self.neighbors = list()
         for cell in df.cells(self.mesh):
-            neigh = sum([vertex.entities(self.tDim).tolist() for vertex in df.vertices(cell)], [])
+            neigh = sum([vertex.entities(self.t_dim).tolist() for vertex in df.vertices(cell)], [])
             neigh = set(neigh) - set([cell.index()])
             self.neighbors.append(neigh)
 
@@ -79,10 +79,10 @@ class Population(list):
         self.my_escaped_particles = np.zeros(1, dtype='I')
         self.tot_escaped_particles = np.zeros(self.num_processes, dtype='I')
         # Dummy particle for receiving/sending at [0, 0, ...]
-        vZero = np.zeros(self.gDim)
-        self.particle0 = Particle(vZero,vZero,1,1)
+        v_zero = np.zeros(self.g_dim)
+        self.particle0 = Particle(v_zero,v_zero,1,1)
 
-    def addParticles(self, xs, vs=None, qs=None, ms=None):
+    def add_particles(self, xs, vs=None, qs=None, ms=None):
         """
         Adds particles to the population and locates them on their home
         processor. xs is a list/array of position vectors. vs, qs and ms may
@@ -101,7 +101,7 @@ class Population(list):
             vs = [p.v for p in ps]
             qs = [p.q for p in ps]
             ms = [p.m for p in ps]
-            self.addParticles(xs, vs, qs, ms)
+            self.add_particles(xs, vs, qs, ms)
             return
 
         # Expand input to lists/arrays if necessary
@@ -123,26 +123,26 @@ class Population(list):
         comm.Reduce(my_found, all_found, root=0)
 
         if self.myrank == 0:
-            nMissing = len(np.where(all_found == 0)[0])
-            assert nMissing==0,'%d particles are not located in mesh'%nMissing
+            n_missing = len(np.where(all_found == 0)[0])
+            assert n_missing==0,'%d particles are not located in mesh'%n_missing
 
-    def relocate(self, objects = [], dirichlet = False):
+    def relocate(self, objects = [], open_bnd = False):
         """
         Relocate particles on cells and processors
         map such that map[old_cell] = [(new_cell, particle_id), ...]
         i.e. new destination of particles formerly in old_cell
         """
         new_cell_map = defaultdict(list)
-        for dfCell in df.cells(self.mesh):
-            cindex = dfCell.index()
-            cell = self[cindex]
+        for df_cell in df.cells(self.mesh):
+            c_index = df_cell.index()
+            cell = self[c_index]
             for i, particle in enumerate(cell):
                 point = df.Point(*particle.x)
                 # Search only if particle moved outside original cell
-                if not dfCell.contains(point):
+                if not df_cell.contains(point):
                     found = False
                     # Check neighbor cells
-                    for neighbor in self.neighbors[dfCell.index()]:
+                    for neighbor in self.neighbors[df_cell.index()]:
                         if df.Cell(self.mesh,neighbor).contains(point):
                             new_cell_id = neighbor
                             found = True
@@ -151,7 +151,7 @@ class Population(list):
                     if not found:
                         new_cell_id = self.locate(particle)
                     # Record to map
-                    new_cell_map[dfCell.index()].append((new_cell_id, i))
+                    new_cell_map[df_cell.index()].append((new_cell_id, i))
 
         # Rebuild locally the particles that end up on the process. Some
         # have cell_id == -1, i.e. they are on other process
@@ -203,14 +203,14 @@ class Population(list):
         the accumulated charge of the object, and then it is removed from the
         simulation.
         """
-        if ((len(objects) != 0) or dirichlet):
+        if ((len(objects) != 0) or open_bnd):
             particles_outside_domain = set()
             for i in range(len(list_of_escaped_particles)):
                 particle = list_of_escaped_particles[i]
                 x = particle.x
                 q = particle.q
 
-                if dirichlet:
+                if open_bnd:
                     for (j,l) in enumerate(self.Ld):
                         if x[j] < 0.0 or x[j] > l:
                             particles_outside_domain.update([i])
@@ -231,7 +231,7 @@ class Population(list):
 
         # Put all travelling particles on all processes, then perform new search
         travelling_particles = comm.bcast(list_of_escaped_particles, root=0)
-        self.addParticles(travelling_particles)
+        self.add_particles(travelling_particles)
 
 
     def total_number_of_particles(self):

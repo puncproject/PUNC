@@ -22,7 +22,7 @@ Np = 1*mesh.num_cells()
 mul = (np.prod(Ld)/np.prod(Np))
 
 pop = Population(mesh)
-pop.addParticles(xs,vs,q*mul,m*mul) # Add particle to population calss
+pop.add_particles(xs,vs,q*mul,m*mul) # Add particle to population calss
 
 V = df.VectorFunctionSpace(mesh, 'CG', 1) # The vector function space
 
@@ -44,13 +44,13 @@ B = df.interpolate(df.Expression(("0", "0",
 N = 300#4580           # Number of time steps
 dt = .01           # Time step
 KE = np.zeros(N-1)
-KE0 = kineticEnergy(pop)
+KE0 = kinetic_energy(pop)
 pos = np.zeros((N,3)) # Particle positions
 pos[0] = xs
 for n in range(1,N):
     print("t: ", n)
     KE[n-1] = boris(pop,E,B,(1-0.5*(n==1))*dt)
-    movePeriodic(pop, Ld, dt)
+    move_periodic(pop, Ld, dt)
     pop.relocate()
 
     for cell in pop:

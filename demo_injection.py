@@ -58,7 +58,7 @@ for n in range(1,N):
 
     move(pop, Ld, dt)
 
-    pop.relocate(dirichlet = True)
+    pop.relocate(open_bnd = True)
 
     tot_p = pop.total_number_of_particles()
     print("Total number of particles in the domain: ", tot_p)

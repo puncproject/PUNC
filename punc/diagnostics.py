@@ -14,7 +14,7 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 
-def kineticEnergy(pop):
+def kinetic_energy(pop):
     """
     Computes kinetic energy at current velocity time step.
     Useful for the first (zeroth) time step before velocity has between
@@ -29,15 +29,15 @@ def kineticEnergy(pop):
             KE += 0.5*m*np.dot(v,v)
     return KE
 
-def potentialEnergy(pop,phi):
+def potential_energy(pop,phi):
 
     PE = 0
 
     V = phi.function_space()
     element = V.dolfin_element()
-    sDim = element.space_dimension()  # Number of nodes per element
-    basisMatrix = np.zeros((sDim,1))
-    coefficients = np.zeros(sDim)
+    s_dim = element.space_dimension()  # Number of nodes per element
+    basis_matrix = np.zeros((s_dim,1))
+    coefficients = np.zeros(s_dim)
 
     for cell in df.cells(pop.mesh):
         phi.restrict(   coefficients,
@@ -47,12 +47,12 @@ def potentialEnergy(pop,phi):
                         cell)
 
         for particle in pop[cell.index()]:
-            element.evaluate_basis_all( basisMatrix,
+            element.evaluate_basis_all( basis_matrix,
                                         particle.x,
                                         cell.get_vertex_coordinates(),
                                         cell.orientation())
 
-            phii = np.dot(coefficients, basisMatrix)[:]
+            phii = np.dot(coefficients, basis_matrix)[:]
 
             q = particle.q
             PE += 0.5*q*phii

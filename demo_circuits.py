@@ -51,7 +51,7 @@ init.initial_conditions()
 N   = tot_time
 KE  = np.zeros(N-1)
 PE  = np.zeros(N-1)
-KE0 = kineticEnergy(pop)
+KE0 = kinetic_energy(pop)
 
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
@@ -62,10 +62,10 @@ for n in range(1,N):
 
     phi     = poisson.solve(rho, objects)
     E       = electric_field(phi)
-    PE[n-1] = potentialEnergy(pop, phi)
+    PE[n-1] = potential_energy(pop, phi)
     KE[n-1] = accel(pop, E, (1-0.5*(n==1))*dt)
 
-    movePeriodic(pop, Ld, dt)
+    move_periodic(pop, Ld, dt)
     pop.relocate(objects)
 
     redistribute_circuit_charge(circuits)

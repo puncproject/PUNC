@@ -9,7 +9,7 @@ import numpy as np
 from math import erf
 from itertools import combinations
 
-def stdSpecie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
+def std_specie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
     """
     Returns standard normalized particle parameters to use for a specie. The
     inputs q and m are the charge and mass of the specie in elementary charges
@@ -18,7 +18,7 @@ def stdSpecie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
     particles in the domain. For instance to create 8 ions per cell (having
     mass of 1836 electrons and 1 positive elementary charge):
 
-        q, m, N = stdSpecie(mesh, Ld, 1, 1836, 8)
+        q, m, N = std_specie(mesh, Ld, 1, 1836, 8)
 
     The returned values are the normalized charge q, mass m and total number of
     simulation particles N. The normalization is such that the angular electron
@@ -29,7 +29,7 @@ def stdSpecie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
     could be set through the kwargs. For example, in this case the ions will
     have a plasma frequency of 0.1:
 
-        q, m, N = stdSpecie(mesh, Ld, 1, 1836, 8, q0=1, m0=1836, wp0=0.1)
+        q, m, N = std_specie(mesh, Ld, 1, 1836, 8, q0=1, m0=1836, wp0=0.1)
     """
 
     assert count in ['per cell','total']
@@ -42,7 +42,7 @@ def stdSpecie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
     mul = (np.prod(Ld)/np.prod(Np))*(wp0**2)*m0/(q0**2)
     return q*mul, m*mul, Np
 
-def random_points(pdf, Ld, N, pdfMax=1, objects=None):
+def random_points(pdf, Ld, N, pdf_max=1, objects=None):
     """
     Creates an array of N points randomly distributed according to pdf in a
     domain size given by Ld (and starting in the origin) using the Monte
@@ -64,22 +64,22 @@ def random_points(pdf, Ld, N, pdfMax=1, objects=None):
 
         # Creates missing points
         n = N-len(points)
-        newPoints = np.random.rand(n,dim+1) # Last value to be compared with pdf
-        newPoints *= np.append(Ld,pdfMax)   # Stretch axes
+        new_points = np.random.rand(n,dim+1) # Last value to be compared with pdf
+        new_points *= np.append(Ld,pdf_max)   # Stretch axes
 
         # Only keep points below pdf
-        newPoints = [x[0:dim] for x in newPoints if x[dim]<pdf(x[0:dim])]
-        newPoints = np.array(newPoints).reshape(-1,dim)
+        new_points = [x[0:dim] for x in new_points if x[dim]<pdf(x[0:dim])]
+        new_points = np.array(new_points).reshape(-1,dim)
 
         if objects is not None:
             indices = []
-            for i, p in enumerate(newPoints):
+            for i, p in enumerate(new_points):
                 for o in objects:
                     if o.inside(p, True):
                         indices.append(i)
                         break
-            newPoints = np.delete(newPoints, indices, axis=0)
-        points = np.concatenate([points,newPoints])
+            new_points = np.delete(new_points, indices, axis=0)
+        points = np.concatenate([points,new_points])
 
     return points
 
@@ -136,7 +136,7 @@ class Initialize(object):
     specie. Normalization is such that angular electron plasma frequency is one.
 
     """
-    def __init__(self, pop, pdf, Ld, vd, vth, Npc, pdfMax = 1, dt = 0.1,
+    def __init__(self, pop, pdf, Ld, vd, vth, Npc, pdf_max = 1, dt = 0.1,
                  tot_time = 10, num_species = 2, charge = [-1,1],
                  mass = [1, 1836], objects = None):
         self.pop = pop
@@ -146,7 +146,7 @@ class Initialize(object):
         self.vd = vd
         self.vth = vth
         self.Npc = Npc
-        self.pdfMax = pdfMax
+        self.pdf_max = pdf_max
 
         self.dt = dt
         self.dim = len(self.Ld)
@@ -161,17 +161,17 @@ class Initialize(object):
 
     def initial_conditions(self):
         for i in range(self.num_species):
-            xs = random_points(self.pdf[i], self.Ld, self.N, self.pdfMax,
+            xs = random_points(self.pdf[i], self.Ld, self.N, self.pdf_max,
                                                         self.objects)
             vs = maxwellian(self.vd, self.vth[i], xs.shape)
-            self.pop.addParticles(xs,vs,self.q[i],self.m[i])
+            self.pop.add_particles(xs,vs,self.q[i],self.m[i])
 
     def inject(self):
         for i in range(self.num_species):
             xs = self.get_xs(self.pdf[i], self.n_particles[i], self.surfaces)
             vs = maxwellian(self.vd, self.vth[i], xs.shape)
             xs, vs = self.inside(xs, vs)
-            self.pop.addParticles(xs,vs,self.q[i],self.m[i])
+            self.pop.add_particles(xs,vs,self.q[i],self.m[i])
 
     def get_xs(self, pdf, n_particles, surfaces):
         n_tot = np.sum(n_particles)
@@ -251,4 +251,4 @@ class Initialize(object):
     def normalize(self):
         for i in range(self.num_species):
             self.q[i], self.m[i], self.N = \
-            stdSpecie(self.mesh, self.Ld, self.q[i], self.m[i], self.Npc)
+            std_specie(self.mesh, self.Ld, self.q[i], self.m[i], self.Npc)

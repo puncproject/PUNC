@@ -36,7 +36,7 @@ class Object(df.DirichletBC):
         vertex_indices = list(set(d2v[self.dofs]))
         return coords[vertex_indices]
 
-    def cells(self, facet_f, id):
+    def cells(self, facet_func, id):
         """
         Returns the cells adjecent to the surface of the object
 
@@ -46,30 +46,30 @@ class Object(df.DirichletBC):
         mesh = self.V.mesh()
         D = mesh.topology().dim()
         mesh.init(D-1,D) # Build connectivity between facets and cells
-        itr_facet = df.SubsetIterator(facet_f, id)
+        itr_facet = df.SubsetIterator(facet_func, id)
         object_adjacent_cells = []
         for f in itr_facet:
             object_adjacent_cells.append(f.entities(D)[0])
         return object_adjacent_cells
 
-    def mark_facets(self, facet_f, id):
+    def mark_facets(self, facet_func, id):
         """
         Marks the surface facets of the object
 
         This function is needed for calculating the capacitance matrix
         """
         object_boundary = df.AutoSubDomain(lambda x: self.inside(x, True))
-        object_boundary.mark(facet_f, id)
-        return facet_f
+        object_boundary.mark(facet_func, id)
+        return facet_func
 
-    def mark_cells(self, cell_f, facet_f, id):
+    def mark_cells(self, cell_f, facet_func, id):
         """
         Marks the cells adjecent to the object
 
         This information might be useful for calculating the current density
         into the object surface
         """
-        cells = self.cells(facet_f, id)
+        cells = self.cells(facet_func, id)
         for c in cells:
             cell_f[int(c)] = id
         return cell_f

@@ -23,13 +23,13 @@ def markers(mesh, objects):
     """
     num_objects = len(objects)
 
-    facet_f = df.FacetFunction('size_t', mesh)
-    facet_f.set_all(num_objects)
+    facet_func = df.FacetFunction('size_t', mesh)
+    facet_func.set_all(num_objects)
 
     for i, o in enumerate(objects):
-        facet_f = o.mark_facets(facet_f, i)
+        facet_func = o.mark_facets(facet_func, i)
 
-    return facet_f
+    return facet_func
 
 def solve_laplace(V, poisson, objects):
     """
@@ -82,14 +82,14 @@ def capacitance_matrix(V, poisson, objects):
     """
     mesh = V.mesh()
 
-    facet_f = markers(mesh, objects)
+    facet_func = markers(mesh, objects)
 
     num_objects = len(objects)
     capacitance = np.empty((num_objects, num_objects))
 
     object_e_field = solve_laplace(V, poisson, objects)
 
-    ds = df.Measure('ds', domain = mesh, subdomain_data = facet_f)
+    ds = df.Measure('ds', domain = mesh, subdomain_data = facet_func)
     n = df.FacetNormal(mesh)
 
     for i in range(num_objects):

@@ -19,10 +19,10 @@ def accel(pop, E, dt):
     W = E.function_space()
     mesh = W.mesh()
     element = W.dolfin_element()
-    sDim = element.space_dimension()  # Number of nodes per element
-    vDim = element.value_dimension(0) # Number of values per node (=geom. dim.)
-    basisMatrix = np.zeros((sDim,vDim))
-    coefficients = np.zeros(sDim)
+    s_dim = element.space_dimension()  # Number of nodes per element
+    v_dim = element.value_dimension(0) # Number of values per node (=geom. dim.)
+    basis_matrix = np.zeros((s_dim,v_dim))
+    coefficients = np.zeros(s_dim)
     dim = mesh.geometry().dim()
 
     KE = 0.0
@@ -35,12 +35,12 @@ def accel(pop, E, dt):
                     cell)
 
         for particle in pop[cell.index()]:
-            element.evaluate_basis_all( basisMatrix,
+            element.evaluate_basis_all( basis_matrix,
                                         particle.x,
                                         cell.get_vertex_coordinates(),
                                         cell.orientation())
 
-            Ei = np.dot(coefficients, basisMatrix)[:]
+            Ei = np.dot(coefficients, basis_matrix)[:]
 
             m = particle.m
             q = particle.q
@@ -61,11 +61,11 @@ def boris(pop, E, B, dt):
     W = E.function_space()
     mesh = W.mesh()
     element = W.dolfin_element()
-    sDim = element.space_dimension()  # Number of nodes per element
-    vDim = element.value_dimension(0) # Number of values per node (=geom. dim.)
-    basisMatrix = np.zeros((sDim,vDim))
-    coefficients = np.zeros(sDim)
-    mag_coefficients = np.zeros(sDim)
+    s_dim = element.space_dimension()  # Number of nodes per element
+    v_dim = element.value_dimension(0) # Number of values per node (=geom. dim.)
+    basis_matrix = np.zeros((s_dim,v_dim))
+    coefficients = np.zeros(s_dim)
+    mag_coefficients = np.zeros(s_dim)
     dim = mesh.geometry().dim()
 
     KE = 0.0
@@ -84,13 +84,13 @@ def boris(pop, E, B, dt):
                     cell)
 
         for particle in pop[cell.index()]:
-            element.evaluate_basis_all( basisMatrix,
+            element.evaluate_basis_all( basis_matrix,
                                         particle.x,
                                         cell.get_vertex_coordinates(),
                                         cell.orientation())
 
-            Ei = np.dot(coefficients, basisMatrix)[:]
-            Bi = np.dot(mag_coefficients, basisMatrix)[:]
+            Ei = np.dot(coefficients, basis_matrix)[:]
+            Bi = np.dot(mag_coefficients, basis_matrix)[:]
 
             m = particle.m
             q = particle.q
@@ -111,7 +111,7 @@ def boris(pop, E, B, dt):
 
     return KE
 
-def movePeriodic(pop, Ld, dt):
+def move_periodic(pop, Ld, dt):
 
     for cell in pop:
         for particle in cell:
