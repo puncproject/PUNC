@@ -117,7 +117,6 @@ def movePeriodic(pop, Ld, dt):
         for particle in cell:
             particle.x += dt*particle.v
             particle.x %= Ld
-    # pop.relocate()
 
 def move(pop, Ld, dt):
 
