@@ -40,27 +40,28 @@ circle = CircleDomain()
 mesh = circle.get_mesh()
 Ld = get_mesh_size(mesh)
 #-------------------------------------------------------------------------------
-#          The inverse of capacitance matrix of the object
-#-------------------------------------------------------------------------------
-inv_cap_matrix = capacitance_matrix(mesh, Ld, circle)
-#-------------------------------------------------------------------------------
 #            Create boundary conditions and function space
 #-------------------------------------------------------------------------------
-PBC = PeriodicBoundary(Ld)
-V = FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
+periodic = [True, True, True]
+constr = PeriodicBoundary(Ld, periodic)
+V = FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
 #-------------------------------------------------------------------------------
-#             Get the object 
+#             Get the object
 #-------------------------------------------------------------------------------
 objects = circle.get_objects(V)
 #-------------------------------------------------------------------------------
 #         Get the solver
 #-------------------------------------------------------------------------------
-poisson = PoissonSolver(V)
+poisson = PoissonSolver(V,remove_null_space=True)
+#-------------------------------------------------------------------------------
+#          The inverse of capacitance matrix of the object
+#-------------------------------------------------------------------------------
+inv_cap_matrix = capacitance_matrix(V, poisson, objects)
 #-------------------------------------------------------------------------------
 #   Initialize particle positions and velocities, and populate the domain
 #-------------------------------------------------------------------------------
 pop = Population(mesh)
-dv_inv = voronoi_volume(V, Ld, True)
+dv_inv = voronoi_volume(V, Ld, periodic)
 
 pdf = [lambda x: 1, lambda x: 1]
 init = Initialize(pop, pdf, Ld, vd, [alpha_e,alpha_i], 8, objects=objects)

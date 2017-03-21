@@ -7,7 +7,7 @@ if sys.version_info.major == 2:
 from poisson import *
 import dolfin as df
 import numpy as np
-from objects import *
+
 import itertools as itr
 
 def markers(mesh, objects):
@@ -21,39 +21,32 @@ def markers(mesh, objects):
     returns:
             The marked facets of the objects.
     """
-    n_components = len(objects)
+    num_objects = len(objects)
 
     facet_f = df.FacetFunction('size_t', mesh)
-    facet_f.set_all(n_components)
+    facet_f.set_all(num_objects)
 
     for i, o in enumerate(objects):
         facet_f = o.mark_facets(facet_f, i)
 
     return facet_f
 
-def solve_laplace(V, Ld, objects):
+def solve_laplace(V, poisson, objects):
     """
-    This function solves Laplace's equation, $\del^2\varPhi = 0$, for each
-    surface component j with boundary condition $\varPhi = 1V$ on component j
-    and $\varPhi=0$ on every other component, including the outer boundaries.
+    This function solves Laplace's equation, div grad phi = 0, for each
+    surface component j with boundary condition phi = 1 on component j
+    and phi = 0 on every other component.
 
     Args:
-         V           : FunctionSpace(mesh, "CG", 1)
-         exterior_bcs: Dirichlet boundary conditions on exterior boundaries
-         objects     : A list containing all the objects
+         V        : the function space
+         poisson  : the solver
+         objects  : A list containing all the objects
 
     returns:
-            A list of calculated electric fields for every surface componet.
+            A list of calculated electric fields for every surface component.
     """
-    n_components = len(objects)
-
-    periodic = [False,False,False]
-    bnd = NonPeriodicBoundary(Ld,periodic)
-    exterior_bcs = df.DirichletBC(V, df.Constant(0), bnd)
-
-    poisson = PoissonSolver(V, exterior_bcs)
-
-    object_e_field = [0.0]*n_components
+    num_objects = len(objects)
+    object_e_field = [0.0]*num_objects
     for i, o in enumerate(objects):
         for j, p in enumerate(objects):
             if i == j:
@@ -67,41 +60,40 @@ def solve_laplace(V, Ld, objects):
 
     return object_e_field
 
-def capacitance_matrix(mesh, Ld, objects_boundary):
+def capacitance_matrix(V, poisson, objects):
     """
-    This function calculates the mutual capacitance matrix, $C_{i,j}$.
+    This function calculates the mutual capacitance matrix, C_ij.
     The elements of mutual capacitance matrix are given by:
 
-     C_{i,j} = \epsilon_0\int_{\Omega_i}\mathbf{E}_{j}\cdot\hat{n}_i d\sigma_i.
+     C_ij = integral_Omega_i inner(E_j, n_i) dsigma_i.
 
-     For each surface component j, Laplace's equation, $\del^2\varPhi = 0$, is
-     solved with boundary condition $\varPhi = 1V$ on component j and
-     $\varPhi=0$ on every other component, including the outer boundaries.
+     For each surface component j, Laplace's equation, div grad phi = 0, is
+     solved with boundary condition phi = 1 on component j and
+     phi = 0 on every other component, including the outer boundaries.
 
 
     Args:
-         mesh              : the mesh of the simulation domain
-         Ld                : the size of the simulation domain
-         objects_boundary  : an object of objects given by DirichletBC
+          V        : the function space
+          poisson  : the solver
+          objects  : A list containing all the objects
 
     returns:
             The inverse of the mutual capacitance matrix
     """
-    V = df.FunctionSpace(mesh, "CG", 1)
-    objects = objects_boundary.get_objects(V)
+    mesh = V.mesh()
 
     facet_f = markers(mesh, objects)
 
-    n_components = len(objects)
-    capacitance = np.empty((n_components, n_components))
+    num_objects = len(objects)
+    capacitance = np.empty((num_objects, num_objects))
 
-    object_e_field = solve_laplace(V, Ld, objects)
+    object_e_field = solve_laplace(V, poisson, objects)
 
     ds = df.Measure('ds', domain = mesh, subdomain_data = facet_f)
     n = df.FacetNormal(mesh)
 
-    for i in range(n_components):
-        for j in range(n_components):
+    for i in range(num_objects):
+        for j in range(num_objects):
             capacitance[i,j] = \
                             df.assemble(df.inner(object_e_field[j], -1*n)*ds(i))
 
@@ -159,7 +151,6 @@ def init_circuits(objects, inv_cap_matrix, circuits_info, bias_potential):
         circuit = circuits_info[i]
         for j in circuit:
             circuit_comps.append(objects[j])
-            a = np.array([np.pi, np.pi])
 
         circuits.append(Circuit(circuit_comps, bias_0[circuit],\
                         inv_bias_matrix[circuit,len(bias_potential):]))
