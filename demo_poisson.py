@@ -25,18 +25,18 @@ periodic, with_object, remove_null_space = True, True, False
 # periodic, with_object, remove_null_space = False, False, False
 # periodic, with_object, remove_null_space = False, True, False
 
-nDims = 2						# Number of dimensions
+n_dims = 2						# Number of dimensions
 Ns = [4,8,16,32,64,128]			# Mesh fineness to sweep through
-Ld = 2*np.pi*np.ones(nDims)		# Size of domain
-Lo = 2*np.ones(nDims)			# Size of object
+Ld = 2*np.pi*np.ones(n_dims)		# Size of domain
+Lo = 2*np.ones(n_dims)			# Size of object
 
-def exteriorBnd(x, onBnd):
-	return onBnd and (
+def exteriorBnd(x, on_bnd):
+	return on_bnd and (
 		np.any([near(a,0) for a in x]) or
 		np.any([near(a,b) for a,b in zip(x,Ld)]))
 
-def interiorBnd(x, onBnd):
-	return onBnd and (
+def interiorBnd(x, on_bnd):
+	return on_bnd and (
 	np.any([near(a,b) for a,b in zip(x,(Ld+Lo)/2)]) or
 	np.any([near(a,b) for a,b in zip(x,(Ld-Lo)/2)]))
 
@@ -48,7 +48,7 @@ for i, N in enumerate(Ns):
 		domain = Rectangle(Point(0,0),Point(Ld)) - Rectangle(Point((Ld-Lo)/2),Point((Ld+Lo)/2))
 		mesh = generate_mesh(domain,N)
 	else:
-		Nr = N*np.ones(nDims, dtype=int)
+		Nr = N*np.ones(n_dims, dtype=int)
 		mesh = RectangleMesh(Point(0,0),Point(Ld),*Nr)
 	#plot(mesh)
 
@@ -56,11 +56,11 @@ for i, N in enumerate(Ns):
 	V = FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
 
 	# Analytical expressions
-	rhoExpr = Expression("2*sin(x[0])*sin(x[1])",degree=1)
-	phiExpr = Expression("sin(x[0])*sin(x[1])",degree=1)
-	rho = project(rhoExpr,V)
+	rho_expr = Expression("2*sin(x[0])*sin(x[1])",degree=1)
+	phi_expr = Expression("sin(x[0])*sin(x[1])",degree=1)
+	rho = project(rho_expr,V)
 
-	bce = DirichletBC(V,phiExpr,exteriorBnd) if not periodic else None
+	bce = DirichletBC(V,phi_expr,exteriorBnd) if not periodic else None
 	poisson = PoissonSolver(V,bce,remove_null_space=remove_null_space)
 
 	# The Poisson equation is solved twice with different boundary conditions.
@@ -68,14 +68,14 @@ for i, N in enumerate(Ns):
 	# boundary conditions, e.g. that any matrix or vector is broken when bcs
 	# are applied several times.
 
-	bci = [DirichletBC(V,2*phiExpr,interiorBnd)] if with_object else None
+	bci = [DirichletBC(V,2*phi_expr,interiorBnd)] if with_object else None
 	phi = poisson.solve(2*rho,bci)
 
-	bci = [DirichletBC(V,phiExpr,interiorBnd)] if with_object else []
+	bci = [DirichletBC(V,phi_expr,interiorBnd)] if with_object else []
 	phi = poisson.solve(rho,bci)
 
 	# Compute error
-	err[i] = errornorm(phi,project(phiExpr,V),degree_rise=0)
+	err[i] = errornorm(phi,project(phi_expr,V),degree_rise=0)
 	h[i] = mesh.hmin()
 	order = ln(err[i]/err[i-1])/ln(h[i]/h[i-1]) if i>0 else 0
 	print("Running with N=%3d: h=%2.2E, E=%2.2E, order=%2.2E"%(N,h[i],err[i],order))
