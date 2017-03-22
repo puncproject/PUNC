@@ -38,7 +38,7 @@ inv_cap_matrix = capacitance_matrix(V, poisson, objects)
 
 # Initialize particle positions and velocities, and populate the domain
 pop    = Population(mesh)
-dv_inv = voronoi_volume(V, Ld, periodic)
+dv_inv = voronoi_volume_approx(V, Ld)
 
 pdf  = [lambda x: 1, lambda x: 1]
 init = Initialize(pop, pdf, Ld, vd, [alpha_e,alpha_i], 8, objects=objects)

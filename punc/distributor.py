@@ -40,7 +40,7 @@ def get_voronoi_points(V, Ld, periodic, tol=1e-13):
     N = mesh.num_vertices()
     dim = mesh.geometry().dim()
     points = np.zeros((N,3))
-    points[:,:dim] = mesh.coordinates()
+    points[:,:dim] = mesh.coordinates() # replace with df.vertices(mesh)?
     dof_indices = df.vertex_to_dof_map(V)
 
     # Remove vertices on upper periodic boundaries
@@ -99,9 +99,9 @@ def exec_voropp(points, indices, Ld, periodic):
         with open(fname+'.vol','r') as f:
             for i,line in enumerate(f):
                 words = line.split()
-                dof_index = int(words[0])
+                index = int(words[0])
                 volume = float(words[4])
-                volumes[dof_index] = volume
+                volumes[index] = volume
 
         try:
             os.remove(fname+'.vol')
@@ -115,7 +115,8 @@ def exec_voropp(points, indices, Ld, periodic):
 
     return volumes
 
-def voronoi_volume(V, Ld, periodic=True, tol=1e-13, inv=True, raw=True):
+def voronoi_volume(V, Ld, periodic=True, inv=True,
+                   raw=True, tol=1e-13, vol_tol=1e-5):
     """
     Returns the volume of the Voronoi cells centered at the DOFs as a FEniCS
     function. V is the function space for the function to be returned (must be
@@ -128,6 +129,9 @@ def voronoi_volume(V, Ld, periodic=True, tol=1e-13, inv=True, raw=True):
     which are within tol of a boundary are shifted tol inwards. This number
     must be larger than the finite precision but small enough to not compromise
     accuracy. The default value is usually sufficient.
+
+    The function checks that the sum of the volume of all Voronoi cells are
+    within vol_tol of the total volume of the domain.
     """
 
     assert V.ufl_element().family() == 'Lagrange'
@@ -146,10 +150,64 @@ def voronoi_volume(V, Ld, periodic=True, tol=1e-13, inv=True, raw=True):
     periodic = np.concatenate([ periodic, np.ones(3-n_dims,bool)])
 
     points, indices = get_voronoi_points(V, Ld, periodic, tol)
+
+    assert len(points) == V.dim(), \
+        "Got too many Voronoi center points. Check periodic argument."
+
     volumes = exec_voropp(points, indices, Ld, periodic)
 
     assert all(volumes!=0), \
         "Some Voronoi cells are missing (have zero volume). Try increasing tol."
+
+    total_volume = df.assemble(1*df.dx(V.mesh()))
+    assert np.abs(sum(volumes)-total_volume)<vol_tol, \
+        "The volume of the Voronoi cells (%E) "%sum(volumes) +\
+        "doesn't add up to total domain volume (%E). "%total_volume +\
+        "A possible cause is that objects aren't implemented yet or " +\
+        "that objects are concave. A possible remedy could be to use" +\
+        "voronoi_volume_approx()."
+
+    if inv:
+        volumes = volumes**(-1)
+
+    if raw:
+        return volumes
+    else:
+        dv = df.Function(V)
+        dv.vector()[:] = volumes
+        return dv
+
+def voronoi_volume_approx(V, Ld, inv=True, raw=True):
+    """
+    Returns the approximated volume for every Voronoi cell centered at
+    the a DOF as a FEniCS function. V is the function space for the function
+    to be returned (must be CG1) and Ld is the size of the domain. Works for
+    1D, 2D and 3D, with and without periodic boundaries and objects.
+
+    The approximated volume of a Voronoi cell centered at a vertex is the
+    sum of the neighboring cells divided by the number of geometric dimensions
+    plus one. This approximation is better the closer to equilateral the cells
+    are, a feature which is desirable in a FEM mesh anyhow.
+
+    Curiously, the result of this function happens to be exact not only for
+    completely equilateral cells, but also for entirely periodic simple
+    meshes as created using simple_mesh(). For non-periodic simple meshes it
+    becomes inaccurate on the boundary nodes. The total volume of all cells is
+    always correct.
+    """
+    assert V.ufl_element().family() == 'Lagrange'
+    assert V.ufl_element().degree() == 1
+
+    n_dofs = V.dim()
+    dof_indices = df.vertex_to_dof_map(V)
+    volumes = np.zeros(n_dofs)
+
+    # These loops inherently deal with periodic boundaries
+    for i,v in enumerate(df.vertices(V.mesh())):
+        for c in df.cells(v):
+            volumes[dof_indices[i]] += c.volume()
+
+    volumes /= (V.mesh().geometry().dim()+1)
 
     if inv:
         volumes = volumes**(-1)
