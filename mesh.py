@@ -35,6 +35,14 @@ class CircleDomain(object):
 	def get_objects(self, V):
 		return [Object(V, get_circles(0))]
 
+	def get_pdf(self):
+		tol = 1e-8
+		r = 0.5
+		s = np.array([np.pi, np.pi])
+		pdf = lambda x, s = s, r = r: \
+		      0 if np.dot(x-s, x-s) <= r**2+tol else 1
+		return pdf
+
 class CircuitDomain(object):
 	"""
 	Return the mesh and creates the objects for the demo of circuits.
@@ -71,6 +79,15 @@ class CircuitDomain(object):
 		for i in range(num_objects):
 			objects[i] = Object(V, get_circles(i))
 		return objects
+
+	def get_pdf(self):
+		tol = 1e-8
+		r = 0.5
+		s = [np.array([np.pi, np.pi]), np.array([np.pi, np.pi + 3*r]),
+		     np.array([np.pi, np.pi - 3*r]), np.array([np.pi + 3*r, np.pi])]
+		pdf = lambda x, s=s, r=r:\
+		       0 if any(np.dot(x-si, x-si)<=r**2+tol for si in s) else 1
+		return pdf
 
 class SphereDomain(object):
 	"""
