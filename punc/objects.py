@@ -65,7 +65,7 @@ class Object(df.DirichletBC):
         Computes the interpolated charge to the object.
 
         Args:
-            q (dolfin array): The interpolated charge.
+            q (DOLFIN array): The interpolated charge.
         """
         self.interpolated_charge = np.sum(q.vector()[self.dofs])
 
