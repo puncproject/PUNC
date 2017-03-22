@@ -22,9 +22,6 @@ circles = CircuitDomain()      # Create the CircleDomain object
 mesh    = circles.get_mesh()   # Get the mesh
 Ld      = get_mesh_size(mesh)  # Get the size of the simulation domain
 
-# Get the pdf for particle distribution
-pdf = circles.get_pdf()
-
 # Create boundary conditions and function space
 periodic = [True, True, True]
 PBC      = PeriodicBoundary(Ld)
@@ -46,7 +43,8 @@ circuits = circles.get_circuits(objects, inv_cap_matrix)
 pop    = Population(mesh)
 dv_inv = voronoi_volume_approx(V, Ld, periodic)
 
-pdf = [pdf, pdf]
+pdf = [lambda x: 1, lambda x: 1]
+pdf = [create_object_pdf(pdf_i, objects) for pdf_i in pdf]
 init = Initialize(pop, pdf, Ld, vd, [alpha_e,alpha_i], 8)
 init.initial_conditions()
 

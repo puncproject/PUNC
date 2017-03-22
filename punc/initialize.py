@@ -107,6 +107,12 @@ def maxwellian(vd, vth, N):
 
     return np.random.normal(vd, vth, (N,d))
 
+def create_object_pdf(pdf, objects):
+    object_pdf = lambda x, pdf=pdf:\
+                 0 if any(c.inside(x, True) for c in objects) else pdf(x)
+
+    return object_pdf
+
 def num_injected_particles(A, dt, n_p, v_n, alpha):
     """
     This function calculates the number of particles that needs to be injected
