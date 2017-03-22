@@ -137,8 +137,8 @@ if __name__=='__main__':
 			f = df.Function(V)
 			f.vector()[dof] = 5
 			df.plot(f, interactive=True)
-			obj.set_q_rho(f)
-			print("q_rho: ", obj.q_rho)
+			obj.compute_interpolated_charge(f)
+			print("interpolated_charge: ", obj.interpolated_charge)
 			df.File("test_f.pvd") << f
 
 	def test_sphere():
@@ -163,8 +163,8 @@ if __name__=='__main__':
 			f = df.Function(V)
 			f.vector()[dof] = 5
 			df.plot(f, interactive=True)
-			obj.set_q_rho(f)
-			print("q_rho: ", obj.q_rho)
+			obj.compute_interpolated_charge(f)
+			print("interpolated_charge: ", obj.interpolated_charge)
 			df.File("test_f.pvd") << f
 
 	def test_circuit():
@@ -189,8 +189,8 @@ if __name__=='__main__':
 			f = df.Function(V)
 			f.vector()[dof] = 5
 			df.plot(f, interactive=True)
-			obj.set_q_rho(f)
-			print("q_rho: ", obj.q_rho)
+			obj.compute_interpolated_charge(f)
+			print("interpolated_charge: ", obj.interpolated_charge)
 
 	def test_circle_object():
 		circle = CircleDomain()
@@ -214,8 +214,8 @@ if __name__=='__main__':
 			f = df.Function(V)
 			f.vector()[dof] = 5
 			df.plot(f, interactive=True)
-			obj.set_q_rho(f)
-			print("q_rho: ", obj.q_rho)
+			obj.compute_interpolated_charge(f)
+			print("interpolated_charge: ", obj.interpolated_charge)
 
 	def test_simple():
 		from pylab import axis, show, triplot

@@ -1,26 +1,81 @@
-from __future__ import print_function
+from __future__ import print_function, division
+import sys
+if sys.version_info.major == 2:
+    from itertools import izip as zip
+    range = xrange
+
 import dolfin as df
 import numpy as np
-import itertools as itr
 
 class Object(df.DirichletBC):
+    """
+    An Object is a subdomain of DirichletBC class that represents an electrical
+    component.
+
+    Attributes:
+        charge (:obj: float) : The total charge of the object.
+
+        interpolated_charge (:obj: float): The total interpolated charge of the
+        object.
+
+        _potential (:obj: list): The electric potential of the object.
+
+        dofs (:obj: list): A list of dof indices of the finite element
+        function space corresponding to the object.
+
+        inside (:obj: method): Specifies the boundary of the object. Returns
+        True if a point is inside the object domain, and False otherwise. It is
+        also used to specify on which facets the boundary conditions should be
+        applied.
+
+        V (DOLFIN: FunctionSpace): The finite element function space.
+    """
 
     def __init__(self, V, sub_domain, method="topological"):
+        """
+        Constructor
+
+        Args:
+            V (DOLFIN: FunctionSpace): The finite element function space.
+
+            sub_domain (DOLFIN: DirichletBC): Subdomain of DirichletBC class.
+
+            method (str): Optional argument: A string specifying the method to
+            identify dofs.
+        """
         df.DirichletBC.__init__(self, V, df.Constant(0), sub_domain, method)
         self.charge = 0
-        self.q_rho = 0 # Should preferrably have a better name
+        self.interpolated_charge = 0
         self._potential = 0
         self.dofs = self.get_boundary_values().keys()
         self.inside = self.domain_args[0].inside
         self.V = V
 
     def add_charge(self, q):
+        """
+        Adds charge, q, to the object charge.
+
+        Args:
+             q (float): The electric charge to be added to object.
+        """
         self.charge += q
 
-    def set_q_rho(self, q):
-        self.q_rho = np.sum(q.vector()[self.dofs])
+    def compute_interpolated_charge(self, q):
+        """
+        Computes the interpolated charge to the object.
+
+        Args:
+            q (dolfin array): The interpolated charge.
+        """
+        self.interpolated_charge = np.sum(q.vector()[self.dofs])
 
     def set_potential(self, potential):
+        """
+        Sets the object potential.
+
+        Args:
+            potential (float): The electric potential.
+        """
         self._potential = potential
         self.set_value(df.Constant(self._potential))
 
@@ -76,37 +131,88 @@ class Object(df.DirichletBC):
 
 def compute_object_potentials(q, objects, inv_cap_matrix):
     """
-    This function sets the interpolated charge to the objects, and then
-    calculates the object potential by using the inverse of capacitance matrix.
+    Sets the interpolated charge to the objects, and then computes the object
+    potential by using the inverse of capacitance matrix.
     """
     for o in objects:
-        o.set_q_rho(q)
+        o.compute_interpolated_charge(q)
 
     for i, o in enumerate(objects):
         potential = 0.0
         for j, p in enumerate(objects):
-            potential += (p.charge - p.q_rho)*inv_cap_matrix[i,j]
+            potential += (p.charge - p.interpolated_charge)*inv_cap_matrix[i,j]
         o.set_potential(potential)
 
 class Circuit(object):
+    """
+    A circuit is a collection of an arbitrary number of electrical components
+    (represented as Object objects), and it is a disjoint entity from the rest
+    of the system.
 
-    def __init__(self, objects, bias_0, bias_1):
 
+    Attributes:
+        objects (:obj: list of Object objets): A list of Object objects that
+        together constitute the circuit.
+
+        charge (:obj: float) : The total charge in the circuit
+
+        precomputed_charge (:obj: list): component (Object object) charge
+        precomputed from the first part of the inverse of the bias matrix
+
+                inv_bias_mat[circuit_members, :-len(num_circuits)]
+
+        and the bias potential vector, phi_bias:
+
+                precomputed_charge = dot(inv_bias_mat, phi_bias)
+
+        bias_mat (:obj: array): The second part of the inverse of the bias
+        matrix:
+
+                bias_mat = inv_bias_mat[circuit_members, -len(num_circuits):]
+    """
+    def __init__(self, objects, precomputed_charge, bias_mat):
+        """
+        The constructor
+
+        Args:
+            objects (Object objets)  : List of electrical components
+
+            precomputed_charge (list): Precomputed componet charge
+
+            bias_mat (array)         : The second part of the inverse of the
+            bias matrix
+
+                bias_mat = inv_bias_mat[circuit_members, -len(num_circuits):]
+        """
         self.objects = objects
-        self.bias_0 = bias_0
-        self.bias_1 = bias_1
         self.charge = 0
+        self.precomputed_charge = precomputed_charge
+        self.bias_mat = bias_mat
 
     def circuit_charge(self):
+        """
+        Computes the total charge in the circuit, and sets the value to circuit
+        charge: self.charge.
+        """
         circuit_charge = 0.0
         for o in self.objects:
-            circuit_charge += (o.charge - o.q_rho)
+            circuit_charge += (o.charge - o.interpolated_charge)
         self.charge = circuit_charge
 
-    def redistribute_charge(self, bias):
-        bias = np.dot(self.bias_1, bias)
+    def redistribute_charge(self, tot_charge):
+        """
+        Redistributes the charge in the circuit among the circuits electrical
+        components.
+
+        Args:
+            tot_charge (list): A list containing the total charge in every
+            circuit.
+        """
+        redistributed_charge = np.dot(self.bias_mat, tot_charge)
         for i, o in enumerate(self.objects):
-            o.charge = self.bias_0[i] + bias[i] + o.q_rho
+            o.charge = self.precomputed_charge[i] + \
+                          redistributed_charge[i] + \
+                                           o.interpolated_charge
 
 def redistribute_circuit_charge(circuits):
     """
