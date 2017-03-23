@@ -42,7 +42,7 @@ def std_specie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
     mul = (np.prod(Ld)/np.prod(Np))*(wp0**2)*m0/(q0**2)
     return q*mul, m*mul, Np
 
-def random_points(pdf, Ld, N, pdf_max=1, objects=None):
+def random_points(pdf, Ld, N, pdf_max=1):
     """
     Creates an array of N points randomly distributed according to pdf in a
     domain size given by Ld (and starting in the origin) using the Monte
@@ -70,15 +70,6 @@ def random_points(pdf, Ld, N, pdf_max=1, objects=None):
         # Only keep points below pdf
         new_points = [x[0:dim] for x in new_points if x[dim]<pdf(x[0:dim])]
         new_points = np.array(new_points).reshape(-1,dim)
-
-        if objects is not None:
-            indices = []
-            for i, p in enumerate(new_points):
-                for o in objects:
-                    if o.inside(p, True):
-                        indices.append(i)
-                        break
-            new_points = np.delete(new_points, indices, axis=0)
         points = np.concatenate([points,new_points])
 
     return points
@@ -115,6 +106,12 @@ def maxwellian(vd, vth, N):
     vth[indices] = np.finfo(float).eps
 
     return np.random.normal(vd, vth, (N,d))
+
+def create_object_pdf(pdf, objects):
+    object_pdf = lambda x, pdf=pdf:\
+                 0 if any(c.inside(x, True) for c in objects) else pdf(x)
+
+    return object_pdf
 
 def num_injected_particles(A, dt, n_p, v_n, alpha):
     """
@@ -161,8 +158,7 @@ class Initialize(object):
 
     def initial_conditions(self):
         for i in range(self.num_species):
-            xs = random_points(self.pdf[i], self.Ld, self.N, self.pdf_max,
-                                                        self.objects)
+            xs = random_points(self.pdf[i], self.Ld, self.N, self.pdf_max)
             vs = maxwellian(self.vd, self.vth[i], xs.shape)
             self.pop.add_particles(xs,vs,self.q[i],self.m[i])
 

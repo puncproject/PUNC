@@ -40,8 +40,9 @@ inv_cap_matrix = capacitance_matrix(V, poisson, objects)
 pop    = Population(mesh)
 dv_inv = voronoi_volume_approx(V, Ld)
 
-pdf  = [lambda x: 1, lambda x: 1]
-init = Initialize(pop, pdf, Ld, vd, [alpha_e,alpha_i], 8, objects=objects)
+pdf = [lambda x: 1, lambda x: 1]
+pdf = [create_object_pdf(pdf_i, objects) for pdf_i in pdf]
+init = Initialize(pop, pdf, Ld, vd, [alpha_e,alpha_i], 16)
 init.initial_conditions()
 
 # Time loop
