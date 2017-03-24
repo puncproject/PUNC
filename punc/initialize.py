@@ -136,8 +136,7 @@ class Initialize(object):
 
     """
     def __init__(self, pop, pdf, Ld, vd, vth, Npc, pdf_max = 1, dt = 0.1,
-                 tot_time = 10, num_species = 2, charge = [-1,1],
-                 mass = [1, 1836], objects = None):
+                 charge = [-1,1], mass = [1, 1836], objects = None):
         self.pop = pop
         self.mesh = pop.mesh
         self.pdf = pdf
@@ -151,7 +150,8 @@ class Initialize(object):
         self.dim = len(self.Ld)
         self.objects = objects
 
-        self.num_species = num_species
+        assert len(charge)==len(mass)
+        self.num_species = len(charge)
         self.q = copy.deepcopy(charge)
         self.m = copy.deepcopy(mass)
 
