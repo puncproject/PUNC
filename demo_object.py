@@ -17,6 +17,21 @@ tot_time = 20                    # Total simulation time
 dt       = 0.251327              # Time step
 vd       = np.array([0.0, 0.0])  # Drift velocity
 
+T_e = 1.                    # Temperature - electrons
+T_i = 1.                    # Temperature - ions
+kB = 1.                     # Boltzmann's constant
+e = 1.                      # Elementary charge
+Z = 1                       # Atomic number
+m_e = 1.                    # particle mass - electron
+m_i = 1836.15267389         # particle mass - ion
+
+alpha_e = np.sqrt(kB*T_e/m_e) # Boltzmann factor
+alpha_i = np.sqrt(kB*T_i/m_i) # Boltzmann factor
+
+q_e = -e         # Electric charge - electron
+q_i = Z*e        # Electric charge - ions
+
+
 # Get the mesh
 circle = CircleDomain()      # Create the CircleDomain object
 mesh   = circle.get_mesh()   # Get the mesh
