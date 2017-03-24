@@ -110,6 +110,17 @@ def maxwellian(vd, vth, N):
     return np.random.normal(vd, vth, (N,d))
 
 def create_object_pdf(pdf, objects):
+    """
+    Given a pdf for the hole simulation domain, creates a new pdf that is zero
+    inside the objects.
+
+    Args:
+        pdf: A probability distribution function
+        objects: A list of Object objects
+
+    returns:
+        A new pdf with value zero inside the objects domain.
+    """
     object_pdf = lambda x, pdf=pdf:\
                  0 if any(c.inside(x, True) for c in objects) else pdf(x)
 
