@@ -8,6 +8,7 @@ import dolfin as df
 import numpy as np
 from math import erf
 from itertools import combinations
+import copy
 
 def std_specie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
     """
@@ -41,6 +42,7 @@ def std_specie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
 
     mul = (np.prod(Ld)/np.prod(Np))*(wp0**2)*m0/(q0**2)
     return q*mul, m*mul, Np
+
 
 def random_points(pdf, Ld, N, pdf_max=1):
     """
@@ -150,8 +152,8 @@ class Initialize(object):
         self.objects = objects
 
         self.num_species = num_species
-        self.q = charge
-        self.m = mass
+        self.q = copy.deepcopy(charge)
+        self.m = copy.deepcopy(mass)
 
         self.normalize()
         # self.initialize_injection()
@@ -244,7 +246,7 @@ class Initialize(object):
             self.n_particles[i] = [int(j) for j in self.n_particles[i]]
             self.n_particles[i][0] += int(sum(diff_e))
 
-    def normalize(self):
+    def normalize(self, count='per cell'):
         for i in range(self.num_species):
             self.q[i], self.m[i], self.N = \
-            std_specie(self.mesh, self.Ld, self.q[i], self.m[i], self.Npc)
+            std_specie(self.mesh, self.Ld, self.q[i], self.m[i], self.Npc, count=count)
