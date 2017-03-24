@@ -27,7 +27,7 @@ __UINT32_MAX__ = np.iinfo('uint32').max
 class Particle(object):
     __slots__ = ['x', 'v', 'q', 'm']
     def __init__(self, x, v, q, m):
-        assert(q!=0 and m!=0)
+        assert q!=0 and m!=0
         self.x = np.array(x)    # Position vector
         self.v = np.array(v)    # Velocity vector
         self.q = q              # Charge
@@ -44,6 +44,83 @@ class Particle(object):
         comm.Recv(self.v, source=source)
         comm.Recv(self.q, source=source)
         comm.Recv(self.m, source=source)
+
+class Specie(object):
+    def __init__(self, specie, **kwargs):
+
+        # Will be set during normalization
+        self.charge = None
+        self.mass = None
+        self.v_thermal = None
+
+        self.v_thermal_raw = 0
+        self.temperature_raw = None
+
+        self.num_total = None
+        self.num_per_cell = 8
+
+        if specie == 'electron':
+            self.charge_raw = -1
+            self.mass_raw = 1
+
+        elif specie == 'proton':
+            self.charge_raw = 1
+            self.mass_raw = 1836.15267389
+
+        else:
+            assert isinstance(specie,tuple) and len(specie)==2 ,\
+                "specie must be a valid keyword or a (charge,mass)-tuple"
+
+            self.charge_raw = specie[0]
+            self.mass_raw = specie[1]
+
+        if 'num_per_cell' in kwargs:
+            self.num_per_cell = kwargs['num_per_cell']
+
+        if 'num_total' in kwargs:
+            self.num_total = kwargs['num_total']
+
+        if 'v_thermal' in kwargs:
+            self.v_thermal_raw = kwargs['v_thermal']
+
+        if 'temperature' in kwargs:
+            self.temperature_raw = kwargs['temperature']
+
+class Species(list):
+    def __init__(self, mesh):
+        self.volume = df.assemble(1*df.dx(mesh))
+        self.num_cells = mesh.num_cells()
+
+    def append_specie(self, specie, **kwargs):
+        self.append(Specie(specie, **kwargs))
+        self.normalize(self[-1])
+
+    def normalize(self, s):
+        if s.num_total == None:
+            s.num_total = s.num_per_cell * self.num_cells
+
+        ref = self[0]
+        w_pe = 1
+        weight = (w_pe**2) \
+               * (self.volume/ref.num_total) \
+               * (ref.mass_raw/ref.charge_raw**2)
+
+        s.charge = weight*s.charge_raw
+        s.mass = weight*s.mass_raw
+
+        if ref.temperature_raw != None:
+            assert s.temperature_raw != None, \
+                "Specify temperature for all or none species"
+
+            ref.v_thermal = 1
+            for s in self:
+                s.v_thermal = ref.v_thermal*sqrt(
+                    (s.temperature_raw/ref.temperature_raw) * \
+                    (ref.mass_raw/s.mass_raw) )
+        elif s.v_thermal_raw == 0:
+            s.v_thermal = 0
+        else:
+            s.v_thermal = s.v_thermal_raw/ref.v_thermal_raw
 
 class Population(list):
 

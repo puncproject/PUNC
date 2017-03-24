@@ -7,9 +7,7 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 from punc import *
-
 from mesh import *
-from parameters import *
 
 
 # Simulation parameters

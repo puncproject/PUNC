@@ -33,6 +33,11 @@ pop = Population(mesh)
 poisson = PoissonSolver(V,remove_null_space=True)
 dv_inv = voronoi_volume(V, Ld, True)
 
+species = Species(mesh)
+species.append_specie('electron', num_per_cell=16)
+species.append_specie('proton', num_per_cell=16)
+
+
 A = 0.5
 mode = 1
 pdf_max = 1+A
