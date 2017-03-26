@@ -18,6 +18,8 @@ import numpy as np
 from mpi4py import MPI as pyMPI
 from collections import defaultdict
 from itertools import count
+from initialize import *
+from poisson import *
 
 comm = pyMPI.COMM_WORLD
 
@@ -52,12 +54,14 @@ class Specie(object):
         self.charge = None
         self.mass = None
         self.v_thermal = None
+        self.v_drift = None
 
         self.v_thermal_raw = 0
         self.temperature_raw = None
+        self.v_drift_raw = 0
 
         self.num_total = None
-        self.num_per_cell = 8
+        self.num_per_cell = 16
 
         if specie == 'electron':
             self.charge_raw = -1
@@ -82,6 +86,9 @@ class Specie(object):
 
         if 'v_thermal' in kwargs:
             self.v_thermal_raw = kwargs['v_thermal']
+
+        if 'v_drift' in kwargs:
+            self.v_drift_raw = kwargs['v_drift']
 
         if 'temperature' in kwargs:
             self.temperature_raw = kwargs['temperature']
@@ -114,7 +121,7 @@ class Species(list):
 
             ref.v_thermal = 1
             for s in self:
-                s.v_thermal = ref.v_thermal*sqrt(
+                s.v_thermal = ref.v_thermal*np.sqrt( \
                     (s.temperature_raw/ref.temperature_raw) * \
                     (ref.mass_raw/s.mass_raw) )
         elif s.v_thermal_raw == 0:
@@ -122,10 +129,19 @@ class Species(list):
         else:
             s.v_thermal = s.v_thermal_raw/ref.v_thermal_raw
 
+        if s.v_drift_raw == 0:
+            s.v_drift = 0
+        else:
+            s.v_drift = s.v_drift_raw/ref.v_thermal_raw
+
 class Population(list):
 
     def __init__(self, mesh):
         self.mesh = mesh
+        self.Ld = get_mesh_size(mesh)
+
+        # Species
+        self.species = Species(mesh)
 
         # Allocate a list of particles for each cell
         for cell in df.cells(self.mesh):
@@ -134,10 +150,6 @@ class Population(list):
         # Create a list of sets of neighbors for each cell
         self.t_dim = self.mesh.topology().dim()
         self.g_dim = self.mesh.geometry().dim()
-
-        self.Ld = []
-        for j in range(self.g_dim):
-            self.Ld.append(self.mesh.coordinates()[:,j].max())
 
         self.mesh.init(0, self.t_dim)
         self.tree = self.mesh.bounding_box_tree()
@@ -158,6 +170,35 @@ class Population(list):
         # Dummy particle for receiving/sending at [0, 0, ...]
         v_zero = np.zeros(self.g_dim)
         self.particle0 = Particle(v_zero,v_zero,1,1)
+
+    def init_new_specie(self, specie, **kwargs):
+        self.species.append_specie(specie, **kwargs)
+
+        if 'pdf' in kwargs:
+            pdf = create_mesh_pdf(kwargs['pdf'], self.mesh)
+        else:
+            pdf = create_mesh_pdf(lambda x: 1, self.mesh)
+
+        if 'pdf_max' in kwargs:
+            pdf_max = kwargs['pdf_max']
+        else:
+            pdf_max = 1
+
+        m = self.species[-1].mass
+        q = self.species[-1].charge
+        v_thermal = self.species[-1].v_thermal
+        v_drift = self.species[-1].v_drift
+        num_total = self.species[-1].num_total
+
+        xs = random_points(pdf, self.Ld, num_total, pdf_max)
+        vs = maxwellian(v_drift, v_thermal, xs.shape)
+        self.add_particles(xs,vs,q,m)
+
+    def add_particles_of_specie(self, specie, xs, vs=None):
+        q = self.species[specie].charge
+        m = self.species[specie].mass
+        add_particles(self, xs, vs, q, m)
+
 
     def add_particles(self, xs, vs=None, qs=None, ms=None):
         """

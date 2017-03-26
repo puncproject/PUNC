@@ -10,6 +10,10 @@ from math import erf
 from itertools import combinations
 import copy
 
+# collisions tests return this value or -1 if there is no collision
+__UINT32_MAX__ = np.iinfo('uint32').max
+
+
 def std_specie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
     """
     Returns standard normalized particle parameters to use for a specie. The
@@ -114,6 +118,17 @@ def create_object_pdf(pdf, objects):
                  0 if any(c.inside(x, True) for c in objects) else pdf(x)
 
     return object_pdf
+
+def create_mesh_pdf(pdf, mesh):
+    mesh.init(0, mesh.topology().dim())
+    tree = mesh.bounding_box_tree()
+
+    def mesh_pdf(x):
+        cell_id = tree.compute_first_entity_collision(df.Point(*x))
+        inside_mesh = int(cell_id!=__UINT32_MAX__ and cell_id!=-1)
+        return inside_mesh*pdf(x)
+
+    return mesh_pdf
 
 def num_injected_particles(A, dt, n_p, v_n, alpha):
     """

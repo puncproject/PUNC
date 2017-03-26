@@ -33,19 +33,21 @@ pop = Population(mesh)
 poisson = PoissonSolver(V,remove_null_space=True)
 dv_inv = voronoi_volume(V, Ld, True)
 
-species = Species(mesh)
-species.append_specie('electron', num_per_cell=16)
-species.append_specie('proton', num_per_cell=16)
+A, mode = 0.5, 1
+pdf = lambda x: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0])
+pop.init_new_specie('electron', pdf=pdf, pdf_max=1+A)
+pop.init_new_specie('proton')
 
 
-A = 0.5
-mode = 1
-pdf_max = 1+A
-pdf = [lambda x, A=A, mode=mode, Ld=Ld: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0]),
-       lambda x: 1]
 
-init = Initialize(pop, pdf, Ld, [0,0], [0, 0], 16, pdf_max)
-init.initial_conditions()
+# A = 0.5
+# mode = 1
+# pdf_max = 1+A
+# pdf = [lambda x, A=A, mode=mode, Ld=Ld: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0]),
+#        lambda x: 1]
+#
+# init = Initialize(pop, pdf, Ld, [0,0], [0, 0], 16, pdf_max)
+# init.initial_conditions()
 
 
 dt = 0.251327
