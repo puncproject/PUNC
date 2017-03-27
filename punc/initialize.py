@@ -13,41 +13,6 @@ import copy
 # collisions tests return this value or -1 if there is no collision
 __UINT32_MAX__ = np.iinfo('uint32').max
 
-
-def std_specie(mesh, Ld, q, m, N, q0=-1.0, m0=1.0, wp0=1.0, count='per cell'):
-    """
-    Returns standard normalized particle parameters to use for a specie. The
-    inputs q and m are the charge and mass of the specie in elementary charges
-    and electron masses, respectively. N is the number of particles per cell
-    unless count='total' in which case it is the total number of simulation
-    particles in the domain. For instance to create 8 ions per cell (having
-    mass of 1836 electrons and 1 positive elementary charge):
-
-        q, m, N = std_specie(mesh, Ld, 1, 1836, 8)
-
-    The returned values are the normalized charge q, mass m and total number of
-    simulation particles N. The normalization is such that the angular electron
-    plasma frequency will be 1.
-
-    Alternatively, the reference charge q0 and mass m0 which should yield a
-    angular plasma frequency of 1, or for that sake any other frequency wp0,
-    could be set through the kwargs. For example, in this case the ions will
-    have a plasma frequency of 0.1:
-
-        q, m, N = std_specie(mesh, Ld, 1, 1836, 8, q0=1, m0=1836, wp0=0.1)
-    """
-
-    assert count in ['per cell','total']
-
-    if count=='total':
-        Np = N
-    else:
-        Np = N*mesh.num_cells()
-
-    mul = (np.prod(Ld)/np.prod(Np))*(wp0**2)*m0/(q0**2)
-    return q*mul, m*mul, Np
-
-
 def random_points(pdf, Ld, N, pdf_max=1):
     """
     Creates an array of N points randomly distributed according to pdf in a
@@ -113,6 +78,7 @@ def maxwellian(vd, vth, N):
 
     return np.random.normal(vd, vth, (N,d))
 
+# No longer in use due to create_mesh_pdf() but nice to have
 def create_object_pdf(pdf, objects):
     object_pdf = lambda x, pdf=pdf:\
                  0 if any(c.inside(x, True) for c in objects) else pdf(x)
@@ -120,6 +86,11 @@ def create_object_pdf(pdf, objects):
     return object_pdf
 
 def create_mesh_pdf(pdf, mesh):
+    """
+    Takes a probability density function (pdf) and a DOLFIN mesh and returns a
+    new pdf which is zero outside the mesh (such as inside objects) but
+    otherwise identical to the original pdf.
+    """
     mesh.init(0, mesh.topology().dim())
     tree = mesh.bounding_box_tree()
 
@@ -152,6 +123,7 @@ class Initialize(object):
     """
     def __init__(self, pop, pdf, Ld, vd, vth, Npc, pdf_max = 1, dt = 0.1,
                  charge = [-1,1], mass = [1, 1836], objects = None):
+
         self.pop = pop
         self.mesh = pop.mesh
         self.pdf = pdf
@@ -171,16 +143,13 @@ class Initialize(object):
         self.m = copy.deepcopy(mass)
 
         self.normalize()
-        # self.initialize_injection()
-
-    def initial_conditions(self):
-        for i in range(self.num_species):
-            xs = random_points(self.pdf[i], self.Ld, self.N, self.pdf_max)
-            vs = maxwellian(self.vd, self.vth[i], xs.shape)
-            self.pop.add_particles(xs,vs,self.q[i],self.m[i])
 
     def inject(self):
         for i in range(self.num_species):
+            # Note: This is a pdf for a plane. The pdf for the initializer part
+            # is a pdf for a volume. That it even works using the same both
+            # places is just because it equals "lambda x: 1". Use separate
+            # pdf for injector.
             xs = self.get_xs(self.pdf[i], self.n_particles[i], self.surfaces)
             vs = maxwellian(self.vd, self.vth[i], xs.shape)
             xs, vs = self.inside(xs, vs)
@@ -260,8 +229,3 @@ class Initialize(object):
             diff_e = [(j - int(j)) for j in self.n_particles[i]]
             self.n_particles[i] = [int(j) for j in self.n_particles[i]]
             self.n_particles[i][0] += int(sum(diff_e))
-
-    def normalize(self, count='per cell'):
-        for i in range(self.num_species):
-            self.q[i], self.m[i], self.N = \
-            std_specie(self.mesh, self.Ld, self.q[i], self.m[i], self.Npc, count=count)

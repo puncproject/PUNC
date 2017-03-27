@@ -116,7 +116,7 @@ def exec_voropp(points, indices, Ld, periodic):
     return volumes
 
 def voronoi_volume(V, Ld, periodic=True, inv=True,
-                   raw=True, tol=1e-13, vol_tol=1e-5):
+                   raw=True, tol=1e-13, vol_tol=1e-4):
     """
     Returns the volume of the Voronoi cells centered at the DOFs as a FEniCS
     function. V is the function space for the function to be returned (must be
