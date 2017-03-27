@@ -7,15 +7,11 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 from punc import *
-
 from mesh import *
-from parameters import *
-
 
 # Simulation parameters
 tot_time = 20                    # Total simulation time
 dt       = 0.251327              # Time step
-vd       = np.array([0.0, 0.0])  # Drift velocity
 
 # Get the mesh
 circles = CircuitDomain()      # Create the CircleDomain object
@@ -41,12 +37,10 @@ circuits = circles.get_circuits(objects, inv_cap_matrix)
 
 # Initialize particle positions and velocities, and populate the domain
 pop    = Population(mesh)
-dv_inv = voronoi_volume_approx(V, Ld, periodic)
+pop.init_new_specie('electron', temperature=1)
+pop.init_new_specie('proton',   temperature=1)
 
-pdf = [lambda x: 1, lambda x: 1]
-pdf = [create_object_pdf(pdf_i, objects) for pdf_i in pdf]
-init = Initialize(pop, pdf, Ld, vd, [alpha_e,alpha_i], 8)
-init.initial_conditions()
+dv_inv = voronoi_volume_approx(V, Ld, periodic)
 
 # Time loop
 N   = tot_time

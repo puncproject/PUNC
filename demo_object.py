@@ -7,15 +7,28 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 from punc import *
-
 from mesh import *
-from parameters import *
 
 
 # Simulation parameters
 tot_time = 20                    # Total simulation time
 dt       = 0.251327              # Time step
-vd       = np.array([0.0, 0.0])  # Drift velocity
+# vd       = np.array([0.0, 0.0])  # Drift velocity
+
+# T_e = 1.                    # Temperature - electrons
+# T_i = 1.                    # Temperature - ions
+# kB = 1.                     # Boltzmann's constant
+# e = 1.                      # Elementary charge
+# Z = 1                       # Atomic number
+# m_e = 1.                    # particle mass - electron
+# m_i = 1836.15267389         # particle mass - ion
+#
+# alpha_e = np.sqrt(kB*T_e/m_e) # Boltzmann factor
+# alpha_i = np.sqrt(kB*T_i/m_i) # Boltzmann factor
+#
+# q_e = -e         # Electric charge - electron
+# q_i = Z*e        # Electric charge - ions
+
 
 # Get the mesh
 circle = CircleDomain()      # Create the CircleDomain object
@@ -37,13 +50,11 @@ poisson = PoissonSolver(V, remove_null_space=True)
 inv_cap_matrix = capacitance_matrix(V, poisson, objects)
 
 # Initialize particle positions and velocities, and populate the domain
-pop    = Population(mesh)
-dv_inv = voronoi_volume_approx(V, Ld)
+pop = Population(mesh)
+pop.init_new_specie('electron', temperature=1, num_per_cell=16)
+pop.init_new_specie('proton',   temperature=1, num_per_cell=16)
 
-pdf = [lambda x: 1, lambda x: 1]
-pdf = [create_object_pdf(pdf_i, objects) for pdf_i in pdf]
-init = Initialize(pop, pdf, Ld, vd, [alpha_e,alpha_i], 16)
-init.initial_conditions()
+dv_inv = voronoi_volume_approx(V, Ld)
 
 # Time loop
 N   = tot_time

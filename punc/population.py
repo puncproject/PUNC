@@ -18,6 +18,8 @@ import numpy as np
 from mpi4py import MPI as pyMPI
 from collections import defaultdict
 from itertools import count
+from initialize import *
+from poisson import *
 
 comm = pyMPI.COMM_WORLD
 
@@ -25,9 +27,9 @@ comm = pyMPI.COMM_WORLD
 __UINT32_MAX__ = np.iinfo('uint32').max
 
 class Particle(object):
-    __slots__ = ['x', 'v', 'q', 'm']
+    __slots__ = ('x', 'v', 'q', 'm')
     def __init__(self, x, v, q, m):
-        assert(q!=0 and m!=0)
+        assert q!=0 and m!=0
         self.x = np.array(x)    # Position vector
         self.v = np.array(v)    # Velocity vector
         self.q = q              # Charge
@@ -45,10 +47,200 @@ class Particle(object):
         comm.Recv(self.q, source=source)
         comm.Recv(self.m, source=source)
 
-class Population(list):
+class Specie(object):
+    """
+    A specie with q elementary charges and m electron masses is specified as
+    follows:
 
-    def __init__(self, mesh):
+        s = Specie((q,m))
+
+    Alternatively, electrons and protons may be specified by an 'electron' or
+    'proton' string instead of a tuple:
+
+        s = Specie('electron')
+
+    The following keyword arguments are accepted to change default behavior:
+
+        v_drift
+            Drift velocity of specie. Default: 0.
+
+        v_thermal
+            Thermal velocity of specie. Default: 0.
+            Do not use along with temperature.
+
+        temperature
+            Temperature of specie. Default: 0.
+            Do not use along with v_thermal.
+
+        num_per_cell
+            Number of particles per cell. Default: 16.
+
+        num_total
+            Number of particles in total.
+            Overrides num_per_cell if specified.
+
+    E.g. to specify electrons with thermal and drift velocities:
+
+        s = Specie('electron', v_thermal=1, v_drift=[1,0])
+
+    Note that the species have to be normalized before being useful. Species
+    are typically put in a Species list and normalized before being used. See
+    Species.
+    """
+
+    def __init__(self, specie, **kwargs):
+
+        # Will be set during normalization
+        self.charge = None
+        self.mass = None
+        self.v_thermal = None
+        self.v_drift = None
+
+        self.v_thermal_raw = 0
+        self.temperature_raw = None
+        self.v_drift_raw = 0
+
+        self.num_total = None
+        self.num_per_cell = 16
+
+        if specie == 'electron':
+            self.charge_raw = -1
+            self.mass_raw = 1
+
+        elif specie == 'proton':
+            self.charge_raw = 1
+            self.mass_raw = 1836.15267389
+
+        else:
+            assert isinstance(specie,tuple) and len(specie)==2 ,\
+                "specie must be a valid keyword or a (charge,mass)-tuple"
+
+            self.charge_raw = specie[0]
+            self.mass_raw = specie[1]
+
+        if 'num_per_cell' in kwargs:
+            self.num_per_cell = kwargs['num_per_cell']
+
+        if 'num_total' in kwargs:
+            self.num_total = kwargs['num_total']
+
+        if 'v_thermal' in kwargs:
+            self.v_thermal_raw = kwargs['v_thermal']
+
+        if 'v_drift' in kwargs:
+            self.v_drift_raw = kwargs['v_drift']
+
+        if 'temperature' in kwargs:
+            self.temperature_raw = kwargs['temperature']
+
+class Species(list):
+    """
+    Just a normal list of Specie objects except that the method append_specie()
+    may be used to append species to the list and normalize them.
+    append_specie() takes the same argumets as the Specie() constructor.
+
+    Two normalization schemes are implemented as can be chosen using the
+    'normalization' parameter in the constructor:
+
+        'plasma params' (default):
+            The zeroth specie in the list (i.e. the first appended one) is
+            normalized to have an angular plasma frequency of one and a thermal
+            velocity of 1 (and hence also a Debye length of one). If the specie
+            is cold the thermal velocity is 0 and the Debye length does not act
+            as a characteristic length scale in the simulations.
+
+        'none':
+            The specified charge, mass, drift and thermal velocities are used
+            as specified without further normalization.
+
+    E.g. to create isothermal electrons and ions normalized such that the
+    electron parameters are all one:
+
+        species = Species(mesh)
+        species.append_specie('electron', temperature=1) # reference
+        species.append_specie('proton'  , temperature=1)
+
+    """
+
+    def __init__(self, mesh, normalization='plasma params'):
+        self.volume = df.assemble(1*df.dx(mesh))
+        self.num_cells = mesh.num_cells()
+
+        assert normalization in ('plasma params', 'none')
+
+        if normalization == 'plasma params':
+            self.normalize = self.normalize_plasma_params
+
+        if normalization == 'none':
+            self.normalize = self.normalize_none
+
+    def append_specie(self, specie, *args, **kwargs):
+        if len(self)==0:
+            assert 'ref' in args,\
+            "A reference specie for normalization must be specified using "+\
+            "the 'ref' argument before other species can be appended"
+        else:
+            assert 'ref' not in args,\
+            "Multiple reference species are specified"
+
+        self.append(Specie(specie, **kwargs))
+        self.normalize(self[-1])
+
+    def normalize_none(self, s):
+        if s.num_total == None:
+            s.num_total = s.num_per_cell * self.num_cells
+
+        s.charge = s.charge_raw
+        s.mass = s.mass_raw
+        s.v_thermal = s.v_thermal_raw
+        s.v_drift = s.v_drift_raw
+
+    def normalize_plasma_params(self, s):
+        if s.num_total == None:
+            s.num_total = s.num_per_cell * self.num_cells
+
+        ref = self[0]
+        w_pe = 1
+        weight = (w_pe**2) \
+               * (self.volume/ref.num_total) \
+               * (ref.mass_raw/ref.charge_raw**2)
+
+        s.charge = weight*s.charge_raw
+        s.mass = weight*s.mass_raw
+
+        if ref.temperature_raw != None:
+            assert s.temperature_raw != None, \
+                "Specify temperature for all or none species"
+
+            ref.v_thermal = 1
+            for s in self:
+                s.v_thermal = ref.v_thermal*np.sqrt( \
+                    (s.temperature_raw/ref.temperature_raw) * \
+                    (ref.mass_raw/s.mass_raw) )
+        elif s.v_thermal_raw == 0:
+            s.v_thermal = 0
+        else:
+            s.v_thermal = s.v_thermal_raw/ref.v_thermal_raw
+
+        if s.v_drift_raw == 0:
+            s.v_drift = 0
+        else:
+            s.v_drift = s.v_drift_raw/ref.v_thermal_raw
+
+class Population(list):
+    """
+    Represents a population of particles. self[i] is a list of all Particle
+    objects belonging to cell i in the DOLFIN mesh. Note that particles, when
+    moved, do not automatically appear in the correct cell. Instead relocate()
+    must be invoked to relocate the particles.
+    """
+
+    def __init__(self, mesh, normalization='plasma params'):
         self.mesh = mesh
+        self.Ld = get_mesh_size(mesh)
+
+        # Species
+        self.species = Species(mesh, normalization)
 
         # Allocate a list of particles for each cell
         for cell in df.cells(self.mesh):
@@ -57,10 +249,6 @@ class Population(list):
         # Create a list of sets of neighbors for each cell
         self.t_dim = self.mesh.topology().dim()
         self.g_dim = self.mesh.geometry().dim()
-
-        self.Ld = []
-        for j in range(self.g_dim):
-            self.Ld.append(self.mesh.coordinates()[:,j].max())
 
         self.mesh.init(0, self.t_dim)
         self.tree = self.mesh.bounding_box_tree()
@@ -81,6 +269,76 @@ class Population(list):
         # Dummy particle for receiving/sending at [0, 0, ...]
         v_zero = np.zeros(self.g_dim)
         self.particle0 = Particle(v_zero,v_zero,1,1)
+
+    def init_new_specie(self, specie, **kwargs):
+        """
+        To initialize a new specie within a population use this function, e.g.
+        to uniformly populate the domain with 16 (default) cold electrons and
+        protons per cell:
+
+            pop = Population(mesh)
+            pop.init_new_specie('electron')
+            pop.init_new_specie('proton')
+
+        Here, the normalization is such that the electron plasma frequency and
+        Debye lengths are set to one. The electron is used as a reference
+        because that specie is initialized first.
+
+        All species is represented as a Species object internally in the
+        population and consequentially, the init_new_specie() method takes the
+        same arguments as the append_specie() method in the Species class. See
+        that method for information of how to tweak specie properties.
+
+        In addition, init_new_specie() takes two additional keywords:
+
+            pdf:
+                A probability density function of how to distribute particles.
+
+            pdf_max:
+                An upper bound for the values in the pdf.
+
+        E.g. to initialize cold langmuir oscillations (where the initial
+        electron density is sinusoidal) in the x-direction in a unit length
+        domain:
+
+            pop = Population(mesh)
+            pdf = lambda x: 1+0.1*np.sin(2*np.pi*x[0])
+            pop.init_new_specie('electron', pdf=pdf, pdf_max=1.1)
+            pop.init_new_specie('proton')
+
+        """
+
+        self.species.append_specie(specie, **kwargs)
+
+        if 'pdf' in kwargs:
+            pdf = kwargs['pdf']
+        else:
+            pdf = lambda x: 1
+
+        if pdf != None:
+
+            pdf = create_mesh_pdf(pdf, self.mesh)
+
+            if 'pdf_max' in kwargs:
+                pdf_max = kwargs['pdf_max']
+            else:
+                pdf_max = 1
+
+            m = self.species[-1].mass
+            q = self.species[-1].charge
+            v_thermal = self.species[-1].v_thermal
+            v_drift = self.species[-1].v_drift
+            num_total = self.species[-1].num_total
+
+            xs = random_points(pdf, self.Ld, num_total, pdf_max)
+            vs = maxwellian(v_drift, v_thermal, xs.shape)
+            self.add_particles(xs,vs,q,m)
+
+    def add_particles_of_specie(self, specie, xs, vs=None):
+        q = self.species[specie].charge
+        m = self.species[specie].mass
+        add_particles(self, xs, vs, q, m)
+
 
     def add_particles(self, xs, vs=None, qs=None, ms=None):
         """
