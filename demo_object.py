@@ -36,18 +36,22 @@ mesh   = circle.get_mesh()   # Get the mesh
 Ld     = get_mesh_size(mesh) # Get the size of the simulation domain
 
 # Create boundary conditions and function space
-periodic = [True, True, True]
-constr   = PeriodicBoundary(Ld, periodic)
-V        = df.FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
+periodic = [True, False]
+bnd = NonPeriodicBoundary(Ld, periodic)
+constr = PeriodicBoundary(Ld, periodic)
+
+V = df.FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
+
+bc = df.DirichletBC(V, df.Constant(1.0), bnd)
 
 # Get the circular object
 objects = circle.get_objects(V)
 
 # Get the solver
-poisson = PoissonSolver(V, remove_null_space=True)
+poisson = PoissonSolver(V, bc)
 
 # The inverse of capacitance matrix
-inv_cap_matrix = capacitance_matrix(V, poisson, objects)
+inv_cap_matrix = capacitance_matrix(V, poisson, bnd, objects)
 
 # Initialize particle positions and velocities, and populate the domain
 pop = Population(mesh)

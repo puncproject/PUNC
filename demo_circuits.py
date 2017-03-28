@@ -19,18 +19,22 @@ mesh    = circles.get_mesh()   # Get the mesh
 Ld      = get_mesh_size(mesh)  # Get the size of the simulation domain
 
 # Create boundary conditions and function space
-periodic = [True, True, True]
-PBC      = PeriodicBoundary(Ld)
-V        = df.FunctionSpace(mesh, "CG", 1, constrained_domain=PBC)
+periodic = [True, False, True]
+bnd = NonPeriodicBoundary(Ld, periodic)
+constr = PeriodicBoundary(Ld, periodic)
+
+V        = df.FunctionSpace(mesh, "CG", 1, constrained_domain=constr)
+
+bc = df.DirichletBC(V, df.Constant(1.0), bnd)
 
 # Get the solver
-poisson = PoissonSolver(V, remove_null_space=True)
+poisson = PoissonSolver(V, bc)
 
 # Create objects
 objects = circles.get_objects(V)
 
 # The inverse of capacitance matrix
-inv_cap_matrix = capacitance_matrix(V, poisson, objects)
+inv_cap_matrix = capacitance_matrix(V, poisson, bnd, objects)
 
 # Create the circuits
 circuits = circles.get_circuits(objects, inv_cap_matrix)
@@ -66,6 +70,8 @@ for n in range(1,N):
     redistribute_circuit_charge(circuits)
 
 KE[0] = KE0
+
+# df.File('phi_circuit.pvd') << phi
 
 df.plot(rho)
 df.plot(phi)
