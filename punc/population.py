@@ -174,15 +174,7 @@ class Species(list):
         if normalization == 'none':
             self.normalize = self.normalize_none
 
-    def append_specie(self, specie, *args, **kwargs):
-        if len(self)==0:
-            assert 'ref' in args,\
-            "A reference specie for normalization must be specified using "+\
-            "the 'ref' argument before other species can be appended"
-        else:
-            assert 'ref' not in args,\
-            "Multiple reference species are specified"
-
+    def append_specie(self, specie, **kwargs):
         self.append(Specie(specie, **kwargs))
         self.normalize(self[-1])
 

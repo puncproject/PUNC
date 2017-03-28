@@ -35,7 +35,7 @@ dv_inv = voronoi_volume(V, Ld, True)
 
 A, mode = 0.5, 1
 pdf = lambda x: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0])
-pop.init_new_specie('electron', 'ref', pdf=pdf, pdf_max=1+A)
+pop.init_new_specie('electron', pdf=pdf, pdf_max=1+A)
 pop.init_new_specie('proton')
 
 
