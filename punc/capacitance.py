@@ -4,7 +4,7 @@ if sys.version_info.major == 2:
     from itertools import izip as zip
     range = xrange
 
-from poisson import *
+from punc.poisson import *
 import dolfin as df
 import numpy as np
 

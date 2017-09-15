@@ -7,7 +7,11 @@ if sys.version_info.major == 2:
     range = xrange
 
 from dolfin import *
-from punc import *
+from punc.poisson import *
+from punc.population import *
+from punc.distributor import *
+from punc.pusher import *
+from punc.diagnostics import *
 from numpy import pi
 import numpy as np
 from matplotlib import pyplot as plt
@@ -19,9 +23,10 @@ from matplotlib import pyplot as plt
 n_dims = 2                           # Number of dimensions
 Ld = 6.28*np.ones(n_dims)            # Length of domain
 Nr = 32*np.ones(n_dims,dtype=int)    # Number of 'rectangles' in mesh
+periodic = np.ones(n_dims, dtype=bool)
 
-# mesh = RectangleMesh(Point(0,0),Point(Ld),*Nr)
-mesh = Mesh("mesh/nonuniform.xml")
+mesh = RectangleMesh(Point(0,0),Point(Ld),*Nr)
+# mesh = Mesh("mesh/nonuniform.xml")
 V = FunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
 W = VectorFunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
 
@@ -29,7 +34,7 @@ W = VectorFunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
 # INITIALIZING POPULATION
 #------------------------------------------------------------------------------
 
-pop = Population(mesh)
+pop = Population(mesh, periodic)
 poisson = PoissonSolver(V,remove_null_space=True)
 dv_inv = voronoi_volume(V, Ld, True)
 
@@ -70,6 +75,9 @@ for n in range(1,N):
 
 KE[0] = KE0
 
+TE = KE + PE
+
+
 plt.plot(KE,label="Kinetic Energy")
 plt.plot(PE,label="Potential Energy")
 plt.plot(KE+PE,label="Total Energy")
@@ -77,12 +85,32 @@ plt.legend(loc='lower right')
 plt.grid()
 plt.xlabel("Timestep")
 plt.ylabel("Normalized Energy")
+fig.set_tight_layout(True)
+fig.savefig('langmuir.eps',bbox_inches='tight',dpi=600)
+fig.savefig('langmuir.png',bbox_inches='tight',dpi=600)
+
 plt.show()
 
+plt.figure()
 plot(rho)
-plot(phi)
+
+plt.figure()
+plot(phi,window_width=800, window_height=600,)
+plt.savefig('phi.png')
+plt.savefig('phi.pdf')
 
 ux = Constant((1,0))
 Ex = project(inner(E,ux),V)
+
+plt.figure()
 plot(Ex)
-interactive()
+plt.show()
+#interactive()
+
+# Save solution in VTK format
+file = File("rho.pvd")
+file << rho
+file = File("phi.pvd")
+file << rho
+file = File("E.pvd")
+file << rho

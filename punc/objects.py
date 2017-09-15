@@ -93,7 +93,7 @@ class Object(df.DirichletBC):
 
     def cells(self, facet_func, id):
         """
-        Returns the cells adjecent to the surface of the object
+        Returns the cells adjacent to the surface of the object
 
         This information might be useful for calculating the current density
         into the object surface
@@ -119,7 +119,7 @@ class Object(df.DirichletBC):
 
     def mark_cells(self, cell_f, facet_func, id):
         """
-        Marks the cells adjecent to the object
+        Marks the cells adjacent to the object
 
         This information might be useful for calculating the current density
         into the object surface

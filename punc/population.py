@@ -12,14 +12,14 @@ if sys.version_info.major == 2:
     from itertools import izip as zip
     range = xrange
 
-#import dolfin as df
 import dolfin as df
 import numpy as np
 from mpi4py import MPI as pyMPI
 from collections import defaultdict
 from itertools import count
-from initialize import *
-from poisson import *
+from punc.poisson import get_mesh_size
+from punc.injector import create_mesh_pdf, SRS, Maxwellian
+
 
 comm = pyMPI.COMM_WORLD
 
@@ -186,19 +186,21 @@ class Species(list):
         s.mass = s.mass_raw
         s.v_thermal = s.v_thermal_raw
         s.v_drift = s.v_drift_raw
+        self.weight = 1
 
     def normalize_plasma_params(self, s):
         if s.num_total == None:
             s.num_total = s.num_per_cell * self.num_cells
+            print("num_tot: ", s.num_total)
 
         ref = self[0]
         w_pe = 1
-        weight = (w_pe**2) \
+        self.weight = (w_pe**2) \
                * (self.volume/ref.num_total) \
                * (ref.mass_raw/ref.charge_raw**2)
 
-        s.charge = weight*s.charge_raw
-        s.mass = weight*s.mass_raw
+        s.charge = self.weight*s.charge_raw
+        s.mass = self.weight*s.mass_raw
 
         if ref.temperature_raw != None:
             assert s.temperature_raw != None, \
@@ -214,7 +216,10 @@ class Species(list):
         else:
             s.v_thermal = s.v_thermal_raw/ref.v_thermal_raw
 
-        if s.v_drift_raw == 0:
+        if (isinstance(s.v_drift_raw, np.ndarray) and \
+           all(i == 0 for i in s.v_drift_raw) ):
+            s.v_drift = np.zeros((s.v_drift_raw.shape))
+        elif isinstance(s.v_drift_raw, (float,int)) and s.v_drift_raw==0:
             s.v_drift = 0
         else:
             s.v_drift = s.v_drift_raw/ref.v_thermal_raw
@@ -227,9 +232,15 @@ class Population(list):
     must be invoked to relocate the particles.
     """
 
-    def __init__(self, mesh, normalization='plasma params'):
+    def __init__(self, mesh, periodic, normalization='plasma params'):
         self.mesh = mesh
         self.Ld = get_mesh_size(mesh)
+        self.periodic = periodic
+        # --------Suggestion---------
+        self.vel = []
+        self.plasma_density = []
+        self.volume = df.assemble(1*df.dx(mesh))
+        # -------------------------------
 
         # Species
         self.species = Species(mesh, normalization)
@@ -316,20 +327,29 @@ class Population(list):
             else:
                 pdf_max = 1
 
-            m = self.species[-1].mass
-            q = self.species[-1].charge
-            v_thermal = self.species[-1].v_thermal
-            v_drift = self.species[-1].v_drift
-            num_total = self.species[-1].num_total
+        m = self.species[-1].mass
+        q = self.species[-1].charge
+        v_thermal = self.species[-1].v_thermal
+        v_drift = self.species[-1].v_drift
+        num_total = self.species[-1].num_total
 
-            xs = random_points(pdf, self.Ld, num_total, pdf_max)
-            vs = maxwellian(v_drift, v_thermal, xs.shape)
-            self.add_particles(xs,vs,q,m)
+        # --------Suggestion---------
+        rs = SRS(pdf, pdf_max=pdf_max, Ld=self.Ld)
+        mv = Maxwellian(v_thermal, v_drift, self.periodic)
+        self.vel.append(mv)
+        self.plasma_density.append(num_total/self.volume)
+
+        xs = rs.sample(num_total)
+        vs = mv.load(num_total)  
+        #---------------------------
+        # xs = random_points(pdf, self.Ld, num_total, pdf_max)
+        # vs = maxwellian(v_drift, v_thermal, xs.shape)
+        self.add_particles(xs,vs,q,m)
 
     def add_particles_of_specie(self, specie, xs, vs=None):
         q = self.species[specie].charge
         m = self.species[specie].mass
-        add_particles(self, xs, vs, q, m)
+        self.add_particles(xs, vs, q, m)
 
 
     def add_particles(self, xs, vs=None, qs=None, ms=None):
@@ -406,7 +426,7 @@ class Population(list):
         # Rebuild locally the particles that end up on the process. Some
         # have cell_id == -1, i.e. they are on other process
         list_of_escaped_particles = []
-        for old_cell_id, new_data in new_cell_map.iteritems():
+        for old_cell_id, new_data in new_cell_map.items():
             # We iterate in reverse becasue normal order would remove some
             # particle this shifts the whole list!
             for (new_cell_id, i) in sorted(new_data,
@@ -454,17 +474,26 @@ class Population(list):
         simulation.
         """
         if ((len(objects) != 0) or open_bnd):
+            # print("WTF")
             particles_outside_domain = set()
             for i in range(len(list_of_escaped_particles)):
+                # print("missing: ", len(list_of_escaped_particles))
                 particle = list_of_escaped_particles[i]
                 x = particle.x
                 q = particle.q
 
-                if open_bnd:
-                    for (j,l) in enumerate(self.Ld):
-                        if x[j] < 0.0 or x[j] > l:
-                            particles_outside_domain.update([i])
-                            break
+                for j in range(self.g_dim):
+                    if self.periodic[j]:
+                        x[j] %= self.Ld[j]
+                    elif x[j] < 0.0 or x[j] > self.Ld[j]:
+                        particles_outside_domain.update([i])
+                        break
+
+                # if open_bnd:
+                #     for (j,l) in enumerate(self.Ld):
+                #         if x[j] < 0.0 or x[j] > l:
+                #             particles_outside_domain.update([i])
+                #             break
 
                 for o in objects:
                     if o.inside(x, True):

@@ -11,13 +11,14 @@ from dolfin import *
 n_dims = 3
 Ld = 2*np.pi*np.ones(n_dims)
 Nc = 16*np.ones(n_dims,dtype=int)
+periodic = np.ones(n_dims, dtype=bool)
 
 if n_dims==1: mesh = IntervalMesh(Nc[0],0.0,Ld[0])
 if n_dims==2: mesh = RectangleMesh(Point(0,0),Point(Ld),*Nc)
 if n_dims==3: mesh = BoxMesh(Point(0,0,0),Point(Ld),*Nc)
 
 V = FunctionSpace(mesh, 'CG', 1, constrained_domain=PeriodicBoundary(Ld))
-pop = Population(mesh)
+pop = Population(mesh, periodic)
 rho = Function(V)
 
 N = 100000

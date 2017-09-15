@@ -52,11 +52,16 @@ class CircuitDomain(object):
 		bias_potential = list(itr.chain(*bias_potential))
 
 		bias_0 = np.dot(inv_bias_matrix[:,:len(bias_potential)], bias_potential)
-
+		# print("num_circuits: ", num_circuits)
+		# print("inv_bias_matrix: ", inv_bias_matrix)
+		# print("bias_potential: ", bias_potential)
+		# print("bias_0: ", bias_0)
 		circuits = []
 		for i in range(num_circuits):
 		    circuit_comps = []
-		    circuit = circuits_info[i]
+		    circuit = circuits_info[i]; print("circuit: ", inv_bias_matrix[circuit, len(bias_potential):])
+			# print("bias_0[circuit]: ", bias_0[circuit])
+			# print("inv_bias_matrix[circuit,len(bias_potential):]: ",inv_bias_matrix[circuit, len(bias_potential):])
 		    for j in circuit:
 		        circuit_comps.append(objects[j])
 
