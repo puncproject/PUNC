@@ -11,8 +11,8 @@ from mesh import *
 
 
 # Simulation parameters
-tot_time = 20                    # Total simulation time
-dt       = 0.251327              # Time step
+tot_time = 200                     # Total simulation time
+dt       = 0.251327/2              # Time step
 # vd       = np.array([0.0, 0.0])  # Drift velocity
 
 # Get the mesh
@@ -40,8 +40,8 @@ inv_cap_matrix = capacitance_matrix(V, poisson, bnd, objects)
 
 # Initialize particle positions and velocities, and populate the domain
 pop = Population(mesh, periodic)
-pop.init_new_specie('electron', temperature=1, num_per_cell=16)
-pop.init_new_specie('proton',   temperature=1, num_per_cell=16)
+pop.init_new_specie('electron', temperature=1, num_per_cell=4)
+pop.init_new_specie('proton',   temperature=1, num_per_cell=4)
 
 dv_inv = voronoi_volume_approx(V, Ld)
 
@@ -50,6 +50,10 @@ N   = tot_time
 KE  = np.zeros(N-1)
 PE  = np.zeros(N-1)
 KE0 = kinetic_energy(pop)
+
+current_imposed = -0.1
+current_measured = np.zeros(N)
+potential = np.zeros(N)
 
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
@@ -64,7 +68,12 @@ for n in range(1,N):
     KE[n-1] = accel(pop, E, (1-0.5*(n==1))*dt)
 
     move_periodic(pop, Ld, dt)
+
+    old_charge = objects[0].charge
     pop.relocate(objects)
+    objects[0].add_charge(current_imposed*dt)
+    current_measured[n] = (objects[0].charge-old_charge)/dt
+    potential[n] = objects[0]._potential
 
 KE[0] = KE0
 
