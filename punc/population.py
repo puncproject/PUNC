@@ -340,7 +340,7 @@ class Population(list):
         self.plasma_density.append(num_total/self.volume)
 
         xs = rs.sample(num_total)
-        vs = mv.load(num_total)  
+        vs = mv.load(num_total)
         #---------------------------
         # xs = random_points(pdf, self.Ld, num_total, pdf_max)
         # vs = maxwellian(v_drift, v_thermal, xs.shape)
@@ -350,7 +350,6 @@ class Population(list):
         q = self.species[specie].charge
         m = self.species[specie].mass
         self.add_particles(xs, vs, q, m)
-
 
     def add_particles(self, xs, vs=None, qs=None, ms=None):
         """
@@ -528,3 +527,24 @@ class Population(list):
         else:
             point = df.Point(*particle)
         return self.tree.compute_first_entity_collision(point)
+
+    def save_file(self, fname):
+        with open(fname, 'w') as datafile:
+            for cell in self:
+                for particle in cell:
+                    x = '\t'.join([str(x) for x in particle.x])
+                    v = '\t'.join([str(v) for v in particle.v])
+                    q = particle.q
+                    m = particle.m
+                    datafile.write("%s\t%s\t%s\t%s\n"%(x,v,q,m))
+
+    def load_file(self, fname):
+        nDims = len(self.Ld)
+        with open(fname, 'r') as datafile:
+            for line in datafile:
+                nums = np.array([float(a) for a in line.split('\t')])
+                x = nums[0:nDims]
+                v = nums[nDims:2*nDims]
+                q = nums[2*nDims]
+                m = nums[2*nDims+1]
+                self.add_particles([x],v,q,m)
