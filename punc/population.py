@@ -142,12 +142,21 @@ class Species(list):
     Two normalization schemes are implemented as can be chosen using the
     'normalization' parameter in the constructor:
 
-        'plasma params' (default):
+        'plasma params' (default, obsolete):
             The zeroth specie in the list (i.e. the first appended one) is
             normalized to have an angular plasma frequency of one and a thermal
             velocity of 1 (and hence also a Debye length of one). If the specie
             is cold the thermal velocity is 0 and the Debye length does not act
             as a characteristic length scale in the simulations.
+
+        'particle scaling':
+            The charge and mass of the particles are given statistical weights
+            such that the plasma frequency of the zeroth species is normalized
+            to 1. To allow changing the ratio of the geometry to the Debye
+            length without making a new mesh, the Debye length is not
+            normalized to any particular value. Instead, the thermal velocity
+            must be specified relative to the sizes of the geometry in the mesh.
+            The Debye length in this unit will be given by v_th=lambda_D*w_p.
 
         'none':
             The specified charge, mass, drift and thermal velocities are used
@@ -166,10 +175,13 @@ class Species(list):
         self.volume = df.assemble(1*df.dx(mesh))
         self.num_cells = mesh.num_cells()
 
-        assert normalization in ('plasma params', 'none')
+        assert normalization in ('plasma params', 'particle scaling', 'none')
 
         if normalization == 'plasma params':
             self.normalize = self.normalize_plasma_params
+
+        if normalization == 'particle scaling':
+            self.normalize = self.normalize_particle_scaling
 
         if normalization == 'none':
             self.normalize = self.normalize_none
@@ -191,7 +203,7 @@ class Species(list):
     def normalize_plasma_params(self, s):
         if s.num_total == None:
             s.num_total = s.num_per_cell * self.num_cells
-            print("num_tot: ", s.num_total)
+            #print("num_tot: ", s.num_total)
 
         ref = self[0]
         w_pe = 1
@@ -223,6 +235,62 @@ class Species(list):
             s.v_drift = 0
         else:
             s.v_drift = s.v_drift_raw/ref.v_thermal_raw
+
+    def normalize_plasma_params(self, s):
+        if s.num_total == None:
+            s.num_total = s.num_per_cell * self.num_cells
+            #print("num_tot: ", s.num_total)
+
+        ref = self[0]
+        w_pe = 1
+        self.weight = (w_pe**2) \
+               * (self.volume/ref.num_total) \
+               * (ref.mass_raw/ref.charge_raw**2)
+
+        s.charge = self.weight*s.charge_raw
+        s.mass = self.weight*s.mass_raw
+
+        if ref.temperature_raw != None:
+            assert s.temperature_raw != None, \
+                "Specify temperature for all or none species"
+
+            ref.v_thermal = 1
+            for s in self:
+                s.v_thermal = ref.v_thermal*np.sqrt( \
+                    (s.temperature_raw/ref.temperature_raw) * \
+                    (ref.mass_raw/s.mass_raw) )
+        elif s.v_thermal_raw == 0:
+            s.v_thermal = 0
+        else:
+            s.v_thermal = s.v_thermal_raw/ref.v_thermal_raw
+
+        if (isinstance(s.v_drift_raw, np.ndarray) and \
+           all(i == 0 for i in s.v_drift_raw) ):
+            s.v_drift = np.zeros((s.v_drift_raw.shape))
+        elif isinstance(s.v_drift_raw, (float,int)) and s.v_drift_raw==0:
+            s.v_drift = 0
+        else:
+            s.v_drift = s.v_drift_raw/ref.v_thermal_raw
+
+    def normalize_particle_scaling(self, s):
+        if s.num_total == None:
+            s.num_total = s.num_per_cell * self.num_cells
+            #print("num_tot: ", s.num_total)
+
+        ref = self[0]
+        w_pe = 1
+        self.weight = (w_pe**2) \
+               * (self.volume/ref.num_total) \
+               * (ref.mass_raw/ref.charge_raw**2)
+
+        s.charge = self.weight*s.charge_raw
+        s.mass = self.weight*s.mass_raw
+
+        assert s.temperature_raw == None, \
+                "This normalization does not support providing temperatures"
+
+        s.v_thermal = s.v_thermal_raw
+        s.v_drift   = s.v_drift_raw
 
 class Population(list):
     """

@@ -57,13 +57,13 @@ class SRS(object):
                 transform : transformation of the pdf to its original form
                 Ld        : the domain size of the simulation box
                 interval  : 1D interval where the pdf is defined
-    
+
     Notes:
           If the simulation domain, Ld, is specified, the generated random
           numbers represent random particle positions according to the given
-          pdf. If Ld is None, then a 1D interval should be given to generate 
+          pdf. If Ld is None, then a 1D interval should be given to generate
           random numbers that may represent random velocities according to the
-          given pdf.   
+          given pdf.
     """
     def __init__(self, pdf, pdf_max=1, transform=None, Ld=None, interval=[0,1]):
         """
@@ -75,7 +75,7 @@ class SRS(object):
                 interval  : 1D interval where the pdf is defined
         """
         self.pdf_max = pdf_max
-        
+
         if Ld is not None:
             Ld = np.array(Ld)
             self.dim = len(Ld)
@@ -137,35 +137,35 @@ class ORS(object):
                 interval : domian of the potential function, V(t)
                 sp     : list of support points for construction of piecewise
                          linear functions
-                
+
                 nsp    : total number of support points to be used to construct
                          piecewise-linear functions
                 y      : ordinates corresponding to support points
                 dy     : derivatives of the potential function at support points
 
     """
-    def __init__(self, Vt, dVdt, root=None, transform=None, interval=[0,1], 
+    def __init__(self, Vt, dVdt, root=None, transform=None, interval=[0,1],
                  sp=None, nsp=50):
         """
-        If roots of the derivative of the potential function is specified, the 
+        If roots of the derivative of the potential function is specified, the
         support points are constructed in such a way that no support point is
-        equal to one of the roots. This is crucial for generating piece-wise 
-        exponential lower hulls, as the derivative of the potential function 
-        appears in the denominator of the expression for these lower hulls.   
+        equal to one of the roots. This is crucial for generating piece-wise
+        exponential lower hulls, as the derivative of the potential function
+        appears in the denominator of the expression for these lower hulls.
         """
         self.Vt = Vt
         self.dVdt = dVdt
         self.lb = interval[0]
         self.ub = interval[1]
         self.sp = sp
-        
+
         if sp is None:
             self.sp = np.linspace(self.lb, self.ub, num=nsp+1, endpoint=False)[1:]
 
         if root is not None:
             while len(np.where(np.abs(self.sp-root)<1e-13)[0])>0:
                 nsp += 1
-                self.sp = np.linspace(self.lb, self.ub, num=nsp, 
+                self.sp = np.linspace(self.lb, self.ub, num=nsp,
                                       endpoint=False)[1:]
 
         if transform is None:
@@ -178,15 +178,15 @@ class ORS(object):
 
         self.y = self.Vt(self.sp)
         self.dy = self.dVdt(self.sp)
-   
+
         self.lower_hull()
 
         self.integrand = np.diff(np.exp(-self.Yt))/(-self.dy)
         while len(np.where(self.integrand<0)[0])>0:
             nsp += 1
-            self.sp = np.linspace(self.lb, self.ub, num=nsp, 
+            self.sp = np.linspace(self.lb, self.ub, num=nsp,
                                       endpoint=False)[1:]
-            
+
             self.y = self.Vt(self.sp)
             self.dy = self.dVdt(self.sp)
             self.lower_hull()
@@ -210,7 +210,7 @@ class ORS(object):
         """
         Constructs the lower hull, Y(t), of the potential by piecewise-linear
         functions at the intersection between the piecewise-linear functions.
-        """        
+        """
         self.tangent_intersections()
 
         N = self.y.__len__()
@@ -252,7 +252,7 @@ class ORS(object):
                 t     : generated t-value from the inverse cdf of the
                         piecewise-exponential function
                 index : the index of the largest z_i
-        """        
+        """
         r = np.random.rand(N)
         index = [np.nonzero(self.exp_cdf/self.c_i < i)[0][-1] for i in r]
         t = self.sp[index] + (self.y[index] +\
@@ -302,7 +302,7 @@ class Maxwellian(object):
                                       standard rejection sampling, 'srs', and
                                       optimized rejection sampling, 'ors'.
     """
-    def __init__(self, v_thermal, v_drift, periodic, sampling_method='ors', 
+    def __init__(self, v_thermal, v_drift, periodic, sampling_method='ors',
                        vd_ratio=16):
         """
         Arguments:
@@ -321,7 +321,7 @@ class Maxwellian(object):
         else:
             self.vth = v_thermal
         if isinstance(v_drift, (float, int)):
-            self.vd = np.array([v_drift]*self.dim)    
+            self.vd = np.array([v_drift]*self.dim)
         else:
             self.vd = v_drift
 
@@ -330,7 +330,7 @@ class Maxwellian(object):
 
         self.initialize_loading()
         self.initialize_injection()
-        
+
     def initialize_loading(self):
         """
         Initializes the loading process.
@@ -410,7 +410,7 @@ class Maxwellian(object):
         of the transformed drifting-Maxwellian distribution function.
 
         Returns:
-                The root of the transformed drifting-Maxwellian distribution 
+                The root of the transformed drifting-Maxwellian distribution
                 function
         """
         ca = 2.0
@@ -461,8 +461,8 @@ class Maxwellian(object):
 
     def pdf_flux_nondrifting(self, s):
         """
-        Velocity probability distribution function for the particle flux 
-        into the simulation domain for particles having a non-drifting 
+        Velocity probability distribution function for the particle flux
+        into the simulation domain for particles having a non-drifting
         Maxwellian distribution outside the domain.
 
         Arguments:
@@ -473,15 +473,15 @@ class Maxwellian(object):
 
     def pdf_flux_drifting(self, index, s):
         """
-        Velocity probability distribution function for the particle flux 
-        into the simulation domain for particles having a drifting 
+        Velocity probability distribution function for the particle flux
+        into the simulation domain for particles having a drifting
         Maxwellian distribution outside the domain.
 
         Arguments:
                 index: The velocity component, (0,1,2) -> (x, y, z)
                 s: 1 for inward flux, and -1 for backward flux
         """
-        i = index      
+        i = index
         def pdf(t):
             return (s*t*np.exp(-0.5*((t-self.vd[i])**2)/(self.vth**2)))/\
                    (self.vth**2*np.exp(-0.5*(self.vd[i]/self.vth)**2) + \
@@ -512,10 +512,10 @@ class Maxwellian(object):
 
     def cdf_inv_flux_drifting(self, index):
         """
-        An approximation for the inverse cumulative distribution function for 
-        the flux of a drifting-Maxwellian distribution function. This 
+        An approximation for the inverse cumulative distribution function for
+        the flux of a drifting-Maxwellian distribution function. This
         approximation is only valid for large drift to thermal velocity ratios.
-        If vd/vth > 16, this approximation gives dissent results.  
+        If vd/vth > 16, this approximation gives dissent results.
         """
 
         m = (self.vd[index]**2+self.vth**2)/self.vd[index]
@@ -545,7 +545,7 @@ class Maxwellian(object):
         """
         cdf = [None]*2*self.dim2
 
-        cdf_inv = [self.cdf_inv_nondrifting(), 
+        cdf_inv = [self.cdf_inv_nondrifting(),
                    self.cdf_inv_inward_flux_nondrifting(),
                    self.cdf_inv_backward_flux_nondrifting()]
 
@@ -604,7 +604,7 @@ class Maxwellian(object):
                         cdf[k] = lambda N:\
                         self.generate(self.cdf_inv_inward_flux_nondrifting(), N)
                         cdf[k+self.dim2] = lambda N:\
-                        self.generate(self.cdf_inv_backward_flux_nondrifting(), 
+                        self.generate(self.cdf_inv_backward_flux_nondrifting(),
                                       N)
                     else:
                         cdf[k] = lambda N:\
@@ -622,7 +622,7 @@ class Maxwellian(object):
 
     def generate(self, cdf_inv, N):
         """
-        Samples and returns N velocities from the distribution function 
+        Samples and returns N velocities from the distribution function
         specified by inverse cumulative distribution function, cdf_inv.
 
         Arguments:
@@ -635,8 +635,8 @@ class Maxwellian(object):
 
     def sample(self, N, k=0):
         """
-        Samples and returns N velocities for injection of particles into the 
-        simulation domain through the k-th exterior boundary surface. 
+        Samples and returns N velocities for injection of particles into the
+        simulation domain through the k-th exterior boundary surface.
 
         Arguments:
                  k (int): k-th exterior surface boundary
@@ -653,7 +653,7 @@ class Maxwellian(object):
                 k = 3: the surface corresponding to x = Ld[0]
                 k = 4: ---------''-------------- to y = Ld[1]
                 k = 5: ---------''-------------- to z = Ld[2]
-        """      
+        """
         vs = np.empty((N, self.dim))
         for j in range(self.dim):
             vs[:,j] = self.generator[j+k*self.dim](N)
@@ -687,12 +687,12 @@ class Maxwellian(object):
             dt                :  Simulation time step
 
         Returns:
-                N : A list containing the total number of particles to be 
+                N : A list containing the total number of particles to be
                     injected at each non-periodic surface boundary.
         """
         def inward_particle_flux_number(i):
             """
-            Calculates the total number of particles to be injected at the 
+            Calculates the total number of particles to be injected at the
             i-th exterior boundary for the inward flux.
             """
             N = plasma_density*surface_area[i%self.dim_nonperiodic]*dt*\
@@ -703,14 +703,14 @@ class Maxwellian(object):
 
         def backward_particle_flux_number(i):
             """
-            Calculates the total number of particles to be injected at the i-th 
+            Calculates the total number of particles to be injected at the i-th
             exterior boundary for the backward flux.
             """
             N = np.abs(plasma_density*surface_area[i%self.dim_nonperiodic]*dt*\
                        (0.5*self.vd[i]*erfc(self.vd[i]/(np.sqrt(2)*self.vth)) -\
              self.vth/(np.sqrt(2*np.pi))*np.exp(-0.5*(self.vd[i]/self.vth)**2)))
             return N
-        
+
         N = np.empty(2*self.dim_nonperiodic)
         j = 0
         for i in range(self.dim):
@@ -776,7 +776,7 @@ class Injector(object):
 
         self.initialize_injection()
 
-        self.num_particles = self.vel.flux_number(self.plasma_density, 
+        self.num_particles = self.vel.flux_number(self.plasma_density,
                                                   self.surface_area, dt)
 
         print("N: ", self.num_particles)
@@ -898,7 +898,7 @@ class Injector(object):
             if k == 1:
                 yield [a[i]]
             else:
-                for next in combinations(a[i+1:len(a)], k-1):
+                for next in self.combinations(a[i+1:len(a)], k-1):
                     yield [a[i]] + list(next)
 
     def slices(self):
@@ -938,9 +938,9 @@ class Move:
         self.Ld = self.pop.Ld
         self.dim = self.pop.g_dim
 
-        self.periodic_indices = [i for i in range(self.dim) 
-                                       if self.periodic[i]]  
-        self.nonperiodic_indices = [i for i in range(self.dim) 
+        self.periodic_indices = [i for i in range(self.dim)
+                                       if self.periodic[i]]
+        self.nonperiodic_indices = [i for i in range(self.dim)
                                           if not self.periodic[i]]
 
         if len(self.periodic_indices) == self.dim:
@@ -956,7 +956,7 @@ class Move:
             for particle in cell:
                 particle.x += self.dt*particle.v
                 particle.x %= self.Ld
-    
+
     def move_nonperiodic(self):
 
         for cell in self.pop:
@@ -969,4 +969,3 @@ class Move:
             for particle in cell:
                 particle.x += self.dt*particle.v
                 particle.x[self.periodic_indices] %= self.Ld[self.periodic_indices]
-

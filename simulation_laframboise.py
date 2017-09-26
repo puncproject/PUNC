@@ -6,19 +6,17 @@ if sys.version_info.major == 2:
 
 import dolfin as df
 import numpy as np
+import matplotlib.pyplot as plt
 from punc import *
-from mesh import *
-
 
 # Simulation parameters
-tot_time = 200                     # Total simulation time
-dt       = 0.251327/2              # Time step
+tot_time = 1000                     # Total simulation time
+dt       = 0.5                       # Time step
 # vd       = np.array([0.0, 0.0])  # Drift velocity
 
 # Get the mesh
-sphere = SphereDomain()      # Create the sphereDomain object
-mesh   = sphere.get_mesh()   # Get the mesh
-Ld     = get_mesh_size(mesh) # Get the size of the simulation domain
+mesh   = df.Mesh('mesh/lafram_coarse.xml')
+Ld     = get_mesh_size(mesh)
 
 # Create boundary conditions and function space
 periodic = [False, False, False]
@@ -29,8 +27,12 @@ V = df.FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
 
 bc = df.DirichletBC(V, df.Constant(1.0), bnd)
 
-# Get the circular object
-objects = sphere.get_objects(V)
+# Get the object
+class Probe(df.SubDomain):
+    def inside(self, x, on_boundary):
+        return on_boundary and np.all(x<2)
+
+objects = [Object(V, Probe())]
 
 # Get the solver
 poisson = PoissonSolver(V, bc)
@@ -38,12 +40,29 @@ poisson = PoissonSolver(V, bc)
 # The inverse of capacitance matrix
 inv_cap_matrix = capacitance_matrix(V, poisson, bnd, objects)
 
+# Probe radius in terms of Debye lengths
+Rp = 5.
+
+Vnorm = Rp**2
+#Inorm = -np.sqrt(8*np.pi/1836.)/Rp
+Inorm = np.sqrt(8*np.pi)/Rp
+
 # Initialize particle positions and velocities, and populate the domain
 pop = Population(mesh, periodic)
-pop.init_new_specie('electron', temperature=1, num_per_cell=4)
-pop.init_new_specie('proton',   temperature=1, num_per_cell=4)
+pop.init_new_specie('electron', normalization='particle scaling', v_thermal=1./Rp, num_per_cell=4)
+pop.init_new_specie('proton',   normalization='particle scaling', v_thermal=1./(np.sqrt(1836.)*Rp), num_per_cell=4)
 
 dv_inv = voronoi_volume_approx(V, Ld)
+
+injection = []
+num_total = 0
+# n_plasma = [None]*2
+
+for i in range(len(pop.species)):
+    # n_plasma[i] = pop.species[i].num_total
+    # weight = pop.species.weight
+    num_total += pop.species[i].num_total
+    injection.append(Injector(pop, i, dt))
 
 # Time loop
 N   = tot_time
@@ -51,7 +70,7 @@ KE  = np.zeros(N-1)
 PE  = np.zeros(N-1)
 KE0 = kinetic_energy(pop)
 
-current_imposed = -0.1
+current_collected = -1.869*Inorm
 current_measured = np.zeros(N)
 potential = np.zeros(N)
 
@@ -70,12 +89,22 @@ for n in range(1,N):
     move_periodic(pop, Ld, dt)
 
     old_charge = objects[0].charge
-    pop.relocate(objects)
-    objects[0].add_charge(current_imposed*dt)
-    current_measured[n] = (objects[0].charge-old_charge)/dt
-    potential[n] = objects[0]._potential
+    pop.relocate(objects, open_bnd=True)
+    #pop.relocate(objects)
+    objects[0].add_charge(-current_collected*dt)
+    current_measured[n] = ((objects[0].charge-old_charge)/dt)/Inorm
+    potential[n] = objects[0]._potential/Vnorm
+
+    # Inject particles:
+    for inj in injection:
+        inj.inject()
 
 KE[0] = KE0
+
+plt.plot(potential,label='potential')
+# plt.plot(current_measured,label='current collected')
+plt.legend(loc="lower right")
+plt.show()
 
 df.File('phi_laframboise.pvd') << phi
 df.File('rho_laframboise.pvd') << rho
