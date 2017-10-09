@@ -1,28 +1,29 @@
-l = 10;			// half-length of cube
+l = 10;			// length of cube
+c = l/2;		// center of cube
 r = 1;			// probe radius
 reso = 1;		// outer resolution
-resi = 0.1;		// inner resolution
+resi = 0.25;	// inner resolution
 
 // Outer boundary (box)
-Point(1) = {-l,-l,-l, reso};
-Point(2) = {-l,-l,l, reso};
-Point(3) = {-l,l,-l, reso};
-Point(4) = {-l,l,l, reso};
-Point(5) = {l,-l,-l, reso};
-Point(6) = {l,-l,l, reso};
-Point(7) = {l,l,-l, reso};
+Point(1) = {0,0,0, reso};
+Point(2) = {0,0,l, reso};
+Point(3) = {0,l,0, reso};
+Point(4) = {0,l,l, reso};
+Point(5) = {l,0,0, reso};
+Point(6) = {l,0,l, reso};
+Point(7) = {l,l,0, reso};
 Point(8) = {l,l,l, reso};
 
 // Center
-Point(9) = {0, 0, 0, resi};
+Point(9) = {c, c, c, resi};
 
 // Inner boundary (probe sphere)
-Point(10) = {r, 0, 0, resi};
-Point(11) = {0, r, 0, resi};
-Point(12) = {0, 0, r, resi};
-Point(13) = {-r, 0, 0, resi};
-Point(14) = {0, -r, 0, resi};
-Point(15) = {0, 0, -r, resi};
+Point(10) = {c+r, c, c, resi};
+Point(11) = {c, c+r, c, resi};
+Point(12) = {c, c, c+r, resi};
+Point(13) = {c-r, c, c, resi};
+Point(14) = {c, c-r, c, resi};
+Point(15) = {c, c, c-r, resi};
 
 // Outer boundary
 Line(1) = {2, 6};

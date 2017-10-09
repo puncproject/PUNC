@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <dolfin xmlns:dolfin="http://fenicsproject.org">
-  <mesh_function type="uint" dim="3" size="1355">
+  <mesh_function type="uint" dim="3" size="1312">
     <entity index="0" value="58"/>
     <entity index="1" value="58"/>
     <entity index="2" value="58"/>
@@ -1313,48 +1313,5 @@
     <entity index="1309" value="58"/>
     <entity index="1310" value="58"/>
     <entity index="1311" value="58"/>
-    <entity index="1312" value="58"/>
-    <entity index="1313" value="58"/>
-    <entity index="1314" value="58"/>
-    <entity index="1315" value="58"/>
-    <entity index="1316" value="58"/>
-    <entity index="1317" value="58"/>
-    <entity index="1318" value="58"/>
-    <entity index="1319" value="58"/>
-    <entity index="1320" value="58"/>
-    <entity index="1321" value="58"/>
-    <entity index="1322" value="58"/>
-    <entity index="1323" value="58"/>
-    <entity index="1324" value="58"/>
-    <entity index="1325" value="58"/>
-    <entity index="1326" value="58"/>
-    <entity index="1327" value="58"/>
-    <entity index="1328" value="58"/>
-    <entity index="1329" value="58"/>
-    <entity index="1330" value="58"/>
-    <entity index="1331" value="58"/>
-    <entity index="1332" value="58"/>
-    <entity index="1333" value="58"/>
-    <entity index="1334" value="58"/>
-    <entity index="1335" value="58"/>
-    <entity index="1336" value="58"/>
-    <entity index="1337" value="58"/>
-    <entity index="1338" value="58"/>
-    <entity index="1339" value="58"/>
-    <entity index="1340" value="58"/>
-    <entity index="1341" value="58"/>
-    <entity index="1342" value="58"/>
-    <entity index="1343" value="58"/>
-    <entity index="1344" value="58"/>
-    <entity index="1345" value="58"/>
-    <entity index="1346" value="58"/>
-    <entity index="1347" value="58"/>
-    <entity index="1348" value="58"/>
-    <entity index="1349" value="58"/>
-    <entity index="1350" value="58"/>
-    <entity index="1351" value="58"/>
-    <entity index="1352" value="58"/>
-    <entity index="1353" value="58"/>
-    <entity index="1354" value="58"/>
   </mesh_function>
 </dolfin>
