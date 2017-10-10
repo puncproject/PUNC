@@ -7,8 +7,8 @@ __all__ = [ "population",
 	    "injector",
 	    "capacitance"]
 """
-
-from punc.injector import *
+from punc.injection import *
+#from punc.injector import *
 from punc.poisson import *
 from punc.pusher import *
 from punc.distributor import *

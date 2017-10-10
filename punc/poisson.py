@@ -257,7 +257,8 @@ def electric_field(phi):
     degree = V.ufl_element().degree()
     constr = V.constrained_domain
     W = df.VectorFunctionSpace(mesh, 'CG', degree, constrained_domain=constr)
-    return df.project(-df.grad(phi), W)
+    return df.project(-df.grad(phi), W, solver_type="gmres",
+                       preconditioner_type="petsc_amg")
 
 if __name__=='__main__':
 

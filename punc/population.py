@@ -18,8 +18,8 @@ from mpi4py import MPI as pyMPI
 from collections import defaultdict
 from itertools import count
 from punc.poisson import get_mesh_size
-from punc.injector import create_mesh_pdf, SRS, Maxwellian
-
+# from punc.injector import create_mesh_pdf, SRS, Maxwellian
+from punc.injection import create_mesh_pdf, Flux, maxwellian, random_domain_points
 
 comm = pyMPI.COMM_WORLD
 
@@ -305,7 +305,7 @@ class Population(list):
         self.Ld = get_mesh_size(mesh)
         self.periodic = periodic
         # --------Suggestion---------
-        self.vel = []
+        self.flux = []
         self.plasma_density = []
         self.volume = df.assemble(1*df.dx(mesh))
         # -------------------------------
@@ -341,7 +341,7 @@ class Population(list):
         v_zero = np.zeros(self.g_dim)
         self.particle0 = Particle(v_zero,v_zero,1,1)
 
-    def init_new_specie(self, specie, **kwargs):
+    def init_new_specie(self, specie, exterior_bnd, **kwargs):
         """
         To initialize a new specie within a population use this function, e.g.
         to uniformly populate the domain with 16 (default) cold electrons and
@@ -401,14 +401,21 @@ class Population(list):
         v_drift = self.species[-1].v_drift
         num_total = self.species[-1].num_total
 
-        # --------Suggestion---------
-        rs = SRS(pdf, pdf_max=pdf_max, Ld=self.Ld)
-        mv = Maxwellian(v_thermal, v_drift, self.periodic)
-        self.vel.append(mv)
-        self.plasma_density.append(num_total/self.volume)
+        self.plasma_density.append(num_total / self.volume)
+        self.flux.append(Flux(v_thermal, v_drift, exterior_bnd))
 
-        xs = rs.sample(num_total)
-        vs = mv.load(num_total)
+        xs = random_domain_points(pdf, pdf_max, num_total, self.mesh)
+        vs = maxwellian(v_thermal, v_drift, xs.shape)
+        self.add_particles(xs,vs,q,m)
+
+        # --------Suggestion---------
+        # rs = SRS(pdf, pdf_max=pdf_max, Ld=self.Ld)
+        # mv = Maxwellian(v_thermal, v_drift, self.periodic)
+        # self.vel.append(mv)
+        # self.plasma_density.append(num_total/self.volume)
+        #
+        # xs = rs.sample(num_total)
+        # vs = mv.load(num_total)
         #---------------------------
         # xs = random_points(pdf, self.Ld, num_total, pdf_max)
         # vs = maxwellian(v_drift, v_thermal, xs.shape)
