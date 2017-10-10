@@ -4,8 +4,9 @@ __all__ = [ "population",
             "distributor",
             "poisson",
             "diagnostics",
-	    "injector",
-	    "capacitance"]
+	"injector",
+	"capacitance",
+            "profiling"]
 """
 from punc.injection import *
 #from punc.injector import *
@@ -16,5 +17,5 @@ from punc.population import *
 from punc.diagnostics import *
 from punc.objects import *
 from punc.capacitance import *
+from punc.profiling import *
 #from punc.initialize import *
-

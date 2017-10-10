@@ -16,9 +16,10 @@ npc      = 4
 # vd       = np.array([0.0, 0.0])  # Drift velocity
 
 # Get the mesh
-#mesh   = df.Mesh('mesh/lafram_coarse.xml')
 mesh   = df.Mesh('mesh/lafram_coarse.xml')
 ext_boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_coarse_facet_region.xml")
+# mesh   = df.Mesh('mesh/lafram.xml')
+# ext_boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_facet_region.xml")
 bnd_id = 53
 df.File('bnd.pvd') << ext_boundaries
 ext_bnd = ExteriorBoundaries(ext_boundaries, bnd_id)
@@ -95,13 +96,16 @@ num_particles = np.zeros(N)
 num_particles_outside = np.zeros(N)
 num_injected_particles = np.zeros(N)
 num_particles[0] = pop.total_number_of_particles()[0]
-for n in range(1,N):
-    print("Computing timestep %d/%d"%(n,N-1))
 
+timer = TaskTimer(N-1,'compact')
+for n in range(1,N):
+
+    timer.task("Distribute charge")
     rho = distribute(V, pop)
     # compute_object_potentials(rho, objects, inv_cap_matrix)
     rho.vector()[:] *= dv_inv
 
+    timer.task("Calculate object potential")
     # Calculate the image charge on object:
     objects[0].set_potential(df.Constant(0.0))
     phi     = poisson.solve(rho, objects)
@@ -112,17 +116,23 @@ for n in range(1,N):
     object_potential = (objects[0].charge-image_charge)*inv_cap_matrix[0,0]
     objects[0].set_potential(df.Constant(object_potential))
 
+    timer.task("Solving Poisson")
     # Solve Poisson with the correct object potential
     phi     = poisson.solve(rho, objects)
     E       = electric_field(phi)
     PE[n-1] = potential_energy(pop, phi)
+
+    timer.task("Move particles")
     KE[n-1] = accel(pop, E, (1-0.5*(n==1))*dt)
 
     tot_num0 = pop.total_number_of_particles()[0]
     move(pop, Ld, dt)
 
+    timer.task("Relocating particles")
     old_charge = objects[0].charge
     pop.relocate(objects, open_bnd=True)
+
+    timer.task("Impose current")
     tot_num1 = pop.total_number_of_particles()[0]
     num_particles_outside[n] = tot_num0 - tot_num1
     #pop.relocate(objects)
@@ -131,6 +141,7 @@ for n in range(1,N):
     potential[n] = objects[0]._potential/Vnorm
     particles[n] = pop.total_number_of_particles()[0]
 
+    timer.task("Inject particles")
     # Inject particles:
     # for inj in injection:
     #     inj.inject()
@@ -142,6 +153,10 @@ for n in range(1,N):
     # Total number of particles after injection:
     num_particles[n] = tot_num2
 
+    timer.end()
+
+print("")
+timer.summary()
 
 KE[0] = KE0
 
