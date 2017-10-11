@@ -307,6 +307,8 @@ class Population(list):
         # --------Suggestion---------
         self.flux = []
         self.plasma_density = []
+        self.N = []
+        self.test = []
         self.volume = df.assemble(1*df.dx(mesh))
         # -------------------------------
 
@@ -400,14 +402,16 @@ class Population(list):
         v_thermal = self.species[-1].v_thermal
         v_drift = self.species[-1].v_drift
         num_total = self.species[-1].num_total
+        self.test.append(num_total)
+        print("number of particles: ", num_total)
+        print("v_thermal: ", v_thermal)
 
         self.plasma_density.append(num_total / self.volume)
         self.flux.append(Flux(v_thermal, v_drift, exterior_bnd))
-
+        self.N.append(self.flux[-1].flux_number(exterior_bnd))
         xs = random_domain_points(pdf, pdf_max, num_total, self.mesh)
         vs = maxwellian(v_thermal, v_drift, xs.shape)
-        self.add_particles(xs,vs,q,m)
-
+        
         # --------Suggestion---------
         # rs = SRS(pdf, pdf_max=pdf_max, Ld=self.Ld)
         # mv = Maxwellian(v_thermal, v_drift, self.periodic)

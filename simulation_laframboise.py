@@ -10,17 +10,17 @@ import matplotlib.pyplot as plt
 from punc import *
 
 # Simulation parameters
-tot_time = 1000 #1000                     # Total simulation time
+tot_time = 1000                     # Total simulation time
 dt       = 0.5 #0.5                       # Time step
-npc      = 4
+npc      = 8
 # vd       = np.array([0.0, 0.0])  # Drift velocity
 
 # Get the mesh
 #mesh   = df.Mesh('mesh/lafram_coarse.xml')
-mesh   = df.Mesh('mesh/lafram_coarse.xml')
-ext_boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_coarse_facet_region.xml")
+mesh   = df.Mesh('mesh/lafram.xml')
+ext_boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_facet_region.xml")
 bnd_id = 53
-df.File('bnd.pvd') << ext_boundaries
+
 ext_bnd = ExteriorBoundaries(ext_boundaries, bnd_id)
 
 Ld     = get_mesh_size(mesh)
@@ -55,7 +55,7 @@ epsilon_0 = 1.0
 r = 1.0
 R = 5.0
 C_sphere = 4.0*np.pi*epsilon_0*r*R/(R-r)
-print("Sphere capacitance: ", C_sphere)
+print("Analytical Sphere capacitance: ", C_sphere)
 # Probe radius in terms of Debye lengths
 Rp = 1.
 
@@ -95,6 +95,11 @@ num_particles = np.zeros(N)
 num_particles_outside = np.zeros(N)
 num_injected_particles = np.zeros(N)
 num_particles[0] = pop.total_number_of_particles()[0]
+num_e = np.zeros(N)
+num_i = np.zeros(N)
+num_e[0] = num_particles[0]/2
+num_i[0] = num_particles[0]/2
+
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
 
@@ -141,20 +146,32 @@ for n in range(1,N):
     num_injected_particles[n] = tot_num2 - tot_num1
     # Total number of particles after injection:
     num_particles[n] = tot_num2
-
+    for cell in pop:
+        for particle in cell:
+            if np.sign(particle.q) == 1:
+                num_i[n] +=1
+            else:
+                num_e[n] +=1
 
 KE[0] = KE0
 
 plt.figure()
 plt.plot(potential,label='potential')
 plt.legend(loc="lower right")
+plt.grid()
+plt.savefig('potential.png', format='png', dpi=1000)
+
 plt.figure()
 plt.plot(particles,label='number of particles')
 plt.legend(loc="lower right")
+plt.grid()
+plt.savefig('particles.png', format='png', dpi=1000)
+
 plt.figure()
 plt.plot(current_measured,label='current collected')
+plt.grid()
 plt.legend(loc="lower right")
-
+plt.savefig('current.png', format='png', dpi=1000)
 
 plt.figure()
 plt.plot(num_particles, label="Total number denisty")
@@ -162,23 +179,39 @@ plt.legend(loc='lower right')
 plt.grid()
 plt.xlabel("Timestep")
 plt.ylabel("Total number denisty")
-plt.savefig('total_num.png')
+plt.savefig('total_num.png', format='png', dpi=1000)
 
 plt.figure()
 plt.plot(num_injected_particles[1:], label="Number of injected particles")
-plt.plot(num_particles_outside[1:],
-         label="Number of particles leaving the domain")
+plt.plot(num_particles_outside[1:], label="Number of particles leaving the domain")
 plt.legend(loc='lower right')
 plt.grid()
 plt.xlabel("Timestep")
 plt.ylabel("Number of particles")
-plt.savefig('injected.png')
+plt.savefig('injected.png', format='png', dpi=1000)
 
-plt.show()
+plt.figure()
+plt.plot(num_i, label="Number of ions")
+plt.plot(num_e, label="Number of electrons")
+plt.legend(loc='lower right')
+plt.grid()
+plt.xlabel("Timestep")
+plt.ylabel("Number of particles")
+plt.savefig('e_i_numbers.png', format='png', dpi=1000)
+
+# np.savetxt('data1.txt', (potential, num_e, num_i))
+# np.savetxt('data2.txt', (num_particles_outside, num_injected_particles, particles, current_measured))
+
+to_file = open('/home/diako/Documents/Test/punc/data.txt', 'w')
+for i,j,k,l,m,n,o in zip(potential, num_e, num_i,num_particles_outside, num_injected_particles, particles, current_measured ):
+    to_file.write("%f %f %f %f %f %f %f\n" %(i, j, k, l, m, n, o))
+to_file.close()
 
 df.File('phi_laframboise.pvd') << phi
 df.File('rho_laframboise.pvd') << rho
 df.File('E_laframboise.pvd') << E
+
+plt.show()
 
 # df.plot(rho)
 # df.plot(phi)

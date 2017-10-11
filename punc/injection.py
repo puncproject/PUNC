@@ -356,6 +356,7 @@ class Flux(object):
                  (1. + erf(self.vn[i,self.dim - 1] / (np.sqrt(2) * self.vth))))
 
         N = np.array([particle_number(facet, i) for i, facet in enumerate(exterior_bnd)])
+        
         return N
 
     def pdf_max_drifting(self, d):
@@ -475,6 +476,6 @@ def inject(pop, exterior_bnd, dt):
                     if cell_id != __UINT32_MAX__ and cell_id != -1:
                         xs = np.concatenate([xs, x[None, :]])
                         vs = np.concatenate([vs, v[None, :]])
-                        count += 1
+                    count += 1
 
         pop.add_particles_of_specie(specie, xs, vs)
