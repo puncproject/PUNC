@@ -1,7 +1,12 @@
+from __future__ import print_function, division
+import sys
+if sys.version_info.major == 2:
+    from itertools import izip as zip
+    range = xrange
+
 import dolfin as df
 import numpy as np
 from scipy.special import erfcinv, erfinv, erf, erfc
-import sys
 import time
 
 __UINT32_MAX__ = np.iinfo('uint32').max
@@ -258,7 +263,7 @@ class ExteriorBoundaries(list):
         for i in range(self.num_facets):
             self.append(Facet(area[i],
                               vertices[i*self.g_dim:self.g_dim*(i+1), :],
-                              basis[i * self.g_dim:self.g_dim * (i + 1), :]))
+                              basis[i*self.g_dim:self.g_dim*(i+1), :]))
 
     def get_area(self, mesh):
         facet_iter = df.SubsetIterator(self.boundaries, self.id)
@@ -291,7 +296,7 @@ class ExteriorBoundaries(list):
                                        vertices[i*self.g_dim+1, :]
             basis[i*self.g_dim, :] /= np.linalg.norm(basis[i*self.g_dim, :])
             basis[self.g_dim*(i+1)-1, :] = -1 * \
-                np.array([fs.normal()[i] for i in range(self.g_dim)])
+                np.array([fs.normal()[j] for j in range(self.g_dim)])
             if (self.g_dim == 3):
                 basis[i*self.g_dim + 1, :] = \
                     np.cross(basis[self.g_dim*(i+1)-1, :],
@@ -356,7 +361,7 @@ class Flux(object):
                  (1. + erf(self.vn[i,self.dim - 1] / (np.sqrt(2) * self.vth))))
 
         N = np.array([particle_number(facet, i) for i, facet in enumerate(exterior_bnd)])
-        
+
         return N
 
     def pdf_max_drifting(self, d):

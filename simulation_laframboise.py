@@ -10,9 +10,9 @@ import matplotlib.pyplot as plt
 from punc import *
 
 # Simulation parameters
-tot_time = 20                     # Total simulation time
+tot_time = 30                     # Total simulation time
 dt       = 0.5 #0.5                       # Time step
-npc      = 8
+npc      = 4
 # vd       = np.array([0.0, 0.0])  # Drift velocity
 
 # Get the mesh
