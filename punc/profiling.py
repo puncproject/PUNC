@@ -133,7 +133,7 @@ class TaskTimer(object):
 
         for k,v in zip(K,V):
             fraction = 100
-            if self.master.total!=0:
+            if self.master.total != 0:
                 fraction = 100*v.total/self.master.total
             row = [k, format_time(v.mean),
                       format_time(v.stdev),

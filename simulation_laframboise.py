@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 from punc import *
 
 # Simulation parameters
-tot_time = 20                     # Total simulation time
-dt       = 0.5 #0.5                       # Time step
+tot_time = 1000                     # Total simulation time
+dt       = 0.5                      # Time step
 npc      = 8
 # vd       = np.array([0.0, 0.0])  # Drift velocity
 
@@ -111,8 +111,7 @@ for n in range(1,N):
     # compute_object_potentials(rho, objects, inv_cap_matrix)
     rho.vector()[:] *= dv_inv
 
-    timer.task("Calculate object potential")
-    # Calculate the image charge on object:
+    timer.task("Calculate potential")
     objects[0].set_potential(df.Constant(0.0))
     phi     = poisson.solve(rho, objects)
     E       = electric_field(phi)
@@ -123,14 +122,12 @@ for n in range(1,N):
     objects[0].set_potential(df.Constant(object_potential))
 
     timer.task("Solving Poisson")
-    # Solve Poisson with the correct object potential
     phi     = poisson.solve(rho, objects)
     E       = electric_field(phi)
     PE[n-1] = potential_energy(pop, phi)
 
     timer.task("Move particles")
     KE[n-1] = accel(pop, E, (1-0.5*(n==1))*dt)
-
     tot_num0 = pop.total_number_of_particles()[0]
     move(pop, Ld, dt)
 
@@ -141,18 +138,15 @@ for n in range(1,N):
     timer.task("Impose current")
     tot_num1 = pop.total_number_of_particles()[0]
     num_particles_outside[n] = tot_num0 - tot_num1
-    #pop.relocate(objects)
     objects[0].add_charge(-current_collected*dt)
     current_measured[n] = ((objects[0].charge-old_charge)/dt)/Inorm
     potential[n] = objects[0]._potential/Vnorm
     particles[n] = pop.total_number_of_particles()[0]
 
     timer.task("Inject particles")
-    # Inject particles:
-    # for inj in injection:
-    #     inj.inject()
     inject(pop, ext_bnd, dt)
 
+    timer.task("Count particles")
     tot_num2 = pop.total_number_of_particles()[0]
     # Total number of injected particles:
     num_injected_particles[n] = tot_num2 - tot_num1
@@ -165,6 +159,10 @@ for n in range(1,N):
                 num_i[n] +=1
             else:
                 num_e[n] +=1
+
+    timer.end()
+
+timer.summary()
 
 
 KE[0] = KE0
@@ -216,7 +214,7 @@ plt.savefig('e_i_numbers.png', format='png', dpi=1000)
 # np.savetxt('data1.txt', (potential, num_e, num_i))
 # np.savetxt('data2.txt', (num_particles_outside, num_injected_particles, particles, current_measured))
 
-to_file = open('/home/diako/Documents/Test/punc/data.txt', 'w')
+to_file = open('data.txt', 'w')
 for i,j,k,l,m,n,o in zip(potential, num_e, num_i,num_particles_outside, num_injected_particles, particles, current_measured ):
     to_file.write("%f %f %f %f %f %f %f\n" %(i, j, k, l, m, n, o))
 to_file.close()
