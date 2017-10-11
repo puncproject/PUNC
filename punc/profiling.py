@@ -123,18 +123,19 @@ class TaskTimer(object):
 
     def summary(self):
 
-        row = ['','Last','Mean','StDev','Total','%']
+        row = ['','Mean','StDev','Total','%']
         table = [row]
 
-        K = self.timers.keys()
-        V = self.timers.values()
+        K = list(self.timers.keys())
+        V = list(self.timers.values())
         K.append('Total')
         V.append(self.master)
 
         for k,v in zip(K,V):
-            fraction = 100*v.total/self.master.total
-            row = [k, format_time(v.last),
-                      format_time(v.mean),
+            fraction = 100
+            if self.master.total!=0:
+                fraction = 100*v.total/self.master.total
+            row = [k, format_time(v.mean),
                       format_time(v.stdev),
                       format_time(v.total),
                       '{:.0f}'.format(fraction)]
@@ -161,10 +162,11 @@ class TaskTimer(object):
         eta = total_time-self.master.total
         progress = 100.0*lap/self.laps
         width = max(len(a) for a in self.timers.keys())
+        current = '' if self.current==None else self.current
 
         s  = "Completed step %i/%i (%.0f%%). "%(lap,self.laps,progress)
         s += "ETA: {} (total: {}). ".format(format_time(eta),format_time(total_time))
-        s += "{:<{w}}".format(self.current,w=width)
+        s += "{:<{w}}".format(current,w=width)
         return s
 
 def format_time(seconds):
