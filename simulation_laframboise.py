@@ -10,16 +10,16 @@ import matplotlib.pyplot as plt
 from punc import *
 
 # Simulation parameters
-tot_time = 1000                     # Total simulation time
-dt       = 0.5                      # Time step
+tot_time = 2000                   # Total simulation time
+dt       = 0.05                   # Time step
 npc      = 8
 # vd       = np.array([0.0, 0.0])  # Drift velocity
 
 # Get the mesh
-mesh   = df.Mesh('mesh/lafram_coarse.xml')
-ext_boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_coarse_facet_region.xml")
-# mesh   = df.Mesh('mesh/lafram.xml')
-# ext_boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_facet_region.xml")
+# mesh   = df.Mesh('mesh/lafram_coarse.xml')
+# ext_boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_coarse_facet_region.xml")
+mesh   = df.Mesh('mesh/lafram.xml')
+ext_boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_facet_region.xml")
 bnd_id = 53
 
 ext_bnd = ExteriorBoundaries(ext_boundaries, bnd_id)
