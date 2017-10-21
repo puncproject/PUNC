@@ -84,6 +84,7 @@ W = df.FunctionSpace(mesh, df.MixedElement([V, R]))
 # Create DirichletBC of value 0 on the exterior boundaries
 ext_bc = df.DirichletBC(W.sub(0), df.Constant(0), boundaries, ext_bnd_id)
 int_bc = df.DirichletBC(W.sub(0), df.Constant(0), boundaries, int_bnd_id)
+int_bc2 =   FloatingBC(W.sub(0), boundaries, int_bnd_id)
 
 # Create trial and test functions
 u, c = df.TrialFunctions(W)
@@ -93,8 +94,8 @@ v, d = df.TestFunctions(W)
 Q = df.Constant(10.)
 
 # Charge density in the domain
-rho = df.Constant(0.)
-# rho = df.Expression("sin(x[0]-x[1])", degree=3)
+# rho = df.Constant(0.)
+rho = df.Expression("sin(x[0]-x[1])", degree=3)
 # rho = df.Expression("(x[0]-pi)*(x[0]-pi)+(x[1]-pi)*(x[1]-pi)<=r*r ? 0.0 : sin(x[0]-x[1])", pi=np.pi, r=r, degree=2)
 
 # The normal vector to the facets
@@ -129,9 +130,11 @@ A = df.assemble(a)
 b = df.assemble(L)
 ext_bc.apply(A)
 ext_bc.apply(b)
-int_bc.apply(A)
-int_bc.apply(b)
-float_object(A, int_bc)
+# int_bc.apply(A)
+# int_bc.apply(b)
+# float_object(A, int_bc)
+int_bc2.apply(A)
+int_bc2.apply(b)
 
 
 # Solve the linear system with a direct solver
@@ -143,6 +146,7 @@ df.solve(A, wh.vector(), b)
 # solver.parameters['relative_tolerance'] = 1e-12
 # solver.parameters['maximum_iterations'] = 1000
 # # solver.set_operator(A)
+# # solver.solve(wh.vector(), b)
 # solver.solve(A, wh.vector(), b)
 
 # Split the solution function
