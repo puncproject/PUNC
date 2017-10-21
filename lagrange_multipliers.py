@@ -13,6 +13,7 @@ def float_object(A, int_bc):
     ind = int_bc.get_boundary_values().keys()
 
     delete_first = False
+    manual_first = True
 
     # delete (actually zero out) first row belonging to object
     if delete_first:
@@ -31,6 +32,24 @@ def float_object(A, int_bc):
         A.setrow(i, surface_neighbors, values)
 
         A.apply('insert')
+
+    if manual_first:
+        cols = np.array([  0, 247, 248, 256, 257, 265], dtype=np.uintp)
+        block = np.array([ 0.75043089,  0.01699319, -0.81002774, -0.1727715 ,  1.64745977,
+           -0.68165371],dtype=np.float_)
+        A.setrow(257, cols, block)
+        A.apply('insert')
+
+# def delete_first(A, b, int_bc):
+#     remove = int_bc.get_boundary_values().keys()[0]
+#     num_of_rows = A.size(1)
+#     An = df.Matrix()
+#     bn = df.Vector()
+#
+#     for i in list(range(remove))+list(range(remove+1,num_of_rows))
+#         cols, block = A.getrows(i)
+#         An.setrow()
+
 
 
 # Upload the mesh and the bouandaries
@@ -87,6 +106,7 @@ ds = df.Measure("ds", domain=mesh, subdomain_data=boundaries)
 # The surface area of the object
 surface_integral = df.assemble(df.Constant(1) * ds(int_bnd_id))
 surf_inv = df.Constant(1. / surface_integral)
+sig = df.Constant(Q / surface_integral)
 
 # Bilinear form
 a = df.inner(df.grad(u), df.grad(v)) * df.dx +\
@@ -96,20 +116,21 @@ a = df.inner(df.grad(u), df.grad(v)) * df.dx +\
 
 
 # Linear form
-L = df.inner(rho, v) * df.dx + surf_inv * df.inner(Q, d) * ds(int_bnd_id)
+L = df.inner(rho, v) * df.dx + df.inner(sig, d) * ds(int_bnd_id)
 
 # Create the solution function
 wh = df.Function(W)
 
 
 # Assemble the system and apply boundary condition (exterior boundaries)
-A, b = df.assemble_system(a, L, [ext_bc,int_bc])
-# A = df.assemble(a)
-# b = df.assemble(L)
-# ext_bc.apply(A)
-# ext_bc.apply(b)
-# int_bc.apply(A)
-# int_bc.apply(b)
+# A, b = df.assemble_system(a, L, [ext_bc,int_bc])
+# A, b = df.assemble_system(a, L, [ext_bc])
+A = df.assemble(a)
+b = df.assemble(L)
+ext_bc.apply(A)
+ext_bc.apply(b)
+int_bc.apply(A)
+int_bc.apply(b)
 float_object(A, int_bc)
 
 
