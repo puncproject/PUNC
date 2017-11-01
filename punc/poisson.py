@@ -185,6 +185,7 @@ class PoissonSolver(object):
         self.solver.parameters['absolute_tolerance'] = 1e-14
         self.solver.parameters['relative_tolerance'] = 1e-12
         self.solver.parameters['maximum_iterations'] = 1000
+        self.solver.parameters['nonzero_initial_guess'] = True
 
         phi = df.TrialFunction(V)
         phi_ = df.TestFunction(V)
