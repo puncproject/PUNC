@@ -2,4 +2,8 @@
 **.png
 **.pvd
 **.vtk
+**.vtu
 output
+data.txt
+**.msh
+**.xml
