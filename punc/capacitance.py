@@ -48,7 +48,7 @@ def solve_laplace(V, poisson, non_periodic_bnd, objects):
     """
     assert not all(bnd for bnd in non_periodic_bnd.periodic), \
     "The system cannot be solved as a periodic boundary value problem."
-    
+
     bcs = poisson.bcs
     poisson.bcs = [df.DirichletBC(V, df.Constant(0.0), non_periodic_bnd)]
 

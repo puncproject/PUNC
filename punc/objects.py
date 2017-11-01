@@ -7,6 +7,19 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 
+class VObject(df.DirichletBC):
+
+    def __init__(self, V, potential, sub_domains, sub_domain, method="topological"):
+        df.DirichletBC.__init__(self, V, potential, sub_domains, sub_domain, method)
+        self.charge = 0
+        self._potential = 0
+        self.inside = self.domain_args[0].inside
+
+    def set_potential(self, potential):
+        self._potential = potential
+        self.set_value(df.Constant(self._potential))
+
+
 class Object(df.DirichletBC):
     """
     An Object is a subdomain of DirichletBC class that represents an electrical
