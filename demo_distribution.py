@@ -66,8 +66,7 @@ pop.add_particles(pos_ion,vel_ion,mul,500*mul)
 #pop.distr(rho)
 #plot(rho)
 
-dv_inv = voronoi_volume(V,Ld)
-rho = distribute(V,pop)
-rho.vector()[:] *= dv_inv
+dv_inv = voronoi_volume(V)
+rho = distribute(V,pop,dv_inv)
 plot(rho)
 interactive()

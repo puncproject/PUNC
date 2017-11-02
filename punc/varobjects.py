@@ -37,3 +37,15 @@ class FloatingBC(df.DirichletBC):
                 A.setrow(i, surface_neighbors, values)
 
                 A.apply('insert')
+
+class VObject(df.DirichletBC):
+
+    def __init__(self, V, potential, sub_domains, sub_domain, method="topological"):
+        df.DirichletBC.__init__(self, V, potential, sub_domains, sub_domain, method)
+        self.charge = 0
+        self._potential = 0
+        self._sub_domain = sub_domain
+
+    def set_potential(self, potential):
+        self._potential = potential
+        self.set_value(df.Constant(self._potential))

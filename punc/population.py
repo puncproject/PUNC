@@ -300,7 +300,7 @@ class Population(list):
     must be invoked to relocate the particles.
     """
 
-    def __init__(self, mesh, periodic, normalization='plasma params'):
+    def __init__(self, mesh, boundaries, periodic=None, normalization='plasma params'):
         self.mesh = mesh
         self.Ld = get_mesh_size(mesh)
         self.periodic = periodic
@@ -342,6 +342,59 @@ class Population(list):
         # Dummy particle for receiving/sending at [0, 0, ...]
         v_zero = np.zeros(self.g_dim)
         self.particle0 = Particle(v_zero,v_zero,1,1)
+
+        self.init_localizer(boundaries)
+
+    def init_localizer(self, boundaries):
+        # self.facet_adjacents[cell_id][facet_number] is the id of the adjacent cell
+        # self.facet_normals[cell_id][facet_number] is the normal vector to a facet
+        # self.facet_mids[cell_id][facet_number] is the midpoint on a facet
+        # facet_number is a number from 0 to t_dim
+        # TBD: Now all facets are stored redundatly (for each cell)
+        # Storage could be reduced, but would the performance hit be significant?
+
+        self.mesh.init(self.t_dim-1, self.t_dim)
+        self.facet_adjacents = []
+        self.facet_normals = []
+        self.facet_mids = []
+        facets = list(df.facets(self.mesh))
+        for cell in df.cells(self.mesh):
+            facet_ids = cell.entities(self.t_dim-1)
+            adjacents = []
+            normals = []
+            mids = []
+
+            for facet_number, facet_id in enumerate(facet_ids):
+                facet = facets[facet_id]
+
+                adjacent = set(facet.entities(self.t_dim))-{cell.index()}
+                adjacent = list(adjacent)
+                if adjacent == []:
+                    # Travelled out of bounds through the following boundary
+                    # Minus indicates through boundary
+                    adjacent = -int(boundaries.array()[facet_id])
+
+                else:
+                    adjacent = int(adjacent[0])
+
+                assert isinstance(adjacent,int)
+
+
+                # take normal from cell rather than from facet to make sure it is outwards-pointing
+                normal = [cell.normal(facet_number, i) for i in range(self.t_dim)]
+
+                mid = facet.midpoint()
+                mid = np.array([mid.x(), mid.y(), mid.z()])
+                mid = mid[:self.t_dim]
+
+                adjacents.append(adjacent)
+                normals.append(normal)
+                mids.append(mid)
+
+
+            self.facet_adjacents.append(adjacents)
+            self.facet_normals.append(normals)
+            self.facet_mids.append(mids)
 
     def init_new_specie(self, specie, exterior_bnd, **kwargs):
         """
@@ -411,7 +464,7 @@ class Population(list):
         self.N.append(self.flux[-1].flux_number(exterior_bnd))
         xs = random_domain_points(pdf, pdf_max, num_total, self.mesh)
         vs = maxwellian(v_thermal, v_drift, xs.shape)
-        
+
         # --------Suggestion---------
         # rs = SRS(pdf, pdf_max=pdf_max, Ld=self.Ld)
         # mv = Maxwellian(v_thermal, v_drift, self.periodic)
@@ -461,20 +514,92 @@ class Population(list):
         my_found = np.zeros(len(xs), np.int)
         all_found = np.zeros(len(xs), np.int)
 
+        # for i, x, v, q, m in zip(count(), xs, vs, qs, ms):
+        #     cell = self.locate_old(x)
+        #     if not (cell == -1 or cell == __UINT32_MAX__):
+        #         my_found[i] = True
+        #         self[cell].append(Particle(x, v, q, m))
+        #
+        # # All particles must be found on some process
+        # comm.Reduce(my_found, all_found, root=0)
+
+        # if self.myrank == 0:
+        #     n_missing = len(np.where(all_found == 0)[0])
+        #     assert n_missing==0,'%d particles are not located in mesh'%n_missing
+
         for i, x, v, q, m in zip(count(), xs, vs, qs, ms):
-            cell = self.locate(x)
-            if not (cell == -1 or cell == __UINT32_MAX__):
-                my_found[i] = True
-                self[cell].append(Particle(x, v, q, m))
+            cell_id = self.locate(x)
+            if cell_id >=0:
+                self[cell_id].append(Particle(x, v, q, m))
 
-        # All particles must be found on some process
-        comm.Reduce(my_found, all_found, root=0)
+    def locate(self, p, cell_id=0):
 
-        if self.myrank == 0:
-            n_missing = len(np.where(all_found == 0)[0])
-            assert n_missing==0,'%d particles are not located in mesh'%n_missing
+        cell = df.Cell(self.mesh, cell_id)
+        if cell.contains(df.Point(*p)):
+            return cell_id
+        else:
+            x = p - np.array(self.facet_mids[cell_id])
 
-    def relocate(self, objects = [], open_bnd = False):
+            # The projection of x on each facet normal. Negative if behind facet.
+            # If all negative particle is within cell
+            proj = np.sum(x*self.facet_normals[cell_id], axis=1)
+            projarg = np.argmax(proj)
+            new_cell_id = self.facet_adjacents[cell_id][projarg]
+            if new_cell_id>=0:
+                return self.locate(p, new_cell_id)
+            else:
+                return new_cell_id # crossed a boundary
+
+    def relocate(self, objects = None):
+
+        if objects == None: objects = []
+
+        # TBD: Could possibly be placed elsewhere
+        object_domains = [o._sub_domain for o in objects]
+        object_ids = dict()
+        for o,d in enumerate(object_domains):
+            object_ids[d] = o
+
+        for cell_id, cell in enumerate(self):
+
+            to_delete = []
+
+            for particle_id, particle in enumerate(cell):
+
+                new_cell_id = self.locate(particle.x, cell_id)
+
+                if new_cell_id != cell_id:
+
+                    # Particle has moved out of cell.
+                    # Mark it for deletion
+                    to_delete.append(particle_id)
+
+                    if new_cell_id < 0:
+                        # Particle has crossed a boundary, either external
+                        # or internal (into an object) and do not reappear
+                        # in a new cell.
+
+                        if -new_cell_id in object_ids:
+                            # Particle entered object. Accumulate charge.
+                            obj = objects[object_ids[-new_cell_id]]
+                            obj.charge += particle.q
+                    else:
+                        # Particle has moved to another cell
+                        self[new_cell_id].append(particle)
+
+            # Delete particles in reverse order to avoid altering the id
+            # of particles yet to be deleted.
+            for particle_id in reversed(to_delete):
+
+                if particle_id==len(cell)-1:
+                    # Particle is the last element
+                    cell.pop()
+                else:
+                    # Delete by replacing it by the last element in the list.
+                    # More efficient then shifting the whole list.
+                    cell[particle_id] = cell.pop()
+
+    def relocate_old(self, objects = [], open_bnd = False):
         """
         Relocate particles on cells and processors
         map such that map[old_cell] = [(new_cell, particle_id), ...]
@@ -497,7 +622,7 @@ class Population(list):
                             break
                     # Do a completely new search if not found by now
                     if not found:
-                        new_cell_id = self.locate(particle)
+                        new_cell_id = self.locate_old(particle)
                     # Record to map
                     new_cell_map[df_cell.index()].append((new_cell_id, i))
 
@@ -591,13 +716,25 @@ class Population(list):
         self.add_particles(travelling_particles)
 
 
-    def total_number_of_particles(self):
-        'Return number of particles in total and on process.'
-        num_p = sum([len(x) for x in self])
-        tot_p = comm.allreduce(num_p)
-        return (tot_p, num_p)
+    def num_of_particles(self):
+        'Return number of particles in total.'
+        return sum([len(x) for x in self])
 
-    def locate(self, particle):
+    def num_of_positives(self):
+        return np.sum([np.sum([p.q>0 for p in c],dtype=int) for c in self])
+
+    def num_of_negatives(self):
+        return np.sum([np.sum([p.q<0 for p in c],dtype=int) for c in self])
+
+    def num_of_conditioned(self, condition):
+        '''
+        Number of particles satisfying some condition.
+        E.g. pop.num_of_conditions(lambda p: p.q<0)
+        is equivalent to pop.num_of_negatives()
+        '''
+        return np.sum([np.sum([cond(p) for p in c],dtype=int) for c in self])
+
+    def locate_old(self, particle):
         'Find mesh cell that contains particle.'
         assert isinstance(particle, (Particle, np.ndarray))
         if isinstance(particle, Particle):
