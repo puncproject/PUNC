@@ -300,7 +300,7 @@ class Population(list):
     must be invoked to relocate the particles.
     """
 
-    def __init__(self, mesh, periodic, normalization='plasma params'):
+    def __init__(self, mesh, boundaries, periodic=None, normalization='plasma params'):
         self.mesh = mesh
         self.Ld = get_mesh_size(mesh)
         self.periodic = periodic
@@ -342,6 +342,8 @@ class Population(list):
         # Dummy particle for receiving/sending at [0, 0, ...]
         v_zero = np.zeros(self.g_dim)
         self.particle0 = Particle(v_zero,v_zero,1,1)
+
+        self.init_localizer(boundaries)
 
     def init_localizer(self, boundaries):
         # self.facet_adjacents[cell_id][facet_number] is the id of the adjacent cell
@@ -512,43 +514,25 @@ class Population(list):
         my_found = np.zeros(len(xs), np.int)
         all_found = np.zeros(len(xs), np.int)
 
+        # for i, x, v, q, m in zip(count(), xs, vs, qs, ms):
+        #     cell = self.locate_old(x)
+        #     if not (cell == -1 or cell == __UINT32_MAX__):
+        #         my_found[i] = True
+        #         self[cell].append(Particle(x, v, q, m))
+        #
+        # # All particles must be found on some process
+        # comm.Reduce(my_found, all_found, root=0)
+
+        # if self.myrank == 0:
+        #     n_missing = len(np.where(all_found == 0)[0])
+        #     assert n_missing==0,'%d particles are not located in mesh'%n_missing
+
         for i, x, v, q, m in zip(count(), xs, vs, qs, ms):
-            cell = self.locate(x)
-            if not (cell == -1 or cell == __UINT32_MAX__):
-                my_found[i] = True
-                self[cell].append(Particle(x, v, q, m))
+            cell_id = self.locate(x)
+            if cell_id >=0:
+                self[cell_id].append(Particle(x, v, q, m))
 
-        # All particles must be found on some process
-        comm.Reduce(my_found, all_found, root=0)
-
-        if self.myrank == 0:
-            n_missing = len(np.where(all_found == 0)[0])
-            assert n_missing==0,'%d particles are not located in mesh'%n_missing
-
-    def locate2(self, p, cell_id):
-
-        # This commented block should work and may be a good idea for C++
-        # but in python using the compiled cell.contains() is twice as fast.
-
-        # # The position of the particle with respect to each facet center
-        # # One vector per row
-        # x = x - np.array(self.facet_mids[cell_id])
-        #
-        # # The projection of x on each facet normal. Negative if behind facet.
-        # # If all negative particle is within cell
-        # proj = np.sum(x*self.facet_normals[cell_id], axis=1)
-        #
-        # projarg = np.argmax(proj)
-        # projmax = proj[projarg]
-        # if projmax<=0:
-        #     return cell_id
-        # else:
-        #     new_cell_id = self.facet_adjacents[cell_id][projarg]
-        #     # assert isinstance(new_cell_id,int)
-        #     if new_cell_id>=0:
-        #         return self.locate2(x, new_cell_id)
-        #     else:
-        #         return new_cell_id # out-of-bounds
+    def locate(self, p, cell_id=0):
 
         cell = df.Cell(self.mesh, cell_id)
         if cell.contains(df.Point(*p)):
@@ -562,11 +546,13 @@ class Population(list):
             projarg = np.argmax(proj)
             new_cell_id = self.facet_adjacents[cell_id][projarg]
             if new_cell_id>=0:
-                return self.locate2(p, new_cell_id)
+                return self.locate(p, new_cell_id)
             else:
-                return new_cell_id # out-of-bounds
+                return new_cell_id # crossed a boundary
 
-    def relocate2(self, objects = [], open_bnd = False):
+    def relocate(self, objects = None):
+
+        if objects == None: objects = []
 
         # TBD: Could possibly be placed elsewhere
         object_domains = [o._sub_domain for o in objects]
@@ -580,7 +566,7 @@ class Population(list):
 
             for particle_id, particle in enumerate(cell):
 
-                new_cell_id = self.locate2(particle.x, cell_id)
+                new_cell_id = self.locate(particle.x, cell_id)
 
                 if new_cell_id != cell_id:
 
@@ -613,7 +599,7 @@ class Population(list):
                     # More efficient then shifting the whole list.
                     cell[particle_id] = cell.pop()
 
-    def relocate(self, objects = [], open_bnd = False):
+    def relocate_old(self, objects = [], open_bnd = False):
         """
         Relocate particles on cells and processors
         map such that map[old_cell] = [(new_cell, particle_id), ...]
@@ -636,7 +622,7 @@ class Population(list):
                             break
                     # Do a completely new search if not found by now
                     if not found:
-                        new_cell_id = self.locate(particle)
+                        new_cell_id = self.locate_old(particle)
                     # Record to map
                     new_cell_map[df_cell.index()].append((new_cell_id, i))
 
@@ -730,13 +716,25 @@ class Population(list):
         self.add_particles(travelling_particles)
 
 
-    def total_number_of_particles(self):
-        'Return number of particles in total and on process.'
-        num_p = sum([len(x) for x in self])
-        tot_p = comm.allreduce(num_p)
-        return (tot_p, num_p)
+    def num_of_particles(self):
+        'Return number of particles in total.'
+        return sum([len(x) for x in self])
 
-    def locate(self, particle):
+    def num_of_positives(self):
+        return np.sum([np.sum([p.q>0 for p in c],dtype=int) for c in self])
+
+    def num_of_negatives(self):
+        return np.sum([np.sum([p.q<0 for p in c],dtype=int) for c in self])
+
+    def num_of_conditioned(self, condition):
+        '''
+        Number of particles satisfying some condition.
+        E.g. pop.num_of_conditions(lambda p: p.q<0)
+        is equivalent to pop.num_of_negatives()
+        '''
+        return np.sum([np.sum([cond(p) for p in c],dtype=int) for c in self])
+
+    def locate_old(self, particle):
         'Find mesh cell that contains particle.'
         assert isinstance(particle, (Particle, np.ndarray))
         if isinstance(particle, Particle):

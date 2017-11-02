@@ -477,8 +477,10 @@ def inject(pop, exterior_bnd, dt):
                 for j in range(n):
                     x = new_xs[j, :]
                     v = new_vs[j, :]
+                    # cell_id = pop.locate_old(x)
+                    # if cell_id != __UINT32_MAX__ and cell_id != -1:
                     cell_id = pop.locate(x)
-                    if cell_id != __UINT32_MAX__ and cell_id != -1:
+                    if cell_id >= 0:
                         xs = np.concatenate([xs, x[None, :]])
                         vs = np.concatenate([vs, v[None, :]])
                     count += 1

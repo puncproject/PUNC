@@ -268,7 +268,7 @@ def voronoi_length(V, Ld, periodic=True, inv=True, raw=True):
     else:
         return dv
 
-def distribute(V, pop):
+def distribute(V, pop, dv_inv):
 
     assert V.ufl_element().family() == 'Lagrange'
     assert V.ufl_element().degree() == 1
@@ -295,5 +295,7 @@ def distribute(V, pop):
 
 
         rho.vector()[dofindex] += accum
+
+    rho.vector()[:] *= dv_inv
 
     return rho

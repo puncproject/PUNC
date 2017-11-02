@@ -64,8 +64,7 @@ KE0 = kinetic_energy(pop)
 
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
-    rho = distribute(V,pop)
-    rho.vector()[:] *= dv_inv
+    rho = distribute(V,pop, dv_inv)
     phi = poisson.solve(rho)
     E = electric_field(phi)
     PE[n-1] = potential_energy(pop, phi)

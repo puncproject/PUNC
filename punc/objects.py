@@ -156,6 +156,10 @@ class Object(df.DirichletBC):
             cell_f[int(c)] = id
         return cell_f
 
+def reset_objects(objects):
+    for o in objects:
+        o.set_potential(df.Constant(0.0))
+
 def compute_object_potentials(q, objects, inv_cap_matrix):
     """
     Sets the interpolated charge to the objects, and then computes the object
