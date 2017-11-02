@@ -67,6 +67,44 @@ def solve_laplace(V, poisson, non_periodic_bnd, objects):
     poisson.bcs = bcs
     return object_e_field
 
+def capacitance_matrix2(V, poisson, non_periodic_bnd, objects, boundaries):
+    """
+    This function calculates the mutual capacitance matrix, C_ij.
+    The elements of mutual capacitance matrix are given by:
+
+     C_ij = integral_Omega_i inner(E_j, n_i) dsigma_i.
+
+     For each surface component j, Laplace's equation, div grad phi = 0, is
+     solved with boundary condition phi = 1 on component j and
+     phi = 0 on every other component, including the outer boundaries.
+
+
+    Args:
+          V                : DOLFIN function space
+          poisson          : Poisson solver
+          non_periodic_bnd : Non-periodic boundaries
+          objects          : A list containing all the objects
+
+    returns:
+            The inverse of the mutual capacitance matrix
+    """
+    mesh = V.mesh()
+
+    num_objects = len(objects)
+    capacitance = np.empty((num_objects, num_objects))
+
+    object_e_field = solve_laplace(V, poisson, non_periodic_bnd, objects)
+
+    ds = df.Measure('ds', domain = mesh, subdomain_data = boundaries)
+    n = df.FacetNormal(mesh)
+
+    for i in range(num_objects):
+        for j in range(num_objects):
+            flux = df.inner(object_e_field[j], -1*n)*ds(objects[i]._sub_domain)
+            capacitance[i,j] = df.assemble(flux)
+
+    return np.linalg.inv(capacitance)
+
 def capacitance_matrix(V, poisson, non_periodic_bnd, objects):
     """
     This function calculates the mutual capacitance matrix, C_ij.

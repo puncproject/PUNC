@@ -177,11 +177,11 @@ def voronoi_volume(V, Ld, periodic=True, inv=True,
         dv.vector()[:] = volumes
         return dv
 
-def voronoi_volume_approx(V, Ld, inv=True, raw=True):
+def voronoi_volume_approx(V, inv=True, raw=True):
     """
     Returns the approximated volume for every Voronoi cell centered at
     the a DOF as a FEniCS function. V is the function space for the function
-    to be returned (must be CG1) and Ld is the size of the domain. Works for
+    to be returned (must be CG1). Works for
     1D, 2D and 3D, with and without periodic boundaries and objects.
 
     The approximated volume of a Voronoi cell centered at a vertex is the

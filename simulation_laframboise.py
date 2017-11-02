@@ -7,6 +7,7 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 import matplotlib.pyplot as plt
+import cProfile as prof
 from punc import *
 
 # Simulation parameters
@@ -19,10 +20,11 @@ npc      = 8
 # mesh   = df.Mesh('mesh/lafram_coarse.xml')
 # ext_boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_coarse_facet_region.xml")
 mesh   = df.Mesh('mesh/lafram.xml')
-ext_boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_facet_region.xml")
-bnd_id = 53
+boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_facet_region.xml")
+ext_bnd_id = 53
+int_bnd_id = 54
 
-ext_bnd = ExteriorBoundaries(ext_boundaries, bnd_id)
+ext_bnd = ExteriorBoundaries(boundaries, ext_bnd_id)
 
 Ld     = get_mesh_size(mesh)
 
@@ -40,17 +42,20 @@ class Probe(df.SubDomain):
     def inside(self, x, on_boundary):
         return on_boundary and np.all(np.linalg.norm(x-Ld/2)<1.1)
 
-objects = [Object(V, Probe())]
+# objects = [Object(V, Probe())]
+objects = [Object(V, int_bnd_id, boundaries)]
 
-facet_func = markers(mesh, objects)
-ds = df.Measure('ds', domain = mesh, subdomain_data = facet_func)
+# facet_func = markers(mesh, objects)
+# ds = df.Measure('ds', domain = mesh, subdomain_data = facet_func)
+ds = df.Measure("ds", domain=mesh, subdomain_data=boundaries)
 normal = df.FacetNormal(mesh)
 
 # Get the solver
 poisson = PoissonSolver(V, bc)
 
 # The inverse of capacitance matrix
-inv_cap_matrix = capacitance_matrix(V, poisson, bnd, objects)
+# inv_cap_matrix = capacitance_matrix(V, poisson, bnd, objects)
+inv_cap_matrix = capacitance_matrix2(V, poisson, bnd, objects, boundaries)
 print("capacitance: ", 1.0/inv_cap_matrix[0,0])
 epsilon_0 = 1.0
 r = 1.0
@@ -69,7 +74,7 @@ pop = Population(mesh, periodic)
 pop.init_new_specie('electron', ext_bnd, normalization='particle scaling', v_thermal=1./Rp, num_per_cell=npc)
 pop.init_new_specie('proton', ext_bnd,   normalization='particle scaling', v_thermal=1./(np.sqrt(1836.)*Rp), num_per_cell=npc)
 
-dv_inv = voronoi_volume_approx(V, Ld)
+dv_inv = voronoi_volume_approx(V)
 
 # injection = []
 num_total = 0
@@ -97,6 +102,7 @@ num_particles_outside = np.zeros(N)
 num_injected_particles = np.zeros(N)
 num_particles[0] = pop.total_number_of_particles()[0]
 
+pop.init_localizer(boundaries)
 
 timer = TaskTimer(N-1,'compact')
 num_e = np.zeros(N)
@@ -133,7 +139,9 @@ for n in range(1,N):
 
     timer.task("Relocating particles")
     old_charge = objects[0].charge
-    pop.relocate(objects, open_bnd=True)
+    pop.relocate2(objects, open_bnd=True)
+    # prof.run("pop.relocate2(objects, open_bnd=True)")
+    # pop.relocate(objects, open_bnd=True)
 
     timer.task("Impose current")
     tot_num1 = pop.total_number_of_particles()[0]

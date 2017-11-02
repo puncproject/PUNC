@@ -43,7 +43,7 @@ pop = Population(mesh, periodic)
 pop.init_new_specie('electron', temperature=1, num_per_cell=16)
 pop.init_new_specie('proton',   temperature=1, num_per_cell=16)
 
-dv_inv = voronoi_volume_approx(V, Ld)
+dv_inv = voronoi_volume_approx(V)
 
 # Time loop
 N   = tot_time

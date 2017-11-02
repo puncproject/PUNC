@@ -219,7 +219,7 @@ plt.show()
 
 
 # sys.exit()
-dv_inv = voronoi_volume_approx(V, Ld, periodic)
+dv_inv = voronoi_volume_approx(V)
 
 # Time loop
 N   = tot_time

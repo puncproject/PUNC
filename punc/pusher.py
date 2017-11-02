@@ -118,7 +118,7 @@ def move_periodic(pop, Ld, dt):
             particle.x += dt*particle.v
             particle.x %= Ld
 
-def move(pop, Ld, dt):
+def move(pop, dt):
 
     for cell in pop:
         for particle in cell:

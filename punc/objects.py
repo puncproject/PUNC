@@ -13,7 +13,7 @@ class VObject(df.DirichletBC):
         df.DirichletBC.__init__(self, V, potential, sub_domains, sub_domain, method)
         self.charge = 0
         self._potential = 0
-        self.inside = self.domain_args[0].inside
+        self._sub_domain = sub_domain
 
     def set_potential(self, potential):
         self._potential = potential
@@ -44,7 +44,7 @@ class Object(df.DirichletBC):
         V (DOLFIN: FunctionSpace): The finite element function space.
     """
 
-    def __init__(self, V, sub_domain, method="topological"):
+    def __init__(self, V, sub_domain, sub_domains=None, charge=0, potential=0, method="topological"):
         """
         Constructor
 
@@ -56,13 +56,27 @@ class Object(df.DirichletBC):
             method (str): Optional argument: A string specifying the method to
             identify dofs.
         """
-        df.DirichletBC.__init__(self, V, df.Constant(0), sub_domain, method)
-        self.charge = 0
+
+        self.charge = charge
+        self._potential = potential
         self.interpolated_charge = 0
-        self._potential = 0
-        self.dofs = self.get_boundary_values().keys()
-        self.inside = self.domain_args[0].inside
         self.V = V
+
+        potential = df.Constant(potential)
+
+        # Can either take a sub_domain as a SubDomain-inherited class or as a
+        # FacetFunciton domain and an id. The latter is more general since
+        # boundaries can be arbitrarily specified in gmsh, but it does not
+        # provide the inside() function which is still used in old parts of the
+        # code. This will be deleted in the future, and the latter version used.
+        if sub_domains==None:
+            df.DirichletBC.__init__(self, V, potential, sub_domain, method)
+            self.inside = self.domain_args[0].inside
+        else:
+            df.DirichletBC.__init__(self, V, potential, sub_domains, sub_domain, method)
+            self._sub_domain = sub_domain
+
+        self.dofs = self.get_boundary_values().keys()
 
     def add_charge(self, q):
         """

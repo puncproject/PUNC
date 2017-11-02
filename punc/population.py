@@ -343,6 +343,57 @@ class Population(list):
         v_zero = np.zeros(self.g_dim)
         self.particle0 = Particle(v_zero,v_zero,1,1)
 
+    def init_localizer(self, boundaries):
+        # self.facet_adjacents[cell_id][facet_number] is the id of the adjacent cell
+        # self.facet_normals[cell_id][facet_number] is the normal vector to a facet
+        # self.facet_mids[cell_id][facet_number] is the midpoint on a facet
+        # facet_number is a number from 0 to t_dim
+        # TBD: Now all facets are stored redundatly (for each cell)
+        # Storage could be reduced, but would the performance hit be significant?
+
+        self.mesh.init(self.t_dim-1, self.t_dim)
+        self.facet_adjacents = []
+        self.facet_normals = []
+        self.facet_mids = []
+        facets = list(df.facets(self.mesh))
+        for cell in df.cells(self.mesh):
+            facet_ids = cell.entities(self.t_dim-1)
+            adjacents = []
+            normals = []
+            mids = []
+
+            for facet_number, facet_id in enumerate(facet_ids):
+                facet = facets[facet_id]
+
+                adjacent = set(facet.entities(self.t_dim))-{cell.index()}
+                adjacent = list(adjacent)
+                if adjacent == []:
+                    # Travelled out of bounds through the following boundary
+                    # Minus indicates through boundary
+                    adjacent = -int(boundaries.array()[facet_id])
+
+                else:
+                    adjacent = int(adjacent[0])
+
+                assert isinstance(adjacent,int)
+
+
+                # take normal from cell rather than from facet to make sure it is outwards-pointing
+                normal = [cell.normal(facet_number, i) for i in range(self.t_dim)]
+
+                mid = facet.midpoint()
+                mid = np.array([mid.x(), mid.y(), mid.z()])
+                mid = mid[:self.t_dim]
+
+                adjacents.append(adjacent)
+                normals.append(normal)
+                mids.append(mid)
+
+
+            self.facet_adjacents.append(adjacents)
+            self.facet_normals.append(normals)
+            self.facet_mids.append(mids)
+
     def init_new_specie(self, specie, exterior_bnd, **kwargs):
         """
         To initialize a new specie within a population use this function, e.g.
@@ -411,7 +462,7 @@ class Population(list):
         self.N.append(self.flux[-1].flux_number(exterior_bnd))
         xs = random_domain_points(pdf, pdf_max, num_total, self.mesh)
         vs = maxwellian(v_thermal, v_drift, xs.shape)
-        
+
         # --------Suggestion---------
         # rs = SRS(pdf, pdf_max=pdf_max, Ld=self.Ld)
         # mv = Maxwellian(v_thermal, v_drift, self.periodic)
@@ -473,6 +524,94 @@ class Population(list):
         if self.myrank == 0:
             n_missing = len(np.where(all_found == 0)[0])
             assert n_missing==0,'%d particles are not located in mesh'%n_missing
+
+    def locate2(self, p, cell_id):
+
+        # This commented block should work and may be a good idea for C++
+        # but in python using the compiled cell.contains() is twice as fast.
+
+        # # The position of the particle with respect to each facet center
+        # # One vector per row
+        # x = x - np.array(self.facet_mids[cell_id])
+        #
+        # # The projection of x on each facet normal. Negative if behind facet.
+        # # If all negative particle is within cell
+        # proj = np.sum(x*self.facet_normals[cell_id], axis=1)
+        #
+        # projarg = np.argmax(proj)
+        # projmax = proj[projarg]
+        # if projmax<=0:
+        #     return cell_id
+        # else:
+        #     new_cell_id = self.facet_adjacents[cell_id][projarg]
+        #     # assert isinstance(new_cell_id,int)
+        #     if new_cell_id>=0:
+        #         return self.locate2(x, new_cell_id)
+        #     else:
+        #         return new_cell_id # out-of-bounds
+
+        cell = df.Cell(self.mesh, cell_id)
+        if cell.contains(df.Point(*p)):
+            return cell_id
+        else:
+            x = p - np.array(self.facet_mids[cell_id])
+
+            # The projection of x on each facet normal. Negative if behind facet.
+            # If all negative particle is within cell
+            proj = np.sum(x*self.facet_normals[cell_id], axis=1)
+            projarg = np.argmax(proj)
+            new_cell_id = self.facet_adjacents[cell_id][projarg]
+            if new_cell_id>=0:
+                return self.locate2(p, new_cell_id)
+            else:
+                return new_cell_id # out-of-bounds
+
+    def relocate2(self, objects = [], open_bnd = False):
+
+        # TBD: Could possibly be placed elsewhere
+        object_domains = [o._sub_domain for o in objects]
+        object_ids = dict()
+        for o,d in enumerate(object_domains):
+            object_ids[d] = o
+
+        for cell_id, cell in enumerate(self):
+
+            to_delete = []
+
+            for particle_id, particle in enumerate(cell):
+
+                new_cell_id = self.locate2(particle.x, cell_id)
+
+                if new_cell_id != cell_id:
+
+                    # Particle has moved out of cell.
+                    # Mark it for deletion
+                    to_delete.append(particle_id)
+
+                    if new_cell_id < 0:
+                        # Particle has crossed a boundary, either external
+                        # or internal (into an object) and do not reappear
+                        # in a new cell.
+
+                        if -new_cell_id in object_ids:
+                            # Particle entered object. Accumulate charge.
+                            obj = objects[object_ids[-new_cell_id]]
+                            obj.charge += particle.q
+                    else:
+                        # Particle has moved to another cell
+                        self[new_cell_id].append(particle)
+
+            # Delete particles in reverse order to avoid altering the id
+            # of particles yet to be deleted.
+            for particle_id in reversed(to_delete):
+
+                if particle_id==len(cell)-1:
+                    # Particle is the last element
+                    cell.pop()
+                else:
+                    # Delete by replacing it by the last element in the list.
+                    # More efficient then shifting the whole list.
+                    cell[particle_id] = cell.pop()
 
     def relocate(self, objects = [], open_bnd = False):
         """
