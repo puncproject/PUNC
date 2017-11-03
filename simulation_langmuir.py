@@ -10,83 +10,62 @@ import matplotlib.pyplot as plt
 from punc import *
 
 # Simulation parameters
-tot_time = 10                   # Total simulation time
-dt       = 0.05                   # Time step
+N        = 300                   # Total simulation time
+dt       = 0.1                   # Time step
 npc      = 8
-# vd       = np.array([0.0, 0.0])  # Drift velocity
 
 # Get the mesh
-mesh   = df.Mesh('mesh/langmuir_probe_2D_rect.xml')
-ext_boundaries = df.MeshFunction("size_t", mesh, "mesh/langmuir_probe_2D_rect_facet_region.xml")
-bnd_id = 9
+mesh, boundaries = load_mesh("mesh/2D/langmuir_probe_circle_in_square")
+ext_bnd_id = 9
+int_bnd_id = 10
 
-ext_bnd = ExteriorBoundaries(ext_boundaries, bnd_id)
+ext_bnd = ExteriorBoundaries(boundaries, ext_bnd_id)
 
-Ld     = get_mesh_size(mesh)
+V = df.FunctionSpace(mesh, 'CG', 1)
 
-# Create boundary conditions and function space
-periodic = [False, False, False]
-bnd = NonPeriodicBoundary(Ld, periodic)
-constr = PeriodicBoundary(Ld, periodic)
+bc = df.DirichletBC(V, df.Constant(0.0), boundaries, ext_bnd_id)
 
-V = df.FunctionSpace(mesh, 'CG', 1, constrained_domain=constr)
+objects = [Object(V, int_bnd_id, boundaries)]
 
-bc = df.DirichletBC(V, df.Constant(0.0), bnd)
-
-# Get the object
-Rp = 0.000145
-class Probe(df.SubDomain):
-    def inside(self, x, on_boundary):
-        return on_boundary and np.all(np.linalg.norm(x-Ld/2)<1.05*Rp)
-
-objects = [Object(V, Probe())]
-
-facet_func = markers(mesh, objects)
-ds = df.Measure('ds', domain = mesh, subdomain_data = facet_func)
+ds = df.Measure("ds", domain=mesh, subdomain_data=boundaries)
 normal = df.FacetNormal(mesh)
 
 # Get the solver
 poisson = PoissonSolver(V, bc)
 
 # The inverse of capacitance matrix
-inv_cap_matrix = capacitance_matrix(V, poisson, bnd, objects)
-print("capacitance: ", 1.0/inv_cap_matrix[0,0])
-epsilon_0 = 1.0
-r = 1.0
-R = 5.0
-C_sphere = 4.0*np.pi*epsilon_0*r*R/(R-r)
-print("Analytical Sphere capacitance: ", C_sphere)
-# Probe radius in terms of Debye lengths
+inv_cap_matrix = capacitance_matrix(V, poisson, objects, boundaries, ext_bnd_id)
 
+# Probe radius in mesh and debye lengths
+Rp = 1. #0.000145 # m
+Rpd = 5. # debye lengths
+debye = Rp/Rpd
+vthe = debye
+vthi = debye/np.sqrt(1836.)
 
-Vnorm = Rp**(-2)
-#Inorm = np.sqrt(8*np.pi/1836.)/Rp
-Inorm = np.sqrt(8*np.pi)/Rp
+Vnorm = debye**2
+Inorm = vthe*np.sqrt(2*np.pi)
 
 # Initialize particle positions and velocities, and populate the domain
-pop = Population(mesh, periodic)
-pop.init_new_specie('electron', ext_bnd, normalization='particle scaling', v_thermal=1./Rp, num_per_cell=npc)
-pop.init_new_specie('proton', ext_bnd,   normalization='particle scaling', v_thermal=1./(np.sqrt(1836.)*Rp), num_per_cell=npc)
+pop = Population(mesh, boundaries, normalization='particle scaling')
+pop.init_new_specie('electron', ext_bnd, v_thermal=vthe, num_per_cell=npc)
+pop.init_new_specie('proton',   ext_bnd, v_thermal=vthi, num_per_cell=npc)
 
-dv_inv = voronoi_volume_approx(V, Ld)
 
-# injection = []
-num_total = 0
-# n_plasma = [None]*2
+# boltzmann = 1.38064852e-23 # J/K
+# pfreq =
+# denorm = pop.species.get_denorm(pfreq, debye, debye)
+# Vnorm = denorm['V']
+# Inorm = denorm['I']
 
-# for i in range(len(pop.species)):
-#     # n_plasma[i] = pop.species[i].num_total
-#     # weight = pop.species.weight
-#     num_total += pop.species[i].num_total
-#     injection.append(Injector(pop, i, dt))
+dv_inv = voronoi_volume_approx(V)
 
-# Time loop
-N   = tot_time
 KE  = np.zeros(N-1)
 PE  = np.zeros(N-1)
 KE0 = kinetic_energy(pop)
 
-current_collected = -1.987*Inorm
+current_collected = -1.549*Inorm
+# current_collected = 0
 current_measured = np.zeros(N)
 potential = np.zeros(N)
 particles = np.zeros(N)
@@ -94,8 +73,7 @@ particles = np.zeros(N)
 num_particles = np.zeros(N)
 num_particles_outside = np.zeros(N)
 num_injected_particles = np.zeros(N)
-num_particles[0] = pop.total_number_of_particles()[0]
-
+num_particles[0] = pop.num_of_particles()
 
 timer = TaskTimer(N-1,'compact')
 num_e = np.zeros(N)
@@ -106,17 +84,14 @@ num_i[0] = num_particles[0]/2
 for n in range(1,N):
 
     timer.task("Distribute charge")
-    rho = distribute(V, pop)
-    # compute_object_potentials(rho, objects, inv_cap_matrix)
-    rho.vector()[:] *= dv_inv
+    rho = distribute(V, pop, dv_inv)
 
     timer.task("Calculate potential")
-    objects[0].set_potential(df.Constant(0.0))
+    reset_objects(objects)
     phi     = poisson.solve(rho, objects)
     E       = electric_field(phi)
     obj_flux = df.inner(E, -1*normal)*ds(0)
     image_charge = df.assemble(obj_flux)
-
     object_potential = (objects[0].charge-image_charge)*inv_cap_matrix[0,0]
     objects[0].set_potential(df.Constant(object_potential))
 
@@ -127,37 +102,31 @@ for n in range(1,N):
 
     timer.task("Move particles")
     KE[n-1] = accel(pop, E, (1-0.5*(n==1))*dt)
-    tot_num0 = pop.total_number_of_particles()[0]
-    move(pop, Ld, dt)
+    tot_num0 = pop.num_of_particles()
+    move(pop, dt)
 
     timer.task("Relocating particles")
     old_charge = objects[0].charge
-    pop.relocate(objects, open_bnd=True)
+    pop.relocate(objects)
 
     timer.task("Impose current")
-    tot_num1 = pop.total_number_of_particles()[0]
+    tot_num1 = pop.num_of_particles()
     num_particles_outside[n] = tot_num0 - tot_num1
     objects[0].add_charge(-current_collected*dt)
     current_measured[n] = ((objects[0].charge-old_charge)/dt)/Inorm
     potential[n] = objects[0]._potential/Vnorm
-    particles[n] = pop.total_number_of_particles()[0]
+    particles[n] = pop.num_of_particles()
 
     timer.task("Inject particles")
     inject(pop, ext_bnd, dt)
 
     timer.task("Count particles")
-    tot_num2 = pop.total_number_of_particles()[0]
-    # Total number of injected particles:
+    tot_num2 = pop.num_of_particles()
     num_injected_particles[n] = tot_num2 - tot_num1
-    # Total number of particles after injection:
     num_particles[n] = tot_num2
 
-    for cell in pop:
-        for particle in cell:
-            if np.sign(particle.q) == 1:
-                num_i[n] +=1
-            else:
-                num_e[n] +=1
+    num_i[n] = pop.num_of_positives()
+    num_e[n] = pop.num_of_negatives()
 
     timer.end()
 

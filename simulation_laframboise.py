@@ -44,8 +44,8 @@ Inorm = np.sqrt(8*np.pi)/Rp
 
 # Initialize particle positions and velocities, and populate the domain
 pop = Population(mesh, boundaries)
-pop.init_new_specie('electron', ext_bnd, normalization='particle scaling', v_thermal=1./Rp, num_per_cell=npc)
-pop.init_new_specie('proton', ext_bnd,   normalization='particle scaling', v_thermal=1./(np.sqrt(1836.)*Rp), num_per_cell=npc)
+pop.init_new_specie('electron', ext_bnd, v_thermal=1./Rp, num_per_cell=npc)
+pop.init_new_specie('proton', ext_bnd,   v_thermal=1./(np.sqrt(1836.)*Rp), num_per_cell=npc)
 dv_inv = voronoi_volume_approx(V)
 
 # Time loop

@@ -12,6 +12,11 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 
+def load_mesh(fname):
+    mesh   = df.Mesh(fname+".xml")
+    boundaries = df.MeshFunction("size_t", mesh, fname+"_facet_region.xml")
+    return mesh, boundaries
+
 def unit_mesh(N):
 	"""
 	Given a list of cell divisions, N, returns a mesh with unit size in each
