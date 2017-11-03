@@ -16,8 +16,8 @@ dt       = 0.1                   # Time step
 npc      = 4
 
 # Get the mesh
-mesh   = df.Mesh('mesh/lafram_coarse.xml')
-boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_coarse_facet_region.xml")
+mesh   = df.Mesh('../mesh/3D/laframboise_sphere_in_cube_res1.xml')
+boundaries = df.MeshFunction("size_t", mesh, "../mesh/3D/laframboise_sphere_in_cube_res1_facet_region.xml")
 # mesh   = df.Mesh('mesh/lafram.xml')
 # boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_facet_region.xml")
 ext_bnd_id = 53
