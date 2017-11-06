@@ -150,10 +150,18 @@ class Object(df.DirichletBC):
         return cell_f
 
 def reset_objects(objects):
+    """
+    Resets the potential for each object.
+    """
     for o in objects:
         o.set_potential(df.Constant(0.0))
 
 def compute_object_potentials(objects, E, inv_cap_matrix, normal, ds):
+    """
+    Calculates the image charges for all the objects, and then computes the 
+    potential for each object by summing over the difference between the 
+    collected and image charges multiplied by the inverse of capacitance matrix.
+    """
     image_charge = [None]*len(objects)
     for i, o in enumerate(objects):
         flux = df.inner(E, -1 * normal) * ds(o._sub_domain)
@@ -164,20 +172,6 @@ def compute_object_potentials(objects, E, inv_cap_matrix, normal, ds):
         for j, p in enumerate(objects):
              object_potential += (p.charge - image_charge[j])*inv_cap_matrix[i,j]
         o.set_potential(df.Constant(object_potential))
-
-def compute_object_potentials_old(q, objects, inv_cap_matrix):
-    """
-    Sets the interpolated charge to the objects, and then computes the object
-    potential by using the inverse of capacitance matrix.
-    """
-    for o in objects:
-        o.compute_interpolated_charge(q)
-
-    for i, o in enumerate(objects):
-        potential = 0.0
-        for j, p in enumerate(objects):
-            potential += (p.charge - p.interpolated_charge)*inv_cap_matrix[i,j]
-        o.set_potential(potential)
 
 class Circuit(object):
     """
