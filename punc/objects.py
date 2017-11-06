@@ -7,6 +7,12 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 
+def get_measure(mesh, boundaries):
+    return df.Measure("ds", domain=mesh, subdomain_data=boundaries)
+
+def get_facet_normal(mesh):
+    return df.FacetNormal(mesh)
+
 class Object(df.DirichletBC):
     """
     An Object is a subdomain of DirichletBC class that represents an electrical
@@ -147,7 +153,19 @@ def reset_objects(objects):
     for o in objects:
         o.set_potential(df.Constant(0.0))
 
-def compute_object_potentials(q, objects, inv_cap_matrix):
+def compute_object_potentials(objects, E, inv_cap_matrix, normal, ds):
+    image_charge = [None]*len(objects)
+    for i, o in enumerate(objects):
+        flux = df.inner(E, -1 * normal) * ds(o._sub_domain)
+        image_charge[i] = df.assemble(flux)
+
+    for i, o in enumerate(objects):
+        object_potential = 0.0
+        for j, p in enumerate(objects):
+             object_potential += (p.charge - image_charge[j])*inv_cap_matrix[i,j]
+        o.set_potential(df.Constant(object_potential))
+
+def compute_object_potentials_old(q, objects, inv_cap_matrix):
     """
     Sets the interpolated charge to the objects, and then computes the object
     potential by using the inverse of capacitance matrix.
