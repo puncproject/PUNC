@@ -9,7 +9,7 @@ __all__ = [ "population",
             "profiling",
             "interior"]
 """
-from punc.injection import *
+from punc.injector import *
 from punc.poisson import *
 from punc.pusher import *
 from punc.distributor import *
