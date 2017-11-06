@@ -16,7 +16,8 @@ npc      = 8
 
 # Get the mesh
 mesh, boundaries = load_mesh("mesh/2D/langmuir_probe_circle_in_square")
-ext_bnd_id = 9
+# mesh, boundaries = load_mesh("mesh/2D/nothing_in_square")
+ext_bnd_id = 9 #5
 int_bnd_id = 10
 
 ext_bnd = ExteriorBoundaries(boundaries, ext_bnd_id)
@@ -38,7 +39,7 @@ inv_cap_matrix = capacitance_matrix(V, poisson, objects, boundaries, ext_bnd_id)
 
 # Probe radius in mesh and debye lengths
 Rp = 1. #0.000145 # m
-Rpd = 5. # debye lengths
+Rpd = 1. # debye lengths
 debye = Rp/Rpd
 vthe = debye
 vthi = debye/np.sqrt(1836.)
@@ -64,7 +65,7 @@ KE  = np.zeros(N-1)
 PE  = np.zeros(N-1)
 KE0 = kinetic_energy(pop)
 
-current_collected = -1.549*Inorm
+current_collected = -1.556*Inorm
 # current_collected = 0
 current_measured = np.zeros(N)
 potential = np.zeros(N)
@@ -75,8 +76,8 @@ num_particles_outside = np.zeros(N)
 num_injected_particles = np.zeros(N)
 num_particles[0] = pop.num_of_particles()
 print("num_particles: ", num_particles[0])
-inject(pop, ext_bnd, dt)
-sys.exit()
+#inject(pop, ext_bnd, dt)
+
 timer = TaskTimer(N-1,'compact')
 num_e = np.zeros(N)
 num_i = np.zeros(N)
@@ -109,7 +110,7 @@ for n in range(1,N):
 
     timer.task("Relocating particles")
     old_charge = objects[0].charge
-    pop.relocate(objects)
+    pop.update(objects)
 
     timer.task("Impose current")
     tot_num1 = pop.num_of_particles()

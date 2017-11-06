@@ -15,11 +15,8 @@ N        = 200                   # Total simulation time
 dt       = 0.1                   # Time step
 npc      = 4
 
-# Get the mesh
-mesh   = df.Mesh('mesh/lafram_coarse.xml')
-boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_coarse_facet_region.xml")
-# mesh   = df.Mesh('mesh/lafram.xml')
-# boundaries = df.MeshFunction("size_t", mesh, "mesh/lafram_facet_region.xml")
+# Get the
+mesh, boundaries = load_mesh("mesh/3D/laframboise_sphere_in_cube_res1")
 ext_bnd_id = 53
 int_bnd_id = 54
 
@@ -96,7 +93,7 @@ for n in range(1,N):
 
     timer.task("Relocating particles")
     old_charge = objects[0].charge
-    pop.relocate(objects)
+    pop.update(objects)
 
     timer.task("Impose current")
     tot_num1 = pop.num_of_particles()
