@@ -259,7 +259,7 @@ class ExteriorBoundaries(list):
         area = self.get_area(mesh)
         vertices = self.get_vertices()
         basis = self.get_basis(mesh, vertices)
-
+    
         for i in range(self.num_facets):
             self.append(Facet(area[i],
                               vertices[i*self.g_dim:self.g_dim*(i+1), :],
@@ -455,6 +455,7 @@ def inject(pop, exterior_bnd, dt):
         flux = pop.flux[specie]
         n_p = pop.plasma_density[specie]
         for i, facet in enumerate(exterior_bnd):
+            # print("facet: ", i)
             N = int(n_p*dt*flux.num_particles[i])
 
             if np.random.random() < n_p * dt * flux.num_particles[i] - N:
@@ -471,8 +472,8 @@ def inject(pop, exterior_bnd, dt):
                 new_vs = np.dot(new_vs, facet.basis)
 
                 w_random = np.random.random(len(new_vs))
-                for k in range(dim):
-                    new_xs[:, k] += dt * w_random * new_vs[:, k]
+                # for k in range(dim):
+                #     new_xs[:, k] += dt * w_random * new_vs[:, k]
 
                 for j in range(n):
                     x = new_xs[j, :]
@@ -485,4 +486,16 @@ def inject(pop, exterior_bnd, dt):
                         vs = np.concatenate([vs, v[None, :]])
                     count += 1
 
+        print("xs shape:", xs.shape)
+        import matplotlib.pyplot as plt
+        plt.scatter(xs[:, 0], xs[:, 1])
+        plt.xlim([0, 0.003])
+        plt.ylim([0, 0.003])
+        plt.figure()
+        n, bins, patches = plt.hist(
+            vs[:, 0], 50, normed=1, facecolor='green', alpha=0.75)
+        plt.figure()
+        n, bins, patches = plt.hist(
+            vs[:, 1], 50, normed=1, facecolor='green', alpha=0.75)
+        plt.show()
         pop.add_particles_of_specie(specie, xs, vs)

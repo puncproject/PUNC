@@ -456,7 +456,7 @@ class Population(list):
         self.N.append(self.flux[-1].flux_number(exterior_bnd))
         xs = random_domain_points(pdf, pdf_max, num_total, self.mesh)
         vs = maxwellian(v_thermal, v_drift, xs.shape)
-
+        print("num: ", len(xs))
         # --------Suggestion---------
         # rs = SRS(pdf, pdf_max=pdf_max, Ld=self.Ld)
         # mv = Maxwellian(v_thermal, v_drift, self.periodic)
