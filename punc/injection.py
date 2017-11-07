@@ -9,9 +9,6 @@ import numpy as np
 from scipy.special import erfcinv, erfinv, erf, erfc
 import time
 
-__UINT32_MAX__ = np.iinfo('uint32').max
-
-
 class ORS(object):
     """
     Optimized rejection sampling for strictly convex potential functions.
@@ -184,14 +181,34 @@ class ORS(object):
             vs = np.concatenate([vs, v])
         return vs
 
+def locate(mesh, x):
+    '''
+    Returns the cell id containing the point x in the mesh.
+    Returns -1 if the point is not in the mesh.
+    mesh.init(0, mesh.topology().dim())
+    must be invoked sometime on the mesh before this function can be used.
+    '''
+    tree = mesh.bounding_box_tree()
+    cell_id = tree.compute_first_entity_collision(df.Point(x))
+
+    # cell_id is either -1 or max value of uint32 if the point x is outside
+    # the mesh.
+    if cell_id == np.iinfo('uint32').max: cell_id = -1
+    return cell_id
+
 def create_mesh_pdf(pdf, mesh):
 
     mesh.init(0, mesh.topology().dim())
-    tree = mesh.bounding_box_tree()
     def mesh_pdf(x):
-        cell_id = tree.compute_first_entity_collision(df.Point(*x))
-        inside_mesh = int(cell_id != __UINT32_MAX__ and cell_id != -1)
+        inside_mesh = locate(mesh,x) >= 0
         return inside_mesh * pdf(x)
+
+    # mesh.init(0, mesh.topology().dim())
+    # tree = mesh.bounding_box_tree()
+    # def mesh_pdf(x):
+    #     cell_id = tree.compute_first_entity_collision(df.Point(*x))
+    #     inside_mesh = int(cell_id != __UINT32_MAX__ and cell_id != -1)
+    #     return inside_mesh * pdf(x)
 
     return mesh_pdf
 
@@ -259,7 +276,7 @@ class ExteriorBoundaries(list):
         area = self.get_area(mesh)
         vertices = self.get_vertices()
         basis = self.get_basis(mesh, vertices)
-    
+
         for i in range(self.num_facets):
             self.append(Facet(area[i],
                               vertices[i*self.g_dim:self.g_dim*(i+1), :],
@@ -479,7 +496,7 @@ def inject(pop, exterior_bnd, dt):
                     x = new_xs[j, :]
                     v = new_vs[j, :]
                     # cell_id = pop.locate_old(x)
-                    # if cell_id != __UINT32_MAX__ and cell_id != -1:
+                    # if cell_id != np.iinfo('uint32').max and cell_id != -1:
                     cell_id = pop.locate(x)
                     if cell_id >= 0:
                         xs = np.concatenate([xs, x[None, :]])

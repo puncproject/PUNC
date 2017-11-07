@@ -18,13 +18,9 @@ from mpi4py import MPI as pyMPI
 from collections import defaultdict
 from itertools import count
 from punc.poisson import get_mesh_size
-# from punc.injector import create_mesh_pdf, SRS, Maxwellian
-from punc.injection import create_mesh_pdf, Flux, maxwellian, random_domain_points
+from punc.injection import create_mesh_pdf, Flux, maxwellian, random_domain_points, locate
 
 comm = pyMPI.COMM_WORLD
-
-# collisions tests return this value or -1 if there is no collision
-__UINT32_MAX__ = np.iinfo('uint32').max
 
 class Particle(object):
     __slots__ = ('x', 'v', 'q', 'm')
@@ -524,7 +520,10 @@ class Population(list):
             if cell_id >=0:
                 self[cell_id].append(Particle(x, v, q, m))
 
-    def locate(self, p, cell_id=0):
+    def locate(self, x):
+        return locate(self.mesh, x)
+
+    def relocate(self, p, cell_id):
 
         cell = df.Cell(self.mesh, cell_id)
         if cell.contains(df.Point(*p)):
@@ -538,11 +537,11 @@ class Population(list):
             projarg = np.argmax(proj)
             new_cell_id = self.facet_adjacents[cell_id][projarg]
             if new_cell_id>=0:
-                return self.locate(p, new_cell_id)
+                return self.relocate(p, new_cell_id)
             else:
                 return new_cell_id # crossed a boundary
 
-    def relocate(self, objects = None):
+    def update(self, objects = None):
 
         if objects == None: objects = []
 
@@ -558,7 +557,7 @@ class Population(list):
 
             for particle_id, particle in enumerate(cell):
 
-                new_cell_id = self.locate(particle.x, cell_id)
+                new_cell_id = self.relocate(particle.x, cell_id)
 
                 if new_cell_id != cell_id:
 
@@ -636,7 +635,7 @@ class Population(list):
                 else:
                     self[old_cell_id].pop()
 
-                if new_cell_id == -1 or new_cell_id == __UINT32_MAX__ :
+                if new_cell_id == -1 or new_cell_id == np.iinfo('uint32').max:
                     list_of_escaped_particles.append(particle)
                 else:
 #                   p_map += self.mesh, new_cell_id, particle
