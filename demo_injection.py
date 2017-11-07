@@ -8,13 +8,12 @@ import dolfin as df
 import numpy as np
 from punc import *
 
-from mesh import *
 from matplotlib import pyplot as plt
 
 # Simulation parameters
 tot_time = 100                   # Total simulation time
 dim      = 2
-dt       = 0.001              # Time step
+dt       = 0.1              # Time step
 v_thermal = .2
 
 debug = True
@@ -71,13 +70,15 @@ num_i[0] = num_particles[0] / 2
 for n in range(1,N):
     if debug:
         print("Computing timestep %d/%d"%(n,N-1))
+   
     # Total number of particles before injection:
     tot_num0 = pop.num_of_particles()
+   
     # Move the particles:
-    # move(pop, Ld, dt)
     move(pop,dt)
-    # Relocate particles:
-    pop.relocate()
+   
+    # Update particle positions:
+    pop.update()
 
     tot_num1 = pop.num_of_particles()
     # Total number of particles leaving the domain:
@@ -90,28 +91,32 @@ for n in range(1,N):
     # Total number of injected particles:
     num_injected_particles[n] = tot_num2 - tot_num1
 
+    # Number of ions and electrons in the domian.
     num_i[n] = pop.num_of_positives()
     num_e[n] = pop.num_of_negatives()
     # The total kinetic energy:
     KE[n] = kinetic_energy(pop)
+
+    # Total number of particles in the domain
+    num_particles[n] = pop.num_of_particles()
     if debug:
         print("Total number of particles in the domain: ", tot_num2)
 
 KE[0] = KE0
 
 if plot:
-    # to_file = open('injection.txt', 'w')
-    # for i,j,k,l in zip(num_particles, num_injected_particles, num_particles_outside, KE):
-    #     to_file.write("%f %f %f %f\n" %(i, j, k, l))
-    # to_file.close()
+    to_file = open('injection.txt', 'w')
+    for i,j,k,l in zip(num_particles, num_injected_particles, num_particles_outside, KE):
+        to_file.write("%f %f %f %f\n" %(i, j, k, l))
+    to_file.close()
 
     plt.figure()
-    plt.plot(num_particles,label="Total number denisty")
+    plt.plot(num_particles,label="Total number of particles")
     plt.legend(loc='lower right')
     plt.grid()
     plt.xlabel("Timestep")
     plt.ylabel("Total number denisty")
-    # plt.savefig('total_num.png')
+    plt.savefig('total_num.png')
 
     plt.figure()
     plt.plot(num_injected_particles[1:], label="Number of injected particles")
@@ -120,7 +125,7 @@ if plot:
     plt.grid()
     plt.xlabel("Timestep")
     plt.ylabel("Number of particles")
-    # plt.savefig('injected.png')
+    plt.savefig('injected.png')
 
     plt.figure()
     plt.plot(KE,label="Kinetic Energy")
@@ -128,9 +133,8 @@ if plot:
     plt.grid()
     plt.xlabel("Timestep")
     plt.ylabel("Normalized Energy")
-    # plt.savefig('kineticEnergy.png')
+    plt.savefig('kineticEnergy.png')
     
-
     plt.figure()
     plt.plot(num_i, label="Number of ions")
     plt.plot(num_e, label="Number of electrons")
@@ -138,6 +142,6 @@ if plot:
     plt.grid()
     plt.xlabel("Timestep")
     plt.ylabel("Number of particles")
-    # plt.savefig('e_i_numbers.png', format='png', dpi=1000)
+    plt.savefig('e_i_numbers.png', format='png', dpi=1000)
 
     plt.show()

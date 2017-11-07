@@ -10,8 +10,26 @@ import matplotlib.pyplot as plt
 
 E0 = 0.007  # The strength of the electric field
 B0 = 1.     # The strength of the magnetic field
-mesh = df.BoxMesh(df.Point(0,0,0), df.Point(2,2,2),10,10,5) # The mesh
+
 Ld = [2., 2., 2.]               # The simulation domain
+N = [10, 10, 5]
+
+# Get the mesh
+mesh = simple_mesh(Ld, N)  # Get the mesh
+Ld = get_mesh_size(mesh)  # Get the size of the simulation domain
+
+class ExtBnd(df.SubDomain):
+    def inside(self, x, on_boundary):
+        return on_boundary
+
+facet_func = df.FacetFunction('size_t', mesh)
+facet_func.set_all(0)
+ext_bnd_id = 1
+
+bnd = ExtBnd()
+bnd.mark(facet_func, ext_bnd_id)
+
+exterior_bnd = ExteriorBoundaries(facet_func, ext_bnd_id)
 
 xs = np.array([[1.0, 0.5, 0.5]]) # Initial position
 vs = np.array([[0.1, 0., 0.]])   # Initial velocity
@@ -21,8 +39,8 @@ m = .05 # Particle mass
 Np = 1*mesh.num_cells()
 mul = (np.prod(Ld)/np.prod(Np))
 
-pop = Population(mesh)
-pop.add_particles(xs,vs,q*mul,m*mul) # Add particle to population calss
+pop = Population(mesh, facet_func, normalization='none')
+pop.add_particles(xs,vs,q*mul,m*mul) # Add particle to population
 
 V = df.VectorFunctionSpace(mesh, 'CG', 1) # The vector function space
 
@@ -35,7 +53,7 @@ B = df.interpolate(df.Expression(("0", "0",
                                   "B0*pow(pow((x[0]-1),2)+pow((x[1]-1),2),0.5)"),
                                    B0 = B0, degree=3),V)
 
-# df.plot(B0)
+# df.plot(B)
 # df.plot(E)
 # df.interactive()
 #-------------------------------------------------------------------------------
@@ -51,7 +69,7 @@ for n in range(1,N):
     print("t: ", n)
     KE[n-1] = boris(pop,E,B,(1-0.5*(n==1))*dt)
     move_periodic(pop, Ld, dt)
-    pop.relocate()
+    pop.update()
 
     for cell in pop:
         for particle in cell:
@@ -59,11 +77,12 @@ for n in range(1,N):
 KE[0] = KE0
 
 fig = plt.figure()
-plt.plot(pos[:,0],pos[:,1])
+plt.plot(pos[:,0],pos[:,1], label='Particle trajectory')
 plt.xlim([0,2])
 plt.ylim([0,2])
-#plt.axis([0, 2, 0, 2])
+plt.grid()
 plt.axis('equal')
 plt.xlabel('x')
 plt.ylabel('y')
+plt.legend(loc='lower right')
 plt.show()
