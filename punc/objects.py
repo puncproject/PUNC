@@ -1,3 +1,20 @@
+# Copyright (C) 2017, Sigvald Marholm and Diako Darian
+#
+# This file is part of PUNC.
+#
+# PUNC is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# PUNC is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# PUNC.  If not, see <http://www.gnu.org/licenses/>.
+
 from __future__ import print_function, division
 import sys
 if sys.version_info.major == 2:
@@ -159,8 +176,8 @@ def reset_objects(objects):
 
 def compute_object_potentials(objects, E, inv_cap_matrix, normal, ds):
     """
-    Calculates the image charges for all the objects, and then computes the 
-    potential for each object by summing over the difference between the 
+    Calculates the image charges for all the objects, and then computes the
+    potential for each object by summing over the difference between the
     collected and image charges multiplied by the inverse of capacitance matrix.
     """
     image_charge = [None]*len(objects)
@@ -292,10 +309,10 @@ def solve_laplace(V, poisson, objects, boundaries, ext_bnd_id):
          poisson          : Poisson solver
          objects          : A list containing all the objects
          boundaries       : DOLFIN MeshFunction over facet regions
-         ext_bnd_id       : The number given to the exterior facet regions 
-                            in gmsh 
+         ext_bnd_id       : The number given to the exterior facet regions
+                            in gmsh
     returns:
-            A list of calculated electric fields for every surface component 
+            A list of calculated electric fields for every surface component
             (object).
     """
 
@@ -335,8 +352,8 @@ def capacitance_matrix(V, poisson, objects, boundaries, bnd_id):
           poisson          : Poisson solver
           objects          : A list containing all the objects
           boundaries       : DOLFIN MeshFunction over facet regions
-          bnd_id           : The number given to the exterior facet regions 
-                             in gmsh 
+          bnd_id           : The number given to the exterior facet regions
+                             in gmsh
     returns:
             The inverse of the mutual capacitance matrix
     """
