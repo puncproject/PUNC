@@ -10,14 +10,13 @@ import matplotlib.pyplot as plt
 from punc import *
 
 # Simulation parameters
-N        = 300                   # Total simulation time
-dt       = 0.1                   # Time step
-npc      = 8
+N        = 800                   # Total simulation time
+dt       = 0.15                  # Time step
+npc      = 4
 
 # Get the mesh
 mesh, boundaries = load_mesh("mesh/2D/langmuir_probe_circle_in_square")
-# mesh, boundaries = load_mesh("mesh/2D/nothing_in_square")
-ext_bnd_id = 9 #5
+ext_bnd_id = 9
 int_bnd_id = 10
 
 ext_bnd = ExteriorBoundaries(boundaries, ext_bnd_id)
@@ -35,7 +34,9 @@ normal = df.FacetNormal(mesh)
 poisson = PoissonSolver(V, bc)
 
 # The inverse of capacitance matrix
+cap_factor = 2.0
 inv_cap_matrix = capacitance_matrix(V, poisson, objects, boundaries, ext_bnd_id)
+inv_cap_matrix /= cap_factor
 
 # Probe radius in mesh and debye lengths
 Rp = 1. #0.000145 # m
@@ -66,7 +67,7 @@ PE  = np.zeros(N-1)
 KE0 = kinetic_energy(pop)
 
 current_collected = -1.556*Inorm
-# current_collected = 0
+# current_collected = -0.8*Inorm
 current_measured = np.zeros(N)
 potential = np.zeros(N)
 particles = np.zeros(N)
