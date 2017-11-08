@@ -12,6 +12,11 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 
+def load_mesh(fname):
+    mesh   = df.Mesh(fname+".xml")
+    boundaries = df.MeshFunction("size_t", mesh, fname+"_facet_region.xml")
+    return mesh, boundaries
+
 def unit_mesh(N):
 	"""
 	Given a list of cell divisions, N, returns a mesh with unit size in each
@@ -185,6 +190,7 @@ class PoissonSolver(object):
         self.solver.parameters['absolute_tolerance'] = 1e-14
         self.solver.parameters['relative_tolerance'] = 1e-12
         self.solver.parameters['maximum_iterations'] = 1000
+        self.solver.parameters['nonzero_initial_guess'] = True
 
         phi = df.TrialFunction(V)
         phi_ = df.TestFunction(V)

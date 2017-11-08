@@ -7,23 +7,24 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 import matplotlib.pyplot as plt
-import cProfile as prof
 from punc import *
 
 # Simulation parameters
-N        = 200                   # Total simulation time
-dt       = 0.1                   # Time step
+N        = 800                   # Total simulation time
+dt       = 0.15                  # Time step
 npc      = 4
 
 # Get the mesh
-mesh, boundaries = load_mesh("mesh/3D/laframboise_sphere_in_cube_res1")
-ext_bnd_id = 53
-int_bnd_id = 54
+mesh, boundaries = load_mesh("mesh/2D/langmuir_probe_circle_in_square")
+ext_bnd_id = 9
+int_bnd_id = 10
 
 ext_bnd = ExteriorBoundaries(boundaries, ext_bnd_id)
+
 V = df.FunctionSpace(mesh, 'CG', 1)
 
 bc = df.DirichletBC(V, df.Constant(0.0), boundaries, ext_bnd_id)
+
 objects = [Object(V, int_bnd_id, boundaries)]
 
 ds = df.Measure("ds", domain=mesh, subdomain_data=boundaries)
@@ -32,25 +33,41 @@ normal = df.FacetNormal(mesh)
 # Get the solver
 poisson = PoissonSolver(V, bc)
 
-# The inverse of the capacitance matrix
+# The inverse of capacitance matrix
+cap_factor = 2.0
 inv_cap_matrix = capacitance_matrix(V, poisson, objects, boundaries, ext_bnd_id)
+inv_cap_matrix /= cap_factor
 
-Rp = 1.
-Vnorm = Rp**(-2)
-Inorm = np.sqrt(8*np.pi)/Rp
+# Probe radius in mesh and debye lengths
+Rp = 1. #0.000145 # m
+Rpd = 1. # debye lengths
+debye = Rp/Rpd
+vthe = debye
+vthi = debye/np.sqrt(1836.)
+
+Vnorm = debye**2
+Inorm = vthe*np.sqrt(2*np.pi)
 
 # Initialize particle positions and velocities, and populate the domain
-pop = Population(mesh, boundaries)
-pop.init_new_specie('electron', ext_bnd, v_thermal=1./Rp, num_per_cell=npc)
-pop.init_new_specie('proton', ext_bnd,   v_thermal=1./(np.sqrt(1836.)*Rp), num_per_cell=npc)
+pop = Population(mesh, boundaries, normalization='particle scaling')
+pop.init_new_specie('electron', ext_bnd, v_thermal=vthe, num_per_cell=npc)
+pop.init_new_specie('proton',   ext_bnd, v_thermal=vthi, num_per_cell=npc)
+
+
+# boltzmann = 1.38064852e-23 # J/K
+# pfreq =
+# denorm = pop.species.get_denorm(pfreq, debye, debye)
+# Vnorm = denorm['V']
+# Inorm = denorm['I']
+
 dv_inv = voronoi_volume_approx(V)
 
-# Time loop
 KE  = np.zeros(N-1)
 PE  = np.zeros(N-1)
 KE0 = kinetic_energy(pop)
 
-current_collected = -1.987*Inorm
+current_collected = -1.556*Inorm
+# current_collected = -0.8*Inorm
 current_measured = np.zeros(N)
 potential = np.zeros(N)
 particles = np.zeros(N)
@@ -59,6 +76,7 @@ num_particles = np.zeros(N)
 num_particles_outside = np.zeros(N)
 num_injected_particles = np.zeros(N)
 num_particles[0] = pop.num_of_particles()
+print("num_particles: ", num_particles[0])
 
 timer = TaskTimer(N-1,'compact')
 num_e = np.zeros(N)
@@ -77,7 +95,6 @@ for n in range(1,N):
     E       = electric_field(phi)
     obj_flux = df.inner(E, -1*normal)*ds(0)
     image_charge = df.assemble(obj_flux)
-
     object_potential = (objects[0].charge-image_charge)*inv_cap_matrix[0,0]
     objects[0].set_potential(df.Constant(object_potential))
 

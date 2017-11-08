@@ -8,93 +8,97 @@ import dolfin as df
 import numpy as np
 from punc import *
 
-from mesh import *
 from matplotlib import pyplot as plt
 
 # Simulation parameters
-tot_time = 1000                   # Total simulation time
+tot_time = 100                   # Total simulation time
 dim      = 2
-dt       = 0.001              # Time step
-v_thermal = 1.0
+dt       = 0.1              # Time step
+v_thermal = .2
 
 debug = True
 plot = True
 
 if dim == 2:
     v_drift  = np.array([0.0, 0.0])  # Drift velocity
-    Ld = [2.0, 2.0]
-    N = [30, 30]
-    periodic = [False, False]
+    Ld = [6.0, 6.0]
+    N = [16, 16]
 elif dim == 3:
     v_drift  = np.array([0.0, 0.0, 0.0])  # Drift velocity
     Ld = [np.pi, np.pi, np.pi]
     N = [5,5,5]
-    periodic = [False, False, False]
 
 # Get the mesh
 mesh = simple_mesh(Ld, N) # Get the mesh
 Ld = get_mesh_size(mesh)  # Get the size of the simulation domain
 
-# Create boundary conditions and function space
-# bnd      = NonPeriodicBoundary(Ld, periodic)
-# V        = df.FunctionSpace(mesh, "CG", 1)
+class ExtBnd(df.SubDomain):
+    def inside(self, x, on_boundary):
+        return on_boundary
 
+facet_func = df.FacetFunction('size_t', mesh)
+facet_func.set_all(0)
+ext_bnd_id = 1
+
+bnd = ExtBnd()
+bnd.mark(facet_func, ext_bnd_id)
+
+exterior_bnd = ExteriorBoundaries(facet_func, ext_bnd_id)
 
 # Initialize particle positions and velocities, and populate the domain
-pop = Population(mesh, periodic)
-pop.init_new_specie('electron', v_drift=v_drift, v_thermal=v_thermal, num_per_cell=32)
-pop.init_new_specie('proton', v_drift=v_drift, v_thermal=v_thermal, num_per_cell=32)
-
-mv = Move(pop, dt)
-
-volume = df.assemble(1*df.dx(mesh))
-
-injection = []
-num_total = 0
-# n_plasma = [None]*2
-for i in range(len(pop.species)):
-    # n_plasma[i] = pop.species[i].num_total
-    # weight = pop.species.weight
-    num_total += pop.species[i].num_total
-    injection.append(Injector(pop, i, dt))
+pop = Population(mesh, facet_func, normalization='none')
+pop.init_new_specie('electron', exterior_bnd, v_drift=v_drift,
+                    v_thermal=v_thermal, num_per_cell=32)
+pop.init_new_specie('proton', exterior_bnd, v_drift=v_drift,
+                    v_thermal=v_thermal, num_per_cell=32)
 
 # Time loop
 N   = tot_time
 KE  = np.zeros(N)
 KE0 = kinetic_energy(pop)
-
 num_particles = np.zeros(N)
 num_particles_outside = np.zeros(N)
 num_injected_particles = np.zeros(N)
+num_particles[0] = pop.num_of_particles()
+print("num_particles: ", num_particles[0])
 
-num_particles[0] = pop.total_number_of_particles()[0]/volume
+num_e = np.zeros(N)
+num_i = np.zeros(N)
+num_e[0] = num_particles[0] / 2
+num_i[0] = num_particles[0] / 2
 
 for n in range(1,N):
     if debug:
         print("Computing timestep %d/%d"%(n,N-1))
+   
     # Total number of particles before injection:
-    tot_num0 = pop.total_number_of_particles()[0]
+    tot_num0 = pop.num_of_particles()
+   
     # Move the particles:
-    # move(pop, Ld, dt)
-    mv.move()
-    # Relocate particles:
-    pop.relocate(open_bnd = True)
+    move(pop,dt)
+   
+    # Update particle positions:
+    pop.update()
 
-    tot_num1 = pop.total_number_of_particles()[0]
+    tot_num1 = pop.num_of_particles()
     # Total number of particles leaving the domain:
     num_particles_outside[n] = tot_num0 -tot_num1
 
     # Inject particles:
-    for inj in injection:
-        inj.inject()
+    inject(pop, exterior_bnd, dt)
 
-    tot_num2 = pop.total_number_of_particles()[0]
+    tot_num2 = pop.num_of_particles()
     # Total number of injected particles:
     num_injected_particles[n] = tot_num2 - tot_num1
-    # Total number of particles after injection:
-    num_particles[n] = tot_num2/volume
+
+    # Number of ions and electrons in the domian.
+    num_i[n] = pop.num_of_positives()
+    num_e[n] = pop.num_of_negatives()
     # The total kinetic energy:
     KE[n] = kinetic_energy(pop)
+
+    # Total number of particles in the domain
+    num_particles[n] = pop.num_of_particles()
     if debug:
         print("Total number of particles in the domain: ", tot_num2)
 
@@ -107,7 +111,7 @@ if plot:
     to_file.close()
 
     plt.figure()
-    plt.plot(num_particles,label="Total number denisty")
+    plt.plot(num_particles,label="Total number of particles")
     plt.legend(loc='lower right')
     plt.grid()
     plt.xlabel("Timestep")
@@ -130,4 +134,14 @@ if plot:
     plt.xlabel("Timestep")
     plt.ylabel("Normalized Energy")
     plt.savefig('kineticEnergy.png')
+    
+    plt.figure()
+    plt.plot(num_i, label="Number of ions")
+    plt.plot(num_e, label="Number of electrons")
+    plt.legend(loc='lower right')
+    plt.grid()
+    plt.xlabel("Timestep")
+    plt.ylabel("Number of particles")
+    plt.savefig('e_i_numbers.png', format='png', dpi=1000)
+
     plt.show()

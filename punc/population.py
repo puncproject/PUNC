@@ -18,13 +18,9 @@ from mpi4py import MPI as pyMPI
 from collections import defaultdict
 from itertools import count
 from punc.poisson import get_mesh_size
-# from punc.injector import create_mesh_pdf, SRS, Maxwellian
-from punc.injection import create_mesh_pdf, Flux, maxwellian, random_domain_points
+from punc.injection import create_mesh_pdf, Flux, maxwellian, random_domain_points, locate
 
 comm = pyMPI.COMM_WORLD
-
-# collisions tests return this value or -1 if there is no collision
-__UINT32_MAX__ = np.iinfo('uint32').max
 
 class Particle(object):
     __slots__ = ('x', 'v', 'q', 'm')
@@ -201,45 +197,9 @@ class Species(list):
         self.weight = 1
 
     def normalize_plasma_params(self, s):
+        print('plasma params normalization')
         if s.num_total == None:
             s.num_total = s.num_per_cell * self.num_cells
-            #print("num_tot: ", s.num_total)
-
-        ref = self[0]
-        w_pe = 1
-        self.weight = (w_pe**2) \
-               * (self.volume/ref.num_total) \
-               * (ref.mass_raw/ref.charge_raw**2)
-
-        s.charge = self.weight*s.charge_raw
-        s.mass = self.weight*s.mass_raw
-
-        if ref.temperature_raw != None:
-            assert s.temperature_raw != None, \
-                "Specify temperature for all or none species"
-
-            ref.v_thermal = 1
-            for s in self:
-                s.v_thermal = ref.v_thermal*np.sqrt( \
-                    (s.temperature_raw/ref.temperature_raw) * \
-                    (ref.mass_raw/s.mass_raw) )
-        elif s.v_thermal_raw == 0:
-            s.v_thermal = 0
-        else:
-            s.v_thermal = s.v_thermal_raw/ref.v_thermal_raw
-
-        if (isinstance(s.v_drift_raw, np.ndarray) and \
-           all(i == 0 for i in s.v_drift_raw) ):
-            s.v_drift = np.zeros((s.v_drift_raw.shape))
-        elif isinstance(s.v_drift_raw, (float,int)) and s.v_drift_raw==0:
-            s.v_drift = 0
-        else:
-            s.v_drift = s.v_drift_raw/ref.v_thermal_raw
-
-    def normalize_plasma_params(self, s):
-        if s.num_total == None:
-            s.num_total = s.num_per_cell * self.num_cells
-            #print("num_tot: ", s.num_total)
 
         ref = self[0]
         w_pe = 1
@@ -273,9 +233,9 @@ class Species(list):
             s.v_drift = s.v_drift_raw/ref.v_thermal_raw
 
     def normalize_particle_scaling(self, s):
+        print('particle scaling normalization')
         if s.num_total == None:
             s.num_total = s.num_per_cell * self.num_cells
-            #print("num_tot: ", s.num_total)
 
         ref = self[0]
         w_pe = 1
@@ -291,6 +251,34 @@ class Species(list):
 
         s.v_thermal = s.v_thermal_raw
         s.v_drift   = s.v_drift_raw
+
+    def get_denorm(phys_pfreq, phys_debye, sim_debye):
+        """
+        Returns a dictionary of multiplicative factors which can be used to
+        dimensionalize simulation units to SI units. The input is the physical
+        angular plasma frequency [rad/s], the physical debye length [m] as well
+        as how long a debye length is in the units of the mesh.
+        """
+        electron_mass = 9.10938188e-31 # kg
+        elementary_charge = 1.60217646e-19 # C
+        vacuum_permittivity = 8.854187817e-12 # F/m
+
+        ref = self[0]
+        ref_charge_SI = elementary_charge*ref.charge_raw
+        ref_mass_SI = electron_mass*ref.mass_raw
+        qm_ratio = (ref.charge/ref.mass)/(ref_charge_SI/ref_mass_SI)
+
+        denorm = dict()
+        denorm['t'] = 1./phys_pfreq
+        denorm['x'] = phys_debye/sim_debye
+        denorm['q'] = ref_charge_SI/ref.charge
+        denorm['m'] = ref_mass_SI/ref.mass
+        denorm['v'] = denorm['x']/denorm['t']
+        denorm['rho'] = qm_ratio*vacuum_permittivity/(denorm['t']**2)
+        denorm['phi'] = qm_ratio*(denorm['x']/denorm['t'])**2
+        denorm['V'] = denorm['phi']
+        denorm['I'] = (vacuum_permittivity/qm_ratio)*denorm['x']**3/denorm['t']**4
+        return denorm
 
 class Population(list):
     """
@@ -464,7 +452,7 @@ class Population(list):
         self.N.append(self.flux[-1].flux_number(exterior_bnd))
         xs = random_domain_points(pdf, pdf_max, num_total, self.mesh)
         vs = maxwellian(v_thermal, v_drift, xs.shape)
-
+        print("num: ", len(xs))
         # --------Suggestion---------
         # rs = SRS(pdf, pdf_max=pdf_max, Ld=self.Ld)
         # mv = Maxwellian(v_thermal, v_drift, self.periodic)
@@ -532,7 +520,10 @@ class Population(list):
             if cell_id >=0:
                 self[cell_id].append(Particle(x, v, q, m))
 
-    def locate(self, p, cell_id=0):
+    def locate(self, x):
+        return locate(self.mesh, x)
+
+    def relocate(self, p, cell_id):
 
         cell = df.Cell(self.mesh, cell_id)
         if cell.contains(df.Point(*p)):
@@ -546,11 +537,11 @@ class Population(list):
             projarg = np.argmax(proj)
             new_cell_id = self.facet_adjacents[cell_id][projarg]
             if new_cell_id>=0:
-                return self.locate(p, new_cell_id)
+                return self.relocate(p, new_cell_id)
             else:
                 return new_cell_id # crossed a boundary
 
-    def relocate(self, objects = None):
+    def update(self, objects = None):
 
         if objects == None: objects = []
 
@@ -566,7 +557,7 @@ class Population(list):
 
             for particle_id, particle in enumerate(cell):
 
-                new_cell_id = self.locate(particle.x, cell_id)
+                new_cell_id = self.relocate(particle.x, cell_id)
 
                 if new_cell_id != cell_id:
 
@@ -644,7 +635,7 @@ class Population(list):
                 else:
                     self[old_cell_id].pop()
 
-                if new_cell_id == -1 or new_cell_id == __UINT32_MAX__ :
+                if new_cell_id == -1 or new_cell_id == np.iinfo('uint32').max:
                     list_of_escaped_particles.append(particle)
                 else:
 #                   p_map += self.mesh, new_cell_id, particle
