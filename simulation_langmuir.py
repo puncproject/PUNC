@@ -77,7 +77,6 @@ num_particles_outside = np.zeros(N)
 num_injected_particles = np.zeros(N)
 num_particles[0] = pop.num_of_particles()
 print("num_particles: ", num_particles[0])
-#inject(pop, ext_bnd, dt)
 
 timer = TaskTimer(N-1,'compact')
 num_e = np.zeros(N)

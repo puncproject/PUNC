@@ -472,7 +472,6 @@ def inject(pop, exterior_bnd, dt):
         flux = pop.flux[specie]
         n_p = pop.plasma_density[specie]
         for i, facet in enumerate(exterior_bnd):
-            # print("facet: ", i)
             N = int(n_p*dt*flux.num_particles[i])
 
             if np.random.random() < n_p * dt * flux.num_particles[i] - N:
@@ -515,5 +514,4 @@ def inject(pop, exterior_bnd, dt):
         # n, bins, patches = plt.hist(
         #     vs[:, 1], 50, normed=1, facecolor='green', alpha=0.75)
         # plt.show()
-
         pop.add_particles_of_specie(specie, xs, vs)
