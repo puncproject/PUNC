@@ -75,12 +75,13 @@ for n in range(1,N):
     reset_objects(objects)
     phi     = poisson.solve(rho, objects)
     E       = electric_field(phi)
-    obj_flux = df.inner(E, -1*normal)*ds(0)
-    image_charge = df.assemble(obj_flux)
+    # obj_flux = df.inner(E, -1*normal)*ds(0)
+    # image_charge = df.assemble(obj_flux)
 
-    object_potential = (objects[0].charge-image_charge)*inv_cap_matrix[0,0]
-    objects[0].set_potential(df.Constant(object_potential))
-
+    # object_potential = (objects[0].charge-image_charge)*inv_cap_matrix[0,0]
+    # objects[0].set_potential(df.Constant(object_potential))
+    compute_object_potentials(objects, E, inv_cap_matrix, normal, ds)
+    
     timer.task("Solving Poisson")
     phi     = poisson.solve(rho, objects)
     E       = electric_field(phi)
