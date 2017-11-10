@@ -29,6 +29,11 @@ def load_mesh(fname):
     boundaries = df.MeshFunction("size_t", mesh, fname+"_facet_region.xml")
     return mesh, boundaries
 
+def get_mesh_ids(boundaries):
+    ids = list(set(boundaries.array()))
+    ids.sort()
+    return ids[1], ids[2:]
+
 def unit_mesh(N):
 	"""
 	Given a list of cell divisions, N, returns a mesh with unit size in each

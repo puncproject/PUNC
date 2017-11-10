@@ -16,19 +16,19 @@ dt       = 0.15                  # Time step
 npc      = 4
 
 # Get the mesh
-mesh, boundaries = load_mesh("../mesh/2D/langmuir_probe_circle_in_square")
-ext_bnd_id = 9
-int_bnd_id = 10
+mesh, bnd = load_mesh("../mesh/2D/langmuir_probe_circle_in_square")
+ext_bnd_id, int_bnd_ids = get_mesh_ids(bnd)
 
-ext_bnd = ExteriorBoundaries(boundaries, ext_bnd_id)
+ext_bnd = ExteriorBoundaries(bnd, ext_bnd_id)
 
 V = df.FunctionSpace(mesh, 'CG', 1)
 
-bc = df.DirichletBC(V, df.Constant(0.0), boundaries, ext_bnd_id)
+bc = df.DirichletBC(V, df.Constant(0.0), bnd, ext_bnd_id)
 
-objects = [Object(V, int_bnd_id, boundaries)]
+# objects = [Object(V, int_bnd_id, bnd)]
+objects = [Object(V, i, bnd) for i in int_bnd_ids]
 
-ds = df.Measure("ds", domain=mesh, subdomain_data=boundaries)
+ds = df.Measure("ds", domain=mesh, subdomain_data=bnd)
 normal = df.FacetNormal(mesh)
 
 # Get the solver
@@ -36,7 +36,7 @@ poisson = PoissonSolver(V, bc)
 
 # The inverse of capacitance matrix
 cap_factor = 1.5
-inv_cap_matrix = capacitance_matrix(V, poisson, objects, boundaries, ext_bnd_id)
+inv_cap_matrix = capacitance_matrix(V, poisson, objects, bnd, ext_bnd_id)
 inv_cap_matrix /= cap_factor
 
 # Probe radius in mesh and debye lengths
@@ -50,7 +50,7 @@ Vnorm = debye**2
 Inorm = vthe*np.sqrt(2*np.pi)
 
 # Initialize particle positions and velocities, and populate the domain
-pop = Population(mesh, boundaries, normalization='particle scaling')
+pop = Population(mesh, bnd, normalization='particle scaling')
 
 if os.path.isfile('stop'):
     os.remove('stop')
