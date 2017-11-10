@@ -500,19 +500,6 @@ class Population(list):
         my_found = np.zeros(len(xs), np.int)
         all_found = np.zeros(len(xs), np.int)
 
-        # for i, x, v, q, m in zip(count(), xs, vs, qs, ms):
-        #     cell = self.locate_old(x)
-        #     if not (cell == -1 or cell == __UINT32_MAX__):
-        #         my_found[i] = True
-        #         self[cell].append(Particle(x, v, q, m))
-        #
-        # # All particles must be found on some process
-        # comm.Reduce(my_found, all_found, root=0)
-
-        # if self.myrank == 0:
-        #     n_missing = len(np.where(all_found == 0)[0])
-        #     assert n_missing==0,'%d particles are not located in mesh'%n_missing
-
         for i, x, v, q, m in zip(count(), xs, vs, qs, ms):
             cell_id = self.locate(x)
             if cell_id >=0:
@@ -595,123 +582,6 @@ class Population(list):
         # for o, c in zip(objects, collected_charge):
         #     o.charge += c
 
-    def relocate_old(self, objects = [], open_bnd = False):
-        """
-        Relocate particles on cells and processors
-        map such that map[old_cell] = [(new_cell, particle_id), ...]
-        i.e. new destination of particles formerly in old_cell
-        """
-        new_cell_map = defaultdict(list)
-        for df_cell in df.cells(self.mesh):
-            c_index = df_cell.index()
-            cell = self[c_index]
-            for i, particle in enumerate(cell):
-                point = df.Point(*particle.x)
-                # Search only if particle moved outside original cell
-                if not df_cell.contains(point):
-                    found = False
-                    # Check neighbor cells
-                    for neighbor in self.neighbors[df_cell.index()]:
-                        if df.Cell(self.mesh,neighbor).contains(point):
-                            new_cell_id = neighbor
-                            found = True
-                            break
-                    # Do a completely new search if not found by now
-                    if not found:
-                        new_cell_id = self.locate_old(particle)
-                    # Record to map
-                    new_cell_map[df_cell.index()].append((new_cell_id, i))
-
-        # Rebuild locally the particles that end up on the process. Some
-        # have cell_id == -1, i.e. they are on other process
-        list_of_escaped_particles = []
-        for old_cell_id, new_data in new_cell_map.items():
-            # We iterate in reverse becasue normal order would remove some
-            # particle this shifts the whole list!
-            for (new_cell_id, i) in sorted(new_data,
-                                           key=lambda t: t[1],
-                                           reverse=True):
-#               particle = p_map.pop(old_cell_id, i)
-
-                particle = self[old_cell_id][i]
-                # Delete particle in old cell, fill gap by last element
-                if not i==len(self[old_cell_id])-1:
-                    self[old_cell_id][i] = self[old_cell_id].pop()
-                else:
-                    self[old_cell_id].pop()
-
-                if new_cell_id == -1 or new_cell_id == np.iinfo('uint32').max:
-                    list_of_escaped_particles.append(particle)
-                else:
-#                   p_map += self.mesh, new_cell_id, particle
-                    self[new_cell_id].append(particle)
-
-        # Create a list of how many particles escapes from each processor
-        self.my_escaped_particles[0] = len(list_of_escaped_particles)
-        # Make all processes aware of the number of escapees
-        comm.Allgather(self.my_escaped_particles, self.tot_escaped_particles)
-
-        # Send particles to root
-        if self.myrank != 0:
-            for particle in list_of_escaped_particles:
-                particle.send(0)
-
-        # Receive the particles escaping from other processors
-        if self.myrank == 0:
-            for proc in self.other_processes:
-                for i in range(self.tot_escaped_particles[proc]):
-                    self.particle0.recv(proc)
-                    list_of_escaped_particles.append(copy.deepcopy(self.particle0))
-
-        """
-        The escaped particles are handled in the following way:
-        For each particle in the list, if it's outside the simulation domain,
-        it's removed from the population. Otherwise, the particle must be inside
-        one of the objects. For each object if the particle is inside or at the
-        boundary of the object, the electric charge of the particle is added to
-        the accumulated charge of the object, and then it is removed from the
-        simulation.
-        """
-        if ((len(objects) != 0) or open_bnd):
-            # print("WTF")
-            particles_outside_domain = set()
-            for i in range(len(list_of_escaped_particles)):
-                # print("missing: ", len(list_of_escaped_particles))
-                particle = list_of_escaped_particles[i]
-                x = particle.x
-                q = particle.q
-
-                for j in range(self.g_dim):
-                    if self.periodic[j]:
-                        x[j] %= self.Ld[j]
-                    elif x[j] < 0.0 or x[j] > self.Ld[j]:
-                        particles_outside_domain.update([i])
-                        break
-
-                # if open_bnd:
-                #     for (j,l) in enumerate(self.Ld):
-                #         if x[j] < 0.0 or x[j] > l:
-                #             particles_outside_domain.update([i])
-                #             break
-
-                for o in objects:
-                    if o.inside(x, True):
-                        o.add_charge(q)
-                        particles_outside_domain.update([i])
-                        break
-
-            particles_outside_domain = list(particles_outside_domain)
-
-            # Remove particles inside the object
-            for i in reversed(particles_outside_domain):
-                p = list_of_escaped_particles[i]
-                list_of_escaped_particles.remove(p)
-
-        # Put all travelling particles on all processes, then perform new search
-        travelling_particles = comm.bcast(list_of_escaped_particles, root=0)
-        self.add_particles(travelling_particles)
-
-
     def num_of_particles(self):
         'Return number of particles in total.'
         return sum([len(x) for x in self])
@@ -729,16 +599,6 @@ class Population(list):
         is equivalent to pop.num_of_negatives()
         '''
         return np.sum([np.sum([cond(p) for p in c],dtype=int) for c in self])
-
-    def locate_old(self, particle):
-        'Find mesh cell that contains particle.'
-        assert isinstance(particle, (Particle, np.ndarray))
-        if isinstance(particle, Particle):
-                    # Convert particle to point
-            point = df.Point(*particle.x)
-        else:
-            point = df.Point(*particle)
-        return self.tree.compute_first_entity_collision(point)
 
     def save_file(self, fname):
         with open(fname, 'w') as datafile:
