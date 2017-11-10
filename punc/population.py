@@ -209,7 +209,6 @@ class Species(list):
         self.weight = 1
 
     def normalize_plasma_params(self, s):
-        print('plasma params normalization')
         if s.num_total == None:
             s.num_total = s.num_per_cell * self.num_cells
 
@@ -245,7 +244,6 @@ class Species(list):
             s.v_drift = s.v_drift_raw/ref.v_thermal_raw
 
     def normalize_particle_scaling(self, s):
-        print('particle scaling normalization')
         if s.num_total == None:
             s.num_total = s.num_per_cell * self.num_cells
 
@@ -456,27 +454,15 @@ class Population(list):
         v_drift = self.species[-1].v_drift
         num_total = self.species[-1].num_total
         self.test.append(num_total)
-        print("number of particles: ", num_total)
-        print("v_thermal: ", v_thermal)
 
         self.plasma_density.append(num_total / self.volume)
         self.flux.append(Flux(v_thermal, v_drift, exterior_bnd))
         self.N.append(self.flux[-1].flux_number(exterior_bnd))
-        xs = random_domain_points(pdf, pdf_max, num_total, self.mesh)
-        vs = maxwellian(v_thermal, v_drift, xs.shape)
-        print("num: ", len(xs))
-        # --------Suggestion---------
-        # rs = SRS(pdf, pdf_max=pdf_max, Ld=self.Ld)
-        # mv = Maxwellian(v_thermal, v_drift, self.periodic)
-        # self.vel.append(mv)
-        # self.plasma_density.append(num_total/self.volume)
-        #
-        # xs = rs.sample(num_total)
-        # vs = mv.load(num_total)
-        #---------------------------
-        # xs = random_points(pdf, self.Ld, num_total, pdf_max)
-        # vs = maxwellian(v_drift, v_thermal, xs.shape)
-        self.add_particles(xs,vs,q,m)
+
+        if not 'empty' in kwargs:
+            xs = random_domain_points(pdf, pdf_max, num_total, self.mesh)
+            vs = maxwellian(v_thermal, v_drift, xs.shape)
+            self.add_particles(xs,vs,q,m)
 
     def add_particles_of_specie(self, specie, xs, vs=None):
         q = self.species[specie].charge
@@ -563,6 +549,9 @@ class Population(list):
         for o,d in enumerate(object_domains):
             object_ids[d] = o
 
+        # This times dt is an accurate measurement of collected current
+        # collected_charge = np.zeros(len(objects))
+
         for cell_id, cell in enumerate(self):
 
             to_delete = []
@@ -584,6 +573,7 @@ class Population(list):
 
                         if -new_cell_id in object_ids:
                             # Particle entered object. Accumulate charge.
+                            # collected_charge[object_ids[-new_cell_id]] += particle.q
                             obj = objects[object_ids[-new_cell_id]]
                             obj.charge += particle.q
                     else:
@@ -601,6 +591,9 @@ class Population(list):
                     # Delete by replacing it by the last element in the list.
                     # More efficient then shifting the whole list.
                     cell[particle_id] = cell.pop()
+
+        # for o, c in zip(objects, collected_charge):
+        #     o.charge += c
 
     def relocate_old(self, objects = [], open_bnd = False):
         """
