@@ -11,7 +11,7 @@ from punc import *
 import os
 
 # Simulation parameters
-N        = 3000                   # Total simulation time
+N        = 10                   # Total simulation time
 dt       = 0.15                  # Time step
 npc      = 4
 
@@ -33,6 +33,7 @@ normal = df.FacetNormal(mesh)
 
 # Get the solver
 poisson = PoissonSolver(V, bc)
+esolver = ESolver(V)
 
 # The inverse of capacitance matrix
 cap_factor = 1.5
@@ -96,21 +97,25 @@ for n in range(nstart, N):
     timer.task("Distribute charge")
     rho = distribute(V, pop, dv_inv)
 
-    timer.task("Calculate object potential")
     reset_objects(objects)
-    phi     = poisson.solve(rho, objects)
-    E       = electric_field(phi)
-    obj_flux = df.inner(E, -1*normal)*ds(0)
-    image_charge = df.assemble(obj_flux)
-    object_potential = (objects[0].charge-image_charge)*inv_cap_matrix[0,0]
-    objects[0].set_potential(df.Constant(object_potential))
+
+    timer.task("Solving potential 1")
+    phi = poisson.solve(rho, objects)
+
+    timer.task("Solving E-field 1")
+    E = esolver.solve(phi)
+
+    timer.task("Calculate object potential")
+    compute_object_potentials(objects, E, inv_cap_matrix, normal, ds)
     potential = objects[0]._potential/Vnorm # at n
 
-    timer.task("Solving potential")
-    phi     = poisson.solve(rho, objects)
+    timer.task("Solving potential 2")
+    phi = poisson.solve(rho, objects)
 
-    timer.task("Solving E-field")
-    E  = electric_field(phi)
+    timer.task("Solving E-field 2")
+    E = esolver.solve(phi)
+
+    timer.task("Computing potential energy")
     PE = potential_energy(pop, phi)
 
     timer.task("Move particles")

@@ -262,6 +262,57 @@ class PoissonSolver(object):
 
         return phi
 
+# Faster than the efield-function
+class ESolver(object):
+    """
+    Solves the E-field Equation on the function space V:
+
+        E = - grad phi
+
+    Example:
+
+        solver = PoissonSolver(V, bcs_stationary)
+        esolver = ESolver(V)
+        phi = solver.solve(rho, bcs)
+        E = esolver.solve(phi)
+
+    solve() can be called multiple times while the stiffness matrix is
+    assembled only in the constructor to save computations.
+    """
+    def __init__(self, V):
+
+        self.V = V
+
+        self.solver = df.PETScKrylovSolver('gmres', 'hypre_amg')
+        self.solver.parameters['absolute_tolerance'] = 1e-14
+        self.solver.parameters['relative_tolerance'] = 1e-12
+        self.solver.parameters['maximum_iterations'] = 1000
+        self.solver.parameters['nonzero_initial_guess'] = True
+
+        # cell = V.mesh().ufl_cell()
+        # W = df.VectorElement("Lagrange", cell, 1)
+        W = df.VectorFunctionSpace(V.mesh(), "CG", 1)
+        # V = FiniteElement("Lagrange", cell, 1)
+        self.W = W
+
+        E = df.TrialFunction(W)
+        E_ = df.TestFunction(W)
+        # phi = Coefficient(V)
+
+        self.a = df.inner(E, E_)*df.dx
+        self.A = df.assemble(self.a)
+        self.E_ = E_
+
+    def solve(self, phi):
+
+        L = df.inner(-df.grad(phi), self.E_)*df.dx
+        b = df.assemble(L)
+
+        E = df.Function(self.W)
+        self.solver.solve(self.A, E.vector(), b)
+
+        return E
+
 def electric_field(phi):
     """
     This function calculates the gradient of the electric potential, which
