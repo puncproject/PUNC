@@ -24,7 +24,8 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 from scipy.special import erfcinv, erfinv, erf, erfc
-import time
+
+df.set_log_active(False)
 
 __UINT32_MAX__ = np.iinfo('uint32').max
 
@@ -200,6 +201,12 @@ class ORS(object):
             v = np.array(v)
             vs = np.concatenate([vs, v])
         return vs
+
+def locate(mesh, x):
+    mesh.init(0, mesh.topology().dim())
+    tree = mesh.bounding_box_tree()
+    cell_id = tree.compute_first_entity_collision(df.Point(*x))
+    return int(cell_id != __UINT32_MAX__ and cell_id != -1)
 
 def create_mesh_pdf(pdf, mesh):
 

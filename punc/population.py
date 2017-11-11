@@ -30,7 +30,7 @@ from mpi4py import MPI as pyMPI
 from collections import defaultdict
 from itertools import count
 from punc.poisson import get_mesh_size
-from punc.injection import create_mesh_pdf, Flux, maxwellian, random_domain_points, locate
+from punc.injector import create_mesh_pdf, Flux, maxwellian, random_domain_points, locate
 
 comm = pyMPI.COMM_WORLD
 
