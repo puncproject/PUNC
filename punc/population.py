@@ -33,7 +33,7 @@ from punc.poisson import get_mesh_size
 from punc.injector import create_mesh_pdf, Flux, maxwellian, random_domain_points, locate
 
 comm = pyMPI.COMM_WORLD
-__UINT32_MAX__ = np.iinfo('uint32').max
+
 class Particle(object):
     __slots__ = ('x', 'v', 'q', 'm')
     def __init__(self, x, v, q, m):
