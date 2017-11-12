@@ -34,27 +34,45 @@ def get_mesh_ids(boundaries):
     ids.sort()
     return ids[1], ids[2:]
 
-def unit_mesh(N):
-	"""
-	Given a list of cell divisions, N, returns a mesh with unit size in each
-	spatial direction.
-	"""
-	d = len(N)
-	mesh_types = [df.UnitIntervalMesh,
-	     		  df.UnitSquareMesh,
-				  df.UnitCubeMesh]
+def unit_mesh(N, ext_bnd_id=1):
+    """
+    Given a list of cell divisions, N, returns a mesh with unit size in each
+    spatial direction.
+    """
+    d = len(N)
+    mesh_types = [df.UnitIntervalMesh, df.UnitSquareMesh, df.UnitCubeMesh]
+    mesh = mesh_types[d-1](*N)
+    facet_func = df.FacetFunction('size_t', mesh)
+    facet_func.set_all(0)
 
-	return mesh_types[d-1](*N)
+    class ExtBnd(df.SubDomain):
+        def inside(self, x, on_boundary):
+            return on_boundary
 
-def simple_mesh(Ld, N):
-	"""
-	Returns a mesh for a given list, Ld, containing the size of domain in each
-	spatial direction, and the corresponding number of cell divisions N.
-	"""
-	d = len(N)
-	mesh_types = [df.RectangleMesh, df.BoxMesh]
+    bnd = ExtBnd()
+    bnd.mark(facet_func, ext_bnd_id)
+    return mesh, facet_func
 
-	return mesh_types[d-2](df.Point(0,0,0), df.Point(*Ld), *N)
+def simple_mesh(Ld, N, ext_bnd_id=1):
+    """
+    Returns a mesh for a given list, Ld, containing the size of domain in each
+    spatial direction, and the corresponding number of cell divisions N.
+    """
+    d = len(N)
+    mesh_types = [df.RectangleMesh, df.BoxMesh]
+
+    mesh = mesh_types[d-2](df.Point(0,0,0), df.Point(*Ld), *N)
+
+    facet_func = df.FacetFunction('size_t', mesh)
+    facet_func.set_all(0)
+
+    class ExtBnd(df.SubDomain):
+        def inside(self, x, on_boundary):
+            return on_boundary
+
+    bnd = ExtBnd()
+    bnd.mark(facet_func, ext_bnd_id)
+    return mesh, facet_func
 
 def get_mesh_size(mesh):
 	"""

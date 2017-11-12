@@ -33,7 +33,7 @@ from punc.poisson import get_mesh_size
 from punc.injector import create_mesh_pdf, Flux, maxwellian, random_domain_points, locate
 
 comm = pyMPI.COMM_WORLD
-
+__UINT32_MAX__ = np.iinfo('uint32').max
 class Particle(object):
     __slots__ = ('x', 'v', 'q', 'm')
     def __init__(self, x, v, q, m):
@@ -302,14 +302,13 @@ class Population(list):
         self.mesh = mesh
         self.Ld = get_mesh_size(mesh)
         self.periodic = periodic
-        # --------Suggestion---------
+       
+        # Particle flux and plasma density     
         self.flux = []
         self.plasma_density = []
         self.N = []
-        self.test = []
         self.volume = df.assemble(1*df.dx(mesh))
-        # -------------------------------
-
+ 
         # Species
         self.species = Species(mesh, normalization)
 
@@ -348,7 +347,7 @@ class Population(list):
         # self.facet_normals[cell_id][facet_number] is the normal vector to a facet
         # self.facet_mids[cell_id][facet_number] is the midpoint on a facet
         # facet_number is a number from 0 to t_dim
-        # TBD: Now all facets are stored redundatly (for each cell)
+        # TBD: Now all facets are stored redundantly (for each cell)
         # Storage could be reduced, but would the performance hit be significant?
 
         self.mesh.init(self.t_dim-1, self.t_dim)
@@ -453,7 +452,6 @@ class Population(list):
         v_thermal = self.species[-1].v_thermal
         v_drift = self.species[-1].v_drift
         num_total = self.species[-1].num_total
-        self.test.append(num_total)
 
         self.plasma_density.append(num_total / self.volume)
         self.flux.append(Flux(v_thermal, v_drift, exterior_bnd))
@@ -581,7 +579,7 @@ class Population(list):
 
         # for o, c in zip(objects, collected_charge):
         #     o.charge += c
-
+    
     def num_of_particles(self):
         'Return number of particles in total.'
         return sum([len(x) for x in self])

@@ -29,19 +29,10 @@ elif dim == 3:
     N = [5,5,5]
 
 # Get the mesh
-mesh = simple_mesh(Ld, N) # Get the mesh
+mesh, facet_func = simple_mesh(Ld, N) # Get the mesh
+ext_bnd_id, int_bnd_ids = get_mesh_ids(facet_func)
+
 Ld = get_mesh_size(mesh)  # Get the size of the simulation domain
-
-class ExtBnd(df.SubDomain):
-    def inside(self, x, on_boundary):
-        return on_boundary
-
-facet_func = df.FacetFunction('size_t', mesh)
-facet_func.set_all(0)
-ext_bnd_id = 1
-
-bnd = ExtBnd()
-bnd.mark(facet_func, ext_bnd_id)
 
 exterior_bnd = ExteriorBoundaries(facet_func, ext_bnd_id)
 
