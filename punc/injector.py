@@ -203,18 +203,25 @@ class ORS(object):
         return vs
 
 def locate(mesh, x):
+    '''
+    Returns the cell id containing the point x in the mesh.
+    Returns -1 if the point is not in the mesh.
     mesh.init(0, mesh.topology().dim())
+    must be invoked sometime on the mesh before this function can be used.
+    '''
     tree = mesh.bounding_box_tree()
-    cell_id = tree.compute_first_entity_collision(df.Point(*x))
-    return int(cell_id != __UINT32_MAX__ and cell_id != -1)
+    cell_id = tree.compute_first_entity_collision(df.Point(x))
+
+    # cell_id is either -1 or max value of uint32 if the point x is outside
+    # the mesh.
+    if cell_id == np.iinfo('uint32').max: cell_id = -1
+    return cell_id
 
 def create_mesh_pdf(pdf, mesh):
 
     mesh.init(0, mesh.topology().dim())
-    tree = mesh.bounding_box_tree()
     def mesh_pdf(x):
-        cell_id = tree.compute_first_entity_collision(df.Point(*x))
-        inside_mesh = int(cell_id != __UINT32_MAX__ and cell_id != -1)
+        inside_mesh = locate(mesh,x) >= 0
         return inside_mesh * pdf(x)
 
     return mesh_pdf
