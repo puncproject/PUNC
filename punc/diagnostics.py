@@ -31,7 +31,7 @@ def kinetic_energy(pop):
     Computes kinetic energy at current velocity time step.
     Useful for the first (zeroth) time step before velocity has between
     advanced half a timestep. To get velocity between two velocity time
-    steps (e.g. at integer steps after the start-up) use accel() return.
+    steps (e.g. at integer steps after the start-up) use accel() return value.
     """
     KE = 0
     for cell in pop:
@@ -41,7 +41,23 @@ def kinetic_energy(pop):
             KE += 0.5*m*np.dot(v,v)
     return KE
 
-def potential_energy(pop,phi):
+def mesh_potential_energy(rho, phi):
+    """
+    Computes potential energy at current time step from mesh quantities. Should
+    be equivalent to particle_potential_energy() to within numerical accuracy
+    but faster by orders of magnitude. It remains to determine whether this or
+    particle_potential_energy() or neither is correct in the precense of objects.
+    """
+
+    return 0.5*df.assemble(rho*phi*df.dx)
+
+def particle_potential_energy(pop ,phi):
+    """
+    Computes potential energy at current time step from particles. Should
+    be equivalent to mehs_potential_energy() to within numerical accuracy
+    but slower by orders of magnitude. It remains to determine whether this or
+    mesh_potential_energy() or neither is correct in the precense of objects.
+    """
 
     PE = 0
 

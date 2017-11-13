@@ -103,7 +103,8 @@ for n in range(nstart, N):
     E = esolver.solve(phi)
 
     timer.task("Computing potential energy")
-    PE = potential_energy(pop, phi)
+    # PE = particle_potential_energy(pop, phi)
+    PE = mesh_potential_energy(rho, phi)
 
     timer.task("Move particles")
     old_charge = objects[0].charge # Charge at n
