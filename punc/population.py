@@ -262,7 +262,7 @@ class Species(list):
         s.v_thermal = s.v_thermal_raw
         s.v_drift   = s.v_drift_raw
 
-    def get_denorm(phys_pfreq, phys_debye, sim_debye):
+    def get_denorm(self, phys_pfreq, phys_debye, sim_debye):
         """
         Returns a dictionary of multiplicative factors which can be used to
         dimensionalize simulation units to SI units. The input is the physical
@@ -287,7 +287,9 @@ class Species(list):
         denorm['rho'] = qm_ratio*vacuum_permittivity/(denorm['t']**2)
         denorm['phi'] = qm_ratio*(denorm['x']/denorm['t'])**2
         denorm['V'] = denorm['phi']
-        denorm['I'] = (vacuum_permittivity/qm_ratio)*denorm['x']**3/denorm['t']**4
+        # denorm['I'] = (vacuum_permittivity/qm_ratio)*denorm['x']**3/denorm['t']**3
+        denorm['I'] = (qm_ratio)*denorm['x']**3/denorm['t']**3
+        # denorm['I'] = denorm['x']**2*denorm['t']*denorm['q']
         return denorm
 
 class Population(list):
@@ -302,13 +304,13 @@ class Population(list):
         self.mesh = mesh
         self.Ld = get_mesh_size(mesh)
         self.periodic = periodic
-       
-        # Particle flux and plasma density     
+
+        # Particle flux and plasma density
         self.flux = []
         self.plasma_density = []
         self.N = []
         self.volume = df.assemble(1*df.dx(mesh))
- 
+
         # Species
         self.species = Species(mesh, normalization)
 
@@ -529,7 +531,7 @@ class Population(list):
         if objects == None: objects = []
 
         # TBD: Could possibly be placed elsewhere
-        object_domains = [o._sub_domain for o in objects]
+        object_domains = [o.id for o in objects]
         object_ids = dict()
         for o,d in enumerate(object_domains):
             object_ids[d] = o
@@ -579,7 +581,7 @@ class Population(list):
 
         # for o, c in zip(objects, collected_charge):
         #     o.charge += c
-    
+
     def num_of_particles(self):
         'Return number of particles in total.'
         return sum([len(x) for x in self])
@@ -590,7 +592,7 @@ class Population(list):
     def num_of_negatives(self):
         return np.sum([np.sum([p.q<0 for p in c],dtype=int) for c in self])
 
-    def num_of_conditioned(self, condition):
+    def num_of_conditioned(self, cond):
         '''
         Number of particles satisfying some condition.
         E.g. pop.num_of_conditions(lambda p: p.q<0)

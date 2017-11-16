@@ -13,6 +13,8 @@ Rpd = 1.                    # Probe radius (in debye lengths)
 debye = Rp/Rpd              # Debye length
 vthe = debye                # Electron thermal velocity
 vthi = debye/np.sqrt(1836.) # Ion thermal velocity
+electron = 'electron'
+ion = 'proton'
 
 Vnorm = debye**2                    # Normalization voltage
 Inorm = vthe*np.sqrt(8*np.pi)       # Normalization current
@@ -21,3 +23,6 @@ current_collected = -1.987*Inorm    # Current collected
 Rp = 1.
 Vnorm = Rp**(-2)
 Inorm = np.sqrt(8*np.pi)/Rp
+
+object_method = 'capacitance'
+imposed_potential = 1.0*Vnorm
