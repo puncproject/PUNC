@@ -58,7 +58,7 @@ for n in range(1,N):
     rho = distribute(V,pop, dv_inv)
     phi = poisson.solve(rho)
     E = esolver.solve(phi)
-    PE[n-1] = potential_energy(pop, phi)
+    PE[n-1] = particle_potential_energy(pop, phi)
     KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
     move_periodic(pop,Ld,dt)
     pop.update()

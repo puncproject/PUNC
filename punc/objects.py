@@ -318,7 +318,7 @@ def solve_laplace(V, poisson, objects, boundaries, ext_bnd_id):
 
     bcs = poisson.bcs
     poisson.bcs = [df.DirichletBC(V, df.Constant(0.0), boundaries, ext_bnd_id)]
-
+    esolver = ESolver(V)
     num_objects = len(objects)
     object_e_field = [0.0] * num_objects
     for i, o in enumerate(objects):
@@ -330,7 +330,7 @@ def solve_laplace(V, poisson, objects, boundaries, ext_bnd_id):
 
         rho = df.Function(V)
         phi = poisson.solve(rho, objects)
-        object_e_field[i] = electric_field(phi)
+        object_e_field[i] = esolver.solve(phi)
     poisson.bcs = bcs
     return object_e_field
 
@@ -358,7 +358,7 @@ def capacitance_matrix(V, poisson, objects, boundaries, bnd_id):
             The inverse of the mutual capacitance matrix
     """
     mesh = V.mesh()
-
+    
     num_objects = len(objects)
     capacitance = np.empty((num_objects, num_objects))
 
@@ -372,7 +372,7 @@ def capacitance_matrix(V, poisson, objects, boundaries, bnd_id):
             flux = df.inner(object_e_field[j], -
                             1 * n) * ds(objects[i]._sub_domain)
             capacitance[i, j] = df.assemble(flux)
-
+ 
     return np.linalg.inv(capacitance)
 
 

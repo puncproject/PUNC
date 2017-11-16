@@ -297,7 +297,7 @@ class ESolver(object):
     solve() can be called multiple times while the stiffness matrix is
     assembled only in the constructor to save computations.
     """
-    def __init__(self, V):
+    def __init__(self, V, element='CG', degree=1):
 
         self.V = V
 
@@ -309,7 +309,7 @@ class ESolver(object):
 
         # cell = V.mesh().ufl_cell()
         # W = df.VectorElement("Lagrange", cell, 1)
-        W = df.VectorFunctionSpace(V.mesh(), "CG", 1)
+        W = df.VectorFunctionSpace(V.mesh(), element, degree)
         # V = FiniteElement("Lagrange", cell, 1)
         self.W = W
 
