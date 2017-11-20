@@ -32,6 +32,7 @@ def load_mesh(fname):
 def get_mesh_ids(boundaries):
     ids = list(set(boundaries.array()))
     ids.sort()
+    ids = tuple([int(i) for i in ids])
     return ids[1], ids[2:]
 
 def unit_mesh(N, ext_bnd_id=1):
