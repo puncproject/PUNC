@@ -53,7 +53,7 @@ volumes = voronoi_volume(V, Ld, periodic, raw=True)
 print(time.time()-t,"s")
 
 print("Max difference:")
-print(max(abs(volumes-lengths.vector().array())))
+print(max(abs(volumes-lengths.vector().get_local())))
 
 plot(lengths)
 interactive()

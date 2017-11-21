@@ -45,7 +45,10 @@ if object_method=='capacitance':
     inv_cap_matrix /= cap_factor
 
 # Initialize particle positions and velocities, and populate the domain
-pop = Population(mesh, bnd, normalization='particle scaling')
+pop = Population(mesh, bnd, normalization=normtype)
+pop.species.X = X
+pop.species.T = T
+pop.species.D = D
 
 if os.path.isfile('stop'):
     os.remove('stop')

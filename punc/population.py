@@ -166,6 +166,10 @@ class Species(list):
             must be specified relative to the sizes of the geometry in the mesh.
             The Debye length in this unit will be given by v_th=lambda_D*w_p.
 
+        'particle scaling':
+            Charge and mass with respect to that of an electron. Time will be
+            scaled such that plasma frequency is one.
+
         'none':
             The specified charge, mass, drift and thermal velocities are used
             as specified without further normalization.
@@ -183,13 +187,16 @@ class Species(list):
         self.volume = df.assemble(1*df.dx(mesh))
         self.num_cells = mesh.num_cells()
 
-        assert normalization in ('plasma params', 'particle scaling', 'none')
+        assert normalization in ('plasma params', 'particle scaling', 'new', 'none')
 
         if normalization == 'plasma params':
             self.normalize = self.normalize_plasma_params
 
         if normalization == 'particle scaling':
             self.normalize = self.normalize_particle_scaling
+
+        if normalization == 'new':
+            self.normalize = self.normalize_new
 
         if normalization == 'none':
             self.normalize = self.normalize_none
@@ -262,6 +269,29 @@ class Species(list):
         s.v_thermal = s.v_thermal_raw
         s.v_drift   = s.v_drift_raw
 
+    def normalize_new(self, s):
+        if s.num_total == None:
+            s.num_total = s.num_per_cell * self.num_cells
+
+        # q_e = 1.702692e-9 # Electron charge [hlu]
+        # m_e = 9.10938356e-28 # Electron mass [g]
+        q_e = 1.6021766208e-19 # Electron charge [C]
+        m_e = 9.10938356e-31 # Electron mass [kg]
+        eps_0 = 8.854187817e-12 # Vacuum permittivity [F/m]
+        X = self.X  # spatial normalization
+        D = self.D  # number of dimensions
+        T = self.T  # temporal normalization
+
+        s.charge = s.charge_raw
+        s.mass = s.mass_raw * (eps_0/m_e) * X**D / T**2
+        print(s.mass)
+
+        assert s.temperature_raw == None, \
+                "This normalization does not support providing temperatures"
+
+        s.v_thermal = s.v_thermal_raw
+        s.v_drift   = s.v_drift_raw
+
     def get_denorm(self, phys_pfreq, phys_debye, sim_debye):
         """
         Returns a dictionary of multiplicative factors which can be used to
@@ -277,19 +307,32 @@ class Species(list):
         ref_charge_SI = elementary_charge*ref.charge_raw
         ref_mass_SI = electron_mass*ref.mass_raw
         qm_ratio = (ref.charge/ref.mass)/(ref_charge_SI/ref_mass_SI)
+        qm_ratio_raw = (ref.charge_raw/ref.mass_raw)/(ref_charge_SI/ref_mass_SI)
+
+        D = 2 # Number of dimensions
+
+        # M = vacuum_permittivity * phys_pfreq**2 * (sim_debye/phys_debye)**D * ref_mass_SI/(ref_charge_SI**2)
 
         denorm = dict()
         denorm['t'] = 1./phys_pfreq
         denorm['x'] = phys_debye/sim_debye
-        denorm['q'] = ref_charge_SI/ref.charge
-        denorm['m'] = ref_mass_SI/ref.mass
+        # denorm['q'] = ref_charge_SI/ref.charge
+        # denorm['m'] = ref_mass_SI/ref.mass
+        denorm['q'] = vacuum_permittivity* phys_pfreq**2 * (sim_debye/phys_debye)**D * qm_ratio_raw
+        denorm['m'] = vacuum_permittivity* phys_pfreq**2 * (sim_debye/phys_debye)**D * qm_ratio_raw**2
         denorm['v'] = denorm['x']/denorm['t']
-        denorm['rho'] = qm_ratio*vacuum_permittivity/(denorm['t']**2)
+        # denorm['rho'] = qm_ratio*vacuum_permittivity/(denorm['t']**2)
         denorm['phi'] = qm_ratio*(denorm['x']/denorm['t'])**2
         denorm['V'] = denorm['phi']
-        # denorm['I'] = (vacuum_permittivity/qm_ratio)*denorm['x']**3/denorm['t']**3
-        denorm['I'] = (qm_ratio)*denorm['x']**3/denorm['t']**3
-        # denorm['I'] = denorm['x']**2*denorm['t']*denorm['q']
+        denorm['I1'] = (vacuum_permittivity/qm_ratio)*denorm['x']**3/denorm['t']**3
+        denorm['I2'] = (qm_ratio)*denorm['x']**3/denorm['t']**3
+        denorm['I3'] = denorm['x']**2*denorm['t']*denorm['q']
+        denorm['I4'] = denorm['q']*phys_pfreq*(sim_debye/phys_debye)**2
+        denorm['I5'] = vacuum_permittivity*(phys_pfreq**3)*(electron_mass/elementary_charge)*(phys_debye/sim_debye)**2 # 2D
+        # denorm['I6'] = denorm['rho']*(phys_debye/sim_debye)**2
+        denorm['I7_2'] = denorm['q']*phys_pfreq*(sim_debye/phys_debye)**2
+        denorm['I7_1'] = denorm['q']*phys_pfreq*(sim_debye/phys_debye)
+        denorm['I7_0'] = denorm['q']*phys_pfreq
         return denorm
 
 class Population(list):

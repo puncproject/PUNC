@@ -24,5 +24,10 @@ Rp = 1.
 Vnorm = Rp**(-2)
 Inorm = np.sqrt(8*np.pi)/Rp
 
-object_method = 'capacitance'
+X = 1
+T = 1
+D = 3
+
+normtype = 'particle scaling'
+object_method = 'variational'
 imposed_potential = 1.0*Vnorm

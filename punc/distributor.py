@@ -28,6 +28,7 @@ import numpy as np
 import subprocess as sp
 import os
 import tempfile
+import warnings
 
 # This is not yet parallelized
 #comm = pyMPI.COMM_WORLD
@@ -276,7 +277,7 @@ def voronoi_length(V, Ld, periodic=True, inv=True, raw=True):
     dv.vector()[v2d] = volume
 
     if raw:
-        return dv.vector().array()
+        return dv.vector().get_local()
     else:
         return dv
 
@@ -288,6 +289,7 @@ def distribute(V, pop, dv_inv):
     element = V.dolfin_element()
     s_dim = element.space_dimension() # Number of nodes per element
     basis_matrix = np.zeros((s_dim,1))
+
 
     rho = df.Function(V)
 
@@ -308,6 +310,9 @@ def distribute(V, pop, dv_inv):
 
         rho.vector()[dofindex] += accum
 
-    rho.vector()[:] *= dv_inv
+    # rho.vector()[:] *= dv_inv
+    rho_arr = rho.vector().get_local()
+    rho_arr *= dv_inv
+    rho.vector().set_local(rho_arr)
 
     return rho

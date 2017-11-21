@@ -76,7 +76,6 @@ class TaskTimer(object):
     """
     Tracks timing of several tasks in a loop and maintains progress status and
     statistics. Example:
-
     """
 
     def __init__(self, laps, mode='compact'):
