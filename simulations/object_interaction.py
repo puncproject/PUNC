@@ -36,7 +36,7 @@ else:
     objects[0].charge = 14.761509936666327
 
 # Get the solver
-poisson = PoissonSolver(V, bc)
+poisson = PoissonSolver(V, bc, eps_0=eps_0)
 esolver = ESolver(V)
 
 if object_method=='capacitance':
