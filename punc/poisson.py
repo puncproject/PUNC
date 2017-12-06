@@ -29,11 +29,29 @@ def load_mesh(fname):
     boundaries = df.MeshFunction("size_t", mesh, fname+"_facet_region.xml")
     return mesh, boundaries
 
-def get_mesh_ids(boundaries):
-    ids = list(set(boundaries.array()))
-    ids.sort()
-    ids = tuple([int(i) for i in ids])
-    return ids[1], ids[2:]
+def load_h5_mesh(fname):
+    mesh = df.Mesh()
+    comm = mesh.mpi_comm()
+    hdf = df.HDF5File(comm, fname, "r")
+    hdf.read(mesh, "/mesh", False)
+    subdomains = df.CellFunction("size_t", mesh)
+    hdf.read(subdomains, "/subdomains")
+    boundaries = df.FacetFunction("size_t", mesh)
+    hdf.read(boundaries, "/boundaries")
+    return mesh, boundaries, comm
+
+def get_mesh_ids(boundaries, comm=None):
+    tags = np.array([int(tag) for tag in set(boundaries.array())])
+    tags = np.sort(tags)
+
+    if comm is None:
+        return tags[1], tags[2:]
+    else:
+        comm_mpi4py = comm.tompi4py()
+        ids = []
+        ids = sum(comm_mpi4py.allgather(tags.tolist()), [])
+        ids = sorted(set(ids))
+        return ids[1], ids[2:]
 
 def unit_mesh(N, ext_bnd_id=1):
     """
@@ -332,26 +350,60 @@ class ESolver(object):
 
         return E
 
-def electric_field(phi):
-    """
-    This function calculates the gradient of the electric potential, which
-    is the electric field:
+def efield_DG0(mesh, phi):
+    Q = df.VectorFunctionSpace(mesh, 'DG', 0)
+    q = df.TestFunction(Q)
 
-            E = -\del\varPhi
+    M = (1.0 / df.CellVolume(mesh)) * df.inner(-df.grad(phi), q) * df.dx
+    E_dg0 = df.assemble(M)
+    return df.Function(Q, E_dg0)
 
-    Args:
-          phi   : The electric potential.
+class EfieldMean(object):
 
-    returns:
-          E: The electric field.
-    """
-    V = phi.ufl_function_space()
-    mesh = V.mesh()
-    degree = V.ufl_element().degree()
-    constr = V.constrained_domain
-    W = df.VectorFunctionSpace(mesh, 'CG', degree, constrained_domain=constr)
-    return df.project(-df.grad(phi), W, solver_type="gmres",
-                       preconditioner_type="petsc_amg")
+    def __init__(self, mesh, arithmetic_mean=False):
+        assert df.parameters['linear_algebra_backend'] == 'PETSc'
+        self.arithmetic_mean = arithmetic_mean
+        tdim = mesh.topology().dim()
+        gdim = mesh.geometry().dim()
+        self.cv = df.CellVolume(mesh)
+
+        self.W = df.VectorFunctionSpace(mesh, 'CG', 1)
+        Q = df.VectorFunctionSpace(mesh, 'DG', 0)
+        p, self.q = df.TrialFunction(Q), df.TestFunction(Q)
+        v = df.TestFunction(self.W)
+
+        volumes = df.assemble(
+            df.inner(df.Constant((1,) * gdim), self.q) * df.dx)
+        if self.arithmetic_mean:
+            ones = np.ones(volumes.local_size())
+            volumes.set_local(ones)
+            volumes.apply('insert')
+
+        dX = df.dx(metadata={'form_compiler_parameters': {
+                   'quadrature_degree': 1, 'quadrature_scheme': 'vertex'}})
+
+        A = df.assemble((1./self.cv)*df.Constant(tdim+1)*df.inner(p, v)*dX)
+
+        Av = df.Function(self.W).vector()
+        A.mult(volumes, Av)
+        Av = df.as_backend_type(Av).vec()
+        Av.reciprocal()
+        mat = df.as_backend_type(A).mat()
+        mat.diagonalScale(L=Av)
+
+        self.A = A
+
+    def mean(self, phi):
+        if self.arithmetic_mean:
+            M = (1. / self.cv) * df.inner(-df.grad(phi), self.q) * df.dx
+        else:
+            M = df.inner(-df.grad(phi), self.q) * df.dx
+        e_dg0 = df.assemble(M)
+
+        e_field = df.Function(self.W)
+        self.A.mult(e_dg0, e_field.vector())
+        df.as_backend_type(e_field.vector()).update_ghost_values()
+        return e_field
 
 if __name__=='__main__':
 
