@@ -372,20 +372,19 @@ class EfieldMean(object):
         p, self.q = df.TrialFunction(Q), df.TestFunction(Q)
         v = df.TestFunction(self.W)
 
-        volumes = df.assemble(
-            df.inner(df.Constant((1,) * gdim), self.q) * df.dx)
-        if self.arithmetic_mean:
-            ones = np.ones(volumes.local_size())
-            volumes.set_local(ones)
-            volumes.apply('insert')
+        ones = df.assemble(
+            (1. / self.cv) * df.inner(df.Constant((1,) * gdim), self.q) * df.dx)
 
         dX = df.dx(metadata={'form_compiler_parameters': {
                    'quadrature_degree': 1, 'quadrature_scheme': 'vertex'}})
 
-        A = df.assemble((1./self.cv)*df.Constant(tdim+1)*df.inner(p, v)*dX)
+        if self.arithmetic_mean:
+            A = df.assemble((1./self.cv)*df.Constant(tdim+1)*df.inner(p, v)*dX)
+        else:
+            A = df.assemble(df.Constant(tdim+1)*df.inner(p, v)*dX)
 
         Av = df.Function(self.W).vector()
-        A.mult(volumes, Av)
+        A.mult(ones, Av)
         Av = df.as_backend_type(Av).vec()
         Av.reciprocal()
         mat = df.as_backend_type(A).mat()
@@ -394,10 +393,7 @@ class EfieldMean(object):
         self.A = A
 
     def mean(self, phi):
-        if self.arithmetic_mean:
-            M = (1. / self.cv) * df.inner(-df.grad(phi), self.q) * df.dx
-        else:
-            M = df.inner(-df.grad(phi), self.q) * df.dx
+        M = (1. / self.cv) * df.inner(-df.grad(phi), self.q) * df.dx
         e_dg0 = df.assemble(M)
 
         e_field = df.Function(self.W)
