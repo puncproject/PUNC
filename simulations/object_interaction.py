@@ -12,6 +12,8 @@ import os
 import sys
 import importlib
 
+df.set_log_level(df.WARNING)
+
 # NB: This is generally a discouraged technique, but allows great flexibility
 # in the config file and is therefore used at least temporarily. That it is
 # unsafe is not considered a problem since it's currently supposed to be used

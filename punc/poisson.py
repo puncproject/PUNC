@@ -211,8 +211,7 @@ class PoissonSolver(object):
 
     def __init__(self, V, bcs=[], remove_null_space=False):
 
-        # Make sure bcs is an iterable list
-        if isinstance(bcs,df.fem.bcs.DirichletBC):
+        if not isinstance(bcs, list):
             bcs = [bcs]
 
         if bcs == None:
@@ -231,7 +230,7 @@ class PoissonSolver(object):
         phi = df.TrialFunction(V)
         phi_ = df.TestFunction(V)
 
-        self.a = df.inner(df.nabla_grad(phi), df.nabla_grad(phi_))*df.dx
+        self.a = df.inner(df.grad(phi), df.grad(phi_))*df.dx
         A = df.assemble(self.a)
 
         for bc in bcs:
@@ -251,8 +250,7 @@ class PoissonSolver(object):
 
     def solve(self, rho, bcs=[]):
 
-        # Make sure bcs is an iterable list
-        if isinstance(bcs,df.fem.bcs.DirichletBC):
+        if not isinstance(bcs,list):
             bcs = [bcs]
 
         if bcs == None:

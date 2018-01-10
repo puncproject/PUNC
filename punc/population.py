@@ -377,8 +377,9 @@ class Population(list):
                 assert isinstance(adjacent,int)
 
 
-                # take normal from cell rather than from facet to make sure it is outwards-pointing
-                normal = [cell.normal(facet_number, i) for i in range(self.t_dim)]
+                # take normal from cell rather than from facet to make sure it
+                # is outwards-pointing
+                normal = cell.normal(facet_number).array()
 
                 mid = facet.midpoint()
                 mid = np.array([mid.x(), mid.y(), mid.z()])

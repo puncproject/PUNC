@@ -25,8 +25,6 @@ import dolfin as df
 import numpy as np
 from scipy.special import erfcinv, erfinv, erf, erfc
 
-df.set_log_active(False)
-
 __UINT32_MAX__ = np.iinfo('uint32').max
 
 
@@ -312,8 +310,7 @@ class ExteriorBoundaries(list):
         vertices = np.empty((self.num_facets*self.g_dim, self.g_dim))
         for i, facet in enumerate(facet_iter):
             for j, v in enumerate(df.vertices(facet)):
-                vertices[i*self.g_dim+j,:] = np.array([v.x(k)
-                                                    for k in range(self.g_dim)])
+                vertices[i*self.g_dim+j,:] = v.point().array()
 
         return vertices
 
