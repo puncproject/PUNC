@@ -477,14 +477,14 @@ class Flux(object):
                 self.generator[i * self.dim + self.dim -
                                1] = lambda N, cdf=cdf: cdf(np.random.random(N))
 
-def inject(pop, exterior_bnd, dt):
+def inject(pop, species, exterior_bnd, dt):
     dim = pop.g_dim
-    for specie in range(len(pop.species)):
+    for s in species:
         xs = np.array([]).reshape(0, dim)
         vs = np.array([]).reshape(0, dim)
 
-        flux = pop.flux[specie]
-        n_p = pop.plasma_density[specie]
+        flux = s.flux
+        n_p = s.n
         for i, facet in enumerate(exterior_bnd):
             N = int(n_p*dt*flux.num_particles[i])
 
@@ -514,4 +514,4 @@ def inject(pop, exterior_bnd, dt):
                         vs = np.concatenate([vs, v[None, :]])
                     count += 1
 
-        pop.add_particles_of_specie(specie, xs, vs)
+        pop.add_particles(xs, vs, s.q, s.m)

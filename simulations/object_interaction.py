@@ -44,27 +44,36 @@ if object_method=='capacitance':
     inv_cap_matrix = capacitance_matrix(V, poisson, objects, bnd, ext_bnd_id)
     inv_cap_matrix /= cap_factor
 
-# Initialize particle positions and velocities, and populate the domain
-pop = Population(mesh, bnd, normalization=normtype)
-pop.species.X = X
-pop.species.T = T
-pop.species.D = D
+species = SpeciesList(mesh, ext_bnd, X, T)
+species.append('electron', n, vthe*w_pe, num=npc)
+species.append('proton',   n, vthi*w_pe, num=npc)
 
-if os.path.isfile('stop'):
-    os.remove('stop')
-    pop.init_new_specie(electron, ext_bnd, v_thermal=vthe, num_per_cell=npc, empty=True)
-    pop.init_new_specie(ion     , ext_bnd, v_thermal=vthi, num_per_cell=npc, empty=True)
-    pop.load_file('population.dat')
-    f = open('state.dat','r')
-    nstart = int(f.readline()) + 1
-    objects[0].charge = float(f.readline())
-    f.close()
-    hist_file = open('history.dat', 'a')
-else:
-    nstart = 0
-    pop.init_new_specie(electron, ext_bnd, v_thermal=vthe, num_per_cell=npc)
-    pop.init_new_specie(ion     , ext_bnd, v_thermal=vthi, num_per_cell=npc)
-    hist_file = open('history.dat', 'w')
+pop = Population(mesh, bnd)
+load_particles(pop, species)
+nstart = 0
+hist_file = open('history.dat', 'w')
+
+# # Initialize particle positions and velocities, and populate the domain
+# pop = Population(mesh, bnd, normalization=normtype)
+# pop.species.X = X
+# pop.species.T = T
+# pop.species.D = D
+
+# if os.path.isfile('stop'):
+#     os.remove('stop')
+#     pop.init_new_specie(electron, ext_bnd, v_thermal=vthe, num_per_cell=npc, empty=True)
+#     pop.init_new_specie(ion     , ext_bnd, v_thermal=vthi, num_per_cell=npc, empty=True)
+#     pop.load_file('population.dat')
+#     f = open('state.dat','r')
+#     nstart = int(f.readline()) + 1
+#     objects[0].charge = float(f.readline())
+#     f.close()
+#     hist_file = open('history.dat', 'a')
+# else:
+#     nstart = 0
+#     pop.init_new_specie(electron, ext_bnd, v_thermal=vthe, num_per_cell=npc)
+#     pop.init_new_specie(ion     , ext_bnd, v_thermal=vthi, num_per_cell=npc)
+#     hist_file = open('history.dat', 'w')
 
 # boltzmann = 1.38064852e-23 # J/K
 # pfreq =
@@ -137,7 +146,7 @@ for n in range(nstart, N):
     objects[0].charge -= current_collected*dt
 
     timer.task("Inject particles")
-    inject(pop, ext_bnd, dt)
+    inject(pop, species, ext_bnd, dt)
 
     timer.task("Count particles")
     num_i = pop.num_of_positives()
