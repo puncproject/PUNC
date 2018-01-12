@@ -39,30 +39,15 @@ class Particle(object):
     __slots__ = ('x', 'v', 'q', 'm')
     def __init__(self, x, v, q, m):
         assert q!=0 and m!=0
-        self.x = np.array(x)    # Position vector
-        self.v = np.array(v)    # Velocity vector
-        self.q = q              # Charge
-        self.m = m              # Mass
-
-    def send(self, dest):
-        comm.Send(self.x, dest=dest)
-        comm.Send(self.v, dest=dest)
-        comm.Send(self.q, dest=dest)
-        comm.Send(self.m, dest=dest)
-
-    def recv(self, source):
-        comm.Recv(self.x, source=source)
-        comm.Recv(self.v, source=source)
-        comm.Recv(self.q, source=source)
-        comm.Recv(self.m, source=source)
+        self.x = np.array(x) # Position vector
+        self.v = np.array(v) # Velocity vector
+        self.q = q           # Charge
+        self.m = m           # Mass
 
 class Species(object):
-
     __slots__ = ('q', 'm', 'n', 'vth', 'vd', 'num', 'flux')
     def __init__(self, q, m, n, vth, vd, num, ext_bnd):
-
         # Parameters apply for normalized simulation particles
-
         self.q        = q                      # Charge
         self.m        = m                      # Mass
         self.n        = n                      # Density
@@ -80,12 +65,11 @@ class SpeciesList(list):
         self.num_cells = mesh.num_cells()
         self.ext_bnd = ext_bnd
 
-        # Normalization factors
-        self.X = X
-        self.T = T
-        self.Q = elementary_charge
-        self.M = None
-        self.D = mesh.geometry().dim()
+        self.X = X                     # Characteristic length
+        self.T = T                     # Characteristic time
+        self.Q = elementary_charge     # Characteristic charge
+        self.M = None                  # Characteristic mass
+        self.D = mesh.geometry().dim() # Number of dimensions
 
     def append(self, species, n, vth, vd=0.0, num=16, **args):
         
@@ -372,12 +356,3 @@ class Population(list):
                 q = nums[2*nDims]
                 m = nums[2*nDims+1]
                 self.add_particles([x],v,q,m)
-
-def load_particles(pop, species, pdf=lambda x: 1, pdf_max=1):
-    # To load just one species at a time, e.g. to give them
-    # different pdf's, use a range operator on species
-
-    for s in species:
-        xs = random_domain_points(pdf, pdf_max, s.num, pop.mesh)
-        vs = maxwellian(s.vth, s.vd, xs.shape)
-        pop.add_particles(xs, vs, s.q, s.m)

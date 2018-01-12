@@ -477,7 +477,7 @@ class Flux(object):
                 self.generator[i * self.dim + self.dim -
                                1] = lambda N, cdf=cdf: cdf(np.random.random(N))
 
-def inject(pop, species, exterior_bnd, dt):
+def inject_particles(pop, species, exterior_bnd, dt):
     dim = pop.g_dim
     for s in species:
         xs = np.array([]).reshape(0, dim)
@@ -514,4 +514,13 @@ def inject(pop, species, exterior_bnd, dt):
                         vs = np.concatenate([vs, v[None, :]])
                     count += 1
 
+        pop.add_particles(xs, vs, s.q, s.m)
+
+def load_particles(pop, species, pdf=lambda x: 1, pdf_max=1):
+    # To load just one species at a time, e.g. to give them
+    # different pdf's, use a range operator on species
+
+    for s in species:
+        xs = random_domain_points(pdf, pdf_max, s.num, pop.mesh)
+        vs = maxwellian(s.vth, s.vd, xs.shape)
         pop.add_particles(xs, vs, s.q, s.m)

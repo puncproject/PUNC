@@ -146,7 +146,7 @@ for n in range(nstart, N):
     objects[0].charge -= current_collected*dt
 
     timer.task("Inject particles")
-    inject(pop, species, ext_bnd, dt)
+    inject_particles(pop, species, ext_bnd, dt)
 
     timer.task("Count particles")
     num_i = pop.num_of_positives()
