@@ -8,9 +8,8 @@
 # version.
 #
 # PUNC is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-# details.
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
 # PUNC.  If not, see <http://www.gnu.org/licenses/>.
@@ -27,13 +26,8 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 import scipy.constants as constants
-from mpi4py import MPI as pyMPI
-from collections import defaultdict
 from itertools import count
-from punc.poisson import get_mesh_size
-from punc.injector import create_mesh_pdf, Flux, maxwellian, random_domain_points, locate
-
-comm = pyMPI.COMM_WORLD
+from punc.injector import Flux, locate
 
 class Particle(object):
     __slots__ = ('x', 'v', 'q', 'm')
@@ -57,7 +51,29 @@ class Species(object):
         self.flux     = Flux(vth, vd, ext_bnd) # Flux object
 
 class SpeciesList(list):
+    """
+    Whereas the Population class is unaware of any species (it only keeps track
+    of individual particles), this is a list of all the species and their
+    parameters, for instance their thermal velocity. It is useful for functions
+    generating new particles, e.g. load_particles() and inject_particles().
+
+    It also keeps track of the characteristic length (X), time (T), charge (Q),
+    mass (M) and the number of dimensions of the simulation (D) which may help
+    dimensionalize the output through simple dimensional analysis.
+    
+    Example:
+        Let's say you have the normalized current into an object in a 2D
+        simulation. The SI unit of this is A/m, or equivalently C/(m*s). Then
+        this normalized current must be multiplied by Q/(X*T) to get a unit of
+        A/m.
+    """
     def __init__(self, mesh, ext_bnd, X, T=None):
+        """
+        'mesh' is DOLFIN mesh, while 'ext_bnd' is ExteriorBoundary object.
+        'X' is characteristic length while 'T' is characteristic time (SI units).
+        If T==None it will be set to the reciprocal of the plasma angular
+        frequency of the first species added to the list.
+        """
 
         elementary_charge = constants.value('elementary charge')
 
@@ -72,7 +88,21 @@ class SpeciesList(list):
         self.D = mesh.geometry().dim() # Number of dimensions
 
     def append(self, species, n, vth, vd=0.0, num=16, **args):
+        """
+        'species' can be one of the keywords 'electron', 'positron' or
+        'proton', or more generally, it can be a (charge,mass)-tuple. The
+        charge is in elementary charges, while the mass is in electron masses
+        unless the argument 'amu' is included, in which case it is in Atomic
+        Mass Units.
+
+        'n' is the physical plasma density, while 'vth' and 'vd' are the
+        thermal speed (scalar) and drift velocity (vector). They are in SI.
         
+        'num' is the number of simulation particles per cell, unless the
+        argument 'num total' is provided in which case it is the total number
+        of simulation particles (initially).
+        """
+
         epsilon_0         = constants.value('electric constant')
         elementary_charge = constants.value('elementary charge')
         electron_mass     = constants.value('electron mass')
@@ -131,10 +161,8 @@ class Population(list):
     must be invoked to relocate the particles.
     """
 
-    def __init__(self, mesh, bnd, periodic=None):
+    def __init__(self, mesh, bnd):
         self.mesh = mesh
-        self.Ld = get_mesh_size(mesh)
-        self.periodic = periodic
 
         # Allocate a list of particles for each cell
         for cell in df.cells(self.mesh):
@@ -347,7 +375,7 @@ class Population(list):
                     datafile.write("%s\t%s\t%s\t%s\n"%(x,v,q,m))
 
     def load_file(self, fname):
-        nDims = len(self.Ld)
+        nDims = len(self.g_dim)
         with open(fname, 'r') as datafile:
             for line in datafile:
                 nums = np.array([float(a) for a in line.split('\t')])
