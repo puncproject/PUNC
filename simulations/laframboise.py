@@ -1,56 +1,60 @@
 import numpy as np
 import dolfin as df
-from punc import load_mesh
+from punc import *
+import scipy.constants as constants
 
 # Filename of mesh (excluding .xml)
 fname = "../mesh/3D/laframboise_sphere_in_cube_res1"
+
+# Get the mesh
 mesh, bnd = load_mesh(fname)
+ext_bnd_id, int_bnd_ids = get_mesh_ids(bnd)
+ext_bnd = ExteriorBoundaries(bnd, ext_bnd_id)
 
 npc = 4             # Number of particles per cell
 V = df.assemble(1*df.dx(mesh))
 Np = npc*mesh.num_cells()
 
-q_e = 1.6021766208e-19 # C
-m_e = 9.10938356e-31 # kg
-eps_0 = 8.854187817e-12 # F/m
+me   = constants.value('electron mass')
+mp   = constants.value('proton mass')
+e    = constants.value('elementary charge')
+eps0 = constants.value('electric constant')
+kB   = constants.value('Boltzmann constant')
 
-Rp = 1.
-n = 1e10
-debye = 1.
-w_pe = np.sqrt(n*q_e**2/(eps_0*m_e))
+ne      = 1e10
+# Te    = 1000
+# debye = np.sqrt(eps0*kB*Te/(e**2 * ne))
+debye   = 1.0
+Te      = (e*debye)**2*ne/(eps0*kB)
+wpe     = np.sqrt(ne*e**2/(eps0*me))
+vthe    = debye*wpe
+vthi    = vthe/np.sqrt(1836)
+Rp      = 1*debye
+X       = Rp
 
-X = 1.0
-T = w_pe**(-1)
-D = 3
-Q = q_e
-M = (T*Q)**2 / (eps_0 * X**D)
+Vlam    = kB*Te/e
+Ilam    = -e*ne*Rp**2*np.sqrt(8*np.pi*kB*Te/me)
+Iexp    = 1.987*Ilam
+print("Laframboise voltage:  %e"%Vlam)
+print("Laframboise current:  %e"%Ilam)
+print("Expected current:     %e"%Iexp)
 
-K = n/(Np/V)
-# electron = (-K*q_e,      K*m_e)
-# ion      = ( K*q_e, 1836*K*m_e)
+species = SpeciesList(mesh, ext_bnd, X)
+species.append(-e, me, ne, vthe, npc=npc)
+species.append( e, mp, ne, vthi, npc=npc)
 
-electron = (-K*1.0,      K*m_e/M)
-ion      = ( K*1.0, 1836*K*m_e/M)
+Inorm  = species.Q/species.T
+Vnorm  = (species.M/species.Q)*(species.X/species.T)**2
+Inorm /= np.abs(Ilam)
+Vnorm /= Vlam
 
-normtype = 'none'
-
-
-
-N = 200
-dt = 0.1 #*w_pe**(-1)
+N          = 200
+dt         = 0.05#*wpe**(-1)
 cap_factor = 1.
 
-vthe = debye #*w_pe
-vthi = vthe/np.sqrt(1836.) # Ion thermal velocity
-
-Vnorm = 1./(X/T)**2 * (M/Q)
-Inorm = 1./(Q/T)
-# Vnorm = 1.
-# Inorm = 1.
-
-current_collected = 0
+current_collected = Iexp #/(species.Q/species.T)
 
 object_method = 'variational'
-imposed_potential = 181*Vnorm
+imposed_potential = 1.0/Vnorm
 
-eps_0=1
+eps0=1

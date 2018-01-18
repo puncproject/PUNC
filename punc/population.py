@@ -42,13 +42,13 @@ class Species(object):
     __slots__ = ('q', 'm', 'n', 'vth', 'vd', 'num', 'flux')
     def __init__(self, q, m, n, vth, vd, num, ext_bnd):
         # Parameters apply for normalized simulation particles
-        self.q        = q                      # Charge
-        self.m        = m                      # Mass
-        self.n        = n                      # Density
-        self.vth      = vth                    # Thermal velocity
-        self.vd       = vd                     # Drift velocity
-        self.num      = num                    # Initial number of particles
-        self.flux     = Flux(vth, vd, ext_bnd) # Flux object
+        self.q    = q                      # Charge
+        self.m    = m                      # Mass
+        self.n    = n                      # Density
+        self.vth  = vth                    # Thermal velocity
+        self.vd   = vd                     # Drift velocity
+        self.num  = num                    # Initial number of particles
+        self.flux = Flux(vth, vd, ext_bnd) # Flux object
 
 class SpeciesList(list):
     """
@@ -60,7 +60,7 @@ class SpeciesList(list):
     It also keeps track of the characteristic length (X), time (T), charge (Q),
     mass (M) and the number of dimensions of the simulation (D) which may help
     dimensionalize the output through simple dimensional analysis.
-    
+
     Example:
         Let's say you have the normalized current into an object in a 2D
         simulation. The SI unit of this is A/m, or equivalently C/(m*s). Then
@@ -87,44 +87,43 @@ class SpeciesList(list):
         self.M = None                  # Characteristic mass
         self.D = mesh.geometry().dim() # Number of dimensions
 
-    def append(self, species, n, vth, vd=0.0, num=16, **args):
+    def append_raw(self, q, m, n, vth, vd=0.0, npc=16, num=None):
         """
-        'species' can be one of the keywords 'electron', 'positron' or
-        'proton', or more generally, it can be a (charge,mass)-tuple. The
-        charge is in elementary charges, while the mass is in electron masses
-        unless the argument 'amu' is included, in which case it is in Atomic
-        Mass Units.
-
-        'n' is the physical plasma density, while 'vth' and 'vd' are the
-        thermal speed (scalar) and drift velocity (vector). They are in SI.
-        
-        'num' is the number of simulation particles per cell, unless the
-        argument 'num total' is provided in which case it is the total number
-        of simulation particles (initially).
+        Like append() but without normalization. Can be use to run simulations
+        in non-normalized SI units, use this function instead, and set eps_0
+        in the Poisson solver equal to its true value.
         """
 
-        epsilon_0         = constants.value('electric constant')
-        elementary_charge = constants.value('elementary charge')
-        electron_mass     = constants.value('electron mass')
-        proton_mass       = constants.value('proton mass')
-        amu               = constants.value('atomic mass constant')
+        # Simulation particle scaling
 
-        # Read in mass and charge and give them SI units
+        if num==None: num = npc*self.num_cells
+        w = (n/num)*self.volume
 
-        if   species == 'electron': q, m = -1.0, 1.0
-        elif species == 'positron': q, m =  1.0, 1.0
-        elif species == 'proton':   q, m =  1.0, proton_mass/electron_mass
-        else:
-            assert isinstance(species,tuple) and len(species)==2 ,\
-                "species must be a valid keyword or a (charge,mass)-tuple"
+        q *= w
+        m *= w
+        n /= w # Equals num/self.volume
 
-            q, m = species
-            if 'amu' in args: m *= amu/electron_mass
+        list.append(self, Species(q, m, n, vth, vd, num, self.ext_bnd))
 
-        q *= elementary_charge # [C]
-        m *= electron_mass     # [kg]
-        
-        # Set normalization parameters if not done (all parameters are now SI)
+    def append(self, q, m, n, vth, vd=0.0, npc=16, num=None):
+        """
+        Appends a species with given parameters:
+
+            q   - Charge
+            m   - Mass
+            n   - Plasma density
+            vth - Thermal speed (scalar)
+            vd  - Drift velocity (vector, default: 0)
+            npc - Initial number of particles per cell (default: 16)
+            num - Initial number of particles in total (overrides npc if set)
+
+        All paremeters are in SI units. The parameters will be appropriately
+        normalized and scaled to simulation particles.
+        """
+
+        epsilon_0 = constants.value('electric constant')
+
+        # Set missing normalization scales
 
         if self.T==None:
             wp = np.sqrt(n*q**2/(epsilon_0*m))
@@ -133,7 +132,7 @@ class SpeciesList(list):
         if self.M==None:
             self.M = (self.T*self.Q)**2 / (epsilon_0 * self.X**self.D)
 
-        # Normalize parameters
+        # Normalize input
 
         q   /= self.Q
         m   /= self.M
@@ -141,17 +140,8 @@ class SpeciesList(list):
         vth /= (self.X/self.T)
         vd  /= (self.X/self.T)
 
-        # Simulation particle scaling
-
-        if 'num total' not in args: num *= self.num_cells
-        w = (n/num)*self.volume
-        
-        q *= w
-        m *= w
-        n /= w # This now equals num/self.volume
-
         # Add to list
-        list.append(self, Species(q, m, n, vth, vd, num, self.ext_bnd))
+        self.append_raw(q, m, n, vth, vd, npc, num)
 
 class Population(list):
     """
@@ -375,7 +365,7 @@ class Population(list):
                     datafile.write("%s\t%s\t%s\t%s\n"%(x,v,q,m))
 
     def load_file(self, fname):
-        nDims = len(self.g_dim)
+        nDims = self.g_dim
         with open(fname, 'r') as datafile:
             for line in datafile:
                 nums = np.array([float(a) for a in line.split('\t')])

@@ -19,13 +19,8 @@ exec('from %s import *'%(sys.argv[1]))
 
 assert object_method in ['capacitance', 'variational']
 
-# Get the mesh
-mesh, bnd = load_mesh(fname)
-ext_bnd_id, int_bnd_ids = get_mesh_ids(bnd)
-
 V = df.FunctionSpace(mesh, 'CG', 1)
 
-ext_bnd = ExteriorBoundaries(bnd, ext_bnd_id)
 bc = df.DirichletBC(V, df.Constant(0.0), bnd, ext_bnd_id)
 
 if object_method=='capacitance':
@@ -33,10 +28,9 @@ if object_method=='capacitance':
 else:
     objects = [Object(V, bnd, i) for i in int_bnd_ids]
     objects[0].set_potential(imposed_potential)
-    objects[0].charge = 14.761509936666327
 
 # Get the solver
-poisson = PoissonSolver(V, bc, eps_0=eps_0)
+poisson = PoissonSolver(V, bc, eps_0=eps0)
 esolver = ESolver(V)
 
 if object_method=='capacitance':
@@ -44,42 +38,21 @@ if object_method=='capacitance':
     inv_cap_matrix = capacitance_matrix(V, poisson, objects, bnd, ext_bnd_id)
     inv_cap_matrix /= cap_factor
 
-species = SpeciesList(mesh, ext_bnd, X, T)
-species.append('electron', n, vthe*w_pe, num=npc)
-species.append('proton',   n, vthi*w_pe, num=npc)
-
 pop = Population(mesh, bnd)
-load_particles(pop, species)
-nstart = 0
-hist_file = open('history.dat', 'w')
 
-# # Initialize particle positions and velocities, and populate the domain
-# pop = Population(mesh, bnd, normalization=normtype)
-# pop.species.X = X
-# pop.species.T = T
-# pop.species.D = D
+if os.path.isfile('stop'):
+    os.remove('stop')
+    pop.load_file('population.dat')
+    f = open('state.dat','r')
+    nstart = int(f.readline()) + 1
+    objects[0].charge = float(f.readline())
+    f.close()
+    hist_file = open('history.dat', 'a')
 
-# if os.path.isfile('stop'):
-#     os.remove('stop')
-#     pop.init_new_specie(electron, ext_bnd, v_thermal=vthe, num_per_cell=npc, empty=True)
-#     pop.init_new_specie(ion     , ext_bnd, v_thermal=vthi, num_per_cell=npc, empty=True)
-#     pop.load_file('population.dat')
-#     f = open('state.dat','r')
-#     nstart = int(f.readline()) + 1
-#     objects[0].charge = float(f.readline())
-#     f.close()
-#     hist_file = open('history.dat', 'a')
-# else:
-#     nstart = 0
-#     pop.init_new_specie(electron, ext_bnd, v_thermal=vthe, num_per_cell=npc)
-#     pop.init_new_specie(ion     , ext_bnd, v_thermal=vthi, num_per_cell=npc)
-#     hist_file = open('history.dat', 'w')
-
-# boltzmann = 1.38064852e-23 # J/K
-# pfreq =
-# denorm = pop.species.get_denorm(pfreq, debye, debye)
-# Vnorm = denorm['V']
-# Inorm = denorm['I']
+else:
+    load_particles(pop, species)
+    nstart = 0
+    hist_file = open('history.dat', 'w')
 
 dv_inv = voronoi_volume_approx(V)
 
@@ -115,7 +88,7 @@ for n in range(nstart, N):
     else:
         pass
 
-    potential = objects[0]._potential/Vnorm # at n
+    potential = objects[0]._potential*Vnorm # at n
 
     timer.task("Solving potential 2")
     phi = poisson.solve(rho, objects)
@@ -141,8 +114,7 @@ for n in range(nstart, N):
     hist_file.flush()
 
     timer.task("Impose current")
-    current_measured = ((objects[0].charge-old_charge)/dt)/Inorm # at n+0.5
-    # if object_method=='capacitance':
+    current_measured = ((objects[0].charge-old_charge)/dt)*Inorm # at n+0.5
     objects[0].charge -= current_collected*dt
 
     timer.task("Inject particles")
