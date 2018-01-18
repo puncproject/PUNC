@@ -209,7 +209,7 @@ class PoissonSolver(object):
     this null space set remove_null_space=True in the constructor.
     """
 
-    def __init__(self, V, bcs=[], remove_null_space=False):
+    def __init__(self, V, bcs=[], remove_null_space=False, eps_0=1):
 
         if not isinstance(bcs, list):
             bcs = [bcs]
@@ -230,7 +230,7 @@ class PoissonSolver(object):
         phi = df.TrialFunction(V)
         phi_ = df.TestFunction(V)
 
-        self.a = df.inner(df.grad(phi), df.grad(phi_))*df.dx
+        self.a = df.Constant(eps_0)*df.inner(df.grad(phi), df.grad(phi_))*df.dx
         A = df.assemble(self.a)
 
         for bc in bcs:

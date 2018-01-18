@@ -55,7 +55,7 @@ class Object(df.DirichletBC):
         V (DOLFIN: FunctionSpace): The finite element function space.
     """
 
-    def __init__(self, V, sub_domain, sub_domains=None, charge=0, potential=0, method="topological"):
+    def __init__(self, V, bnd, bnd_id, charge=0, potential=0, floating=True):
         """
         Constructor
 
@@ -69,6 +69,7 @@ class Object(df.DirichletBC):
         """
 
         self.charge = charge
+        self.floating = floating
         self._potential = potential
         self.interpolated_charge = 0
         self.V = V
@@ -80,12 +81,12 @@ class Object(df.DirichletBC):
         # boundaries can be arbitrarily specified in gmsh, but it does not
         # provide the inside() function which is still used in old parts of the
         # code. This will be deleted in the future, and the latter version used.
-        if sub_domains==None:
-            df.DirichletBC.__init__(self, V, potential, sub_domain, method)
+        if bnd==None:
+            df.DirichletBC.__init__(self, V, potential, bnd_id, "topological")
             self.inside = self.domain_args[0].inside
         else:
-            df.DirichletBC.__init__(self, V, potential, sub_domains, sub_domain, method)
-            self._sub_domain = sub_domain
+            df.DirichletBC.__init__(self, V, potential, bnd, bnd_id, "topological")
+            self.id = bnd_id
 
         self.dofs = self.get_boundary_values().keys()
 
@@ -174,15 +175,19 @@ def reset_objects(objects):
     for o in objects:
         o.set_potential(df.Constant(0.0))
 
-def compute_object_potentials(objects, E, inv_cap_matrix, normal, ds):
+def compute_object_potentials(objects, E, inv_cap_matrix, mesh, bnd):
     """
     Calculates the image charges for all the objects, and then computes the
     potential for each object by summing over the difference between the
     collected and image charges multiplied by the inverse of capacitance matrix.
     """
+
+    ds = df.Measure("ds", domain=mesh, subdomain_data=bnd)
+    normal = df.FacetNormal(mesh)
+
     image_charge = [None]*len(objects)
     for i, o in enumerate(objects):
-        flux = df.inner(E, -1 * normal) * ds(o._sub_domain)
+        flux = df.inner(E, -1 * normal) * ds(o.id)
         image_charge[i] = df.assemble(flux)
 
     for i, o in enumerate(objects):
@@ -369,8 +374,7 @@ def capacitance_matrix(V, poisson, objects, boundaries, bnd_id):
 
     for i in range(num_objects):
         for j in range(num_objects):
-            flux = df.inner(object_e_field[j], -
-                            1 * n) * ds(objects[i]._sub_domain)
+            flux = df.inner(object_e_field[j], -1 * n) * ds(objects[i].id)
             capacitance[i, j] = df.assemble(flux)
  
     return np.linalg.inv(capacitance)

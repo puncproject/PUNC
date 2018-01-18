@@ -8,9 +8,8 @@
 # version.
 #
 # PUNC is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-# details.
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
 # PUNC.  If not, see <http://www.gnu.org/licenses/>.
@@ -26,269 +25,123 @@ if sys.version_info.major == 2:
 
 import dolfin as df
 import numpy as np
-from mpi4py import MPI as pyMPI
-from collections import defaultdict
+import scipy.constants as constants
 from itertools import count
-from punc.poisson import get_mesh_size
-from punc.injector import create_mesh_pdf, Flux, maxwellian, random_domain_points, locate
-
-comm = pyMPI.COMM_WORLD
+from punc.injector import Flux, locate
 
 class Particle(object):
     __slots__ = ('x', 'v', 'q', 'm')
     def __init__(self, x, v, q, m):
         assert q!=0 and m!=0
-        self.x = np.array(x)    # Position vector
-        self.v = np.array(v)    # Velocity vector
-        self.q = q              # Charge
-        self.m = m              # Mass
+        self.x = np.array(x) # Position vector
+        self.v = np.array(v) # Velocity vector
+        self.q = q           # Charge
+        self.m = m           # Mass
 
-    def send(self, dest):
-        comm.Send(self.x, dest=dest)
-        comm.Send(self.v, dest=dest)
-        comm.Send(self.q, dest=dest)
-        comm.Send(self.m, dest=dest)
+class Species(object):
+    __slots__ = ('q', 'm', 'n', 'vth', 'vd', 'num', 'flux')
+    def __init__(self, q, m, n, vth, vd, num, ext_bnd):
+        # Parameters apply for normalized simulation particles
+        self.q    = q                      # Charge
+        self.m    = m                      # Mass
+        self.n    = n                      # Density
+        self.vth  = vth                    # Thermal velocity
+        self.vd   = vd                     # Drift velocity
+        self.num  = num                    # Initial number of particles
+        self.flux = Flux(vth, vd, ext_bnd) # Flux object
 
-    def recv(self, source):
-        comm.Recv(self.x, source=source)
-        comm.Recv(self.v, source=source)
-        comm.Recv(self.q, source=source)
-        comm.Recv(self.m, source=source)
-
-class Specie(object):
+class SpeciesList(list):
     """
-    A specie with q elementary charges and m electron masses is specified as
-    follows:
+    Whereas the Population class is unaware of any species (it only keeps track
+    of individual particles), this is a list of all the species and their
+    parameters, for instance their thermal velocity. It is useful for functions
+    generating new particles, e.g. load_particles() and inject_particles().
 
-        s = Specie((q,m))
+    It also keeps track of the characteristic length (X), time (T), charge (Q),
+    mass (M) and the number of dimensions of the simulation (D) which may help
+    dimensionalize the output through simple dimensional analysis.
 
-    Alternatively, electrons and protons may be specified by an 'electron' or
-    'proton' string instead of a tuple:
-
-        s = Specie('electron')
-
-    The following keyword arguments are accepted to change default behavior:
-
-        v_drift
-            Drift velocity of specie. Default: 0.
-
-        v_thermal
-            Thermal velocity of specie. Default: 0.
-            Do not use along with temperature.
-
-        temperature
-            Temperature of specie. Default: 0.
-            Do not use along with v_thermal.
-
-        num_per_cell
-            Number of particles per cell. Default: 16.
-
-        num_total
-            Number of particles in total.
-            Overrides num_per_cell if specified.
-
-    E.g. to specify electrons with thermal and drift velocities:
-
-        s = Specie('electron', v_thermal=1, v_drift=[1,0])
-
-    Note that the species have to be normalized before being useful. Species
-    are typically put in a Species list and normalized before being used. See
-    Species.
+    Example:
+        Let's say you have the normalized current into an object in a 2D
+        simulation. The SI unit of this is A/m, or equivalently C/(m*s). Then
+        this normalized current must be multiplied by Q/(X*T) to get a unit of
+        A/m.
     """
+    def __init__(self, mesh, ext_bnd, X, T=None):
+        """
+        'mesh' is DOLFIN mesh, while 'ext_bnd' is ExteriorBoundary object.
+        'X' is characteristic length while 'T' is characteristic time (SI units).
+        If T==None it will be set to the reciprocal of the plasma angular
+        frequency of the first species added to the list.
+        """
 
-    def __init__(self, specie, **kwargs):
+        elementary_charge = constants.value('elementary charge')
 
-        # Will be set during normalization
-        self.charge = None
-        self.mass = None
-        self.v_thermal = None
-        self.v_drift = None
-
-        self.v_thermal_raw = 0
-        self.temperature_raw = None
-        self.v_drift_raw = 0
-
-        self.num_total = None
-        self.num_per_cell = 16
-
-        if specie == 'electron':
-            self.charge_raw = -1
-            self.mass_raw = 1
-
-        elif specie == 'proton':
-            self.charge_raw = 1
-            self.mass_raw = 1836.15267389
-
-        else:
-            assert isinstance(specie,tuple) and len(specie)==2 ,\
-                "specie must be a valid keyword or a (charge,mass)-tuple"
-
-            self.charge_raw = specie[0]
-            self.mass_raw = specie[1]
-
-        if 'num_per_cell' in kwargs:
-            self.num_per_cell = kwargs['num_per_cell']
-
-        if 'num_total' in kwargs:
-            self.num_total = kwargs['num_total']
-
-        if 'v_thermal' in kwargs:
-            self.v_thermal_raw = kwargs['v_thermal']
-
-        if 'v_drift' in kwargs:
-            self.v_drift_raw = kwargs['v_drift']
-
-        if 'temperature' in kwargs:
-            self.temperature_raw = kwargs['temperature']
-
-class Species(list):
-    """
-    Just a normal list of Specie objects except that the method append_specie()
-    may be used to append species to the list and normalize them.
-    append_specie() takes the same argumets as the Specie() constructor.
-
-    Two normalization schemes are implemented as can be chosen using the
-    'normalization' parameter in the constructor:
-
-        'plasma params' (default, obsolete):
-            The zeroth specie in the list (i.e. the first appended one) is
-            normalized to have an angular plasma frequency of one and a thermal
-            velocity of 1 (and hence also a Debye length of one). If the specie
-            is cold the thermal velocity is 0 and the Debye length does not act
-            as a characteristic length scale in the simulations.
-
-        'particle scaling':
-            The charge and mass of the particles are given statistical weights
-            such that the plasma frequency of the zeroth species is normalized
-            to 1. To allow changing the ratio of the geometry to the Debye
-            length without making a new mesh, the Debye length is not
-            normalized to any particular value. Instead, the thermal velocity
-            must be specified relative to the sizes of the geometry in the mesh.
-            The Debye length in this unit will be given by v_th=lambda_D*w_p.
-
-        'none':
-            The specified charge, mass, drift and thermal velocities are used
-            as specified without further normalization.
-
-    E.g. to create isothermal electrons and ions normalized such that the
-    electron parameters are all one:
-
-        species = Species(mesh)
-        species.append_specie('electron', temperature=1) # reference
-        species.append_specie('proton'  , temperature=1)
-
-    """
-
-    def __init__(self, mesh, normalization='plasma params'):
         self.volume = df.assemble(1*df.dx(mesh))
         self.num_cells = mesh.num_cells()
+        self.ext_bnd = ext_bnd
 
-        assert normalization in ('plasma params', 'particle scaling', 'none')
+        self.X = X                     # Characteristic length
+        self.T = T                     # Characteristic time
+        self.Q = elementary_charge     # Characteristic charge
+        self.M = None                  # Characteristic mass
+        self.D = mesh.geometry().dim() # Number of dimensions
 
-        if normalization == 'plasma params':
-            self.normalize = self.normalize_plasma_params
-
-        if normalization == 'particle scaling':
-            self.normalize = self.normalize_particle_scaling
-
-        if normalization == 'none':
-            self.normalize = self.normalize_none
-
-    def append_specie(self, specie, **kwargs):
-        self.append(Specie(specie, **kwargs))
-        self.normalize(self[-1])
-
-    def normalize_none(self, s):
-        if s.num_total == None:
-            s.num_total = s.num_per_cell * self.num_cells
-
-        s.charge = s.charge_raw
-        s.mass = s.mass_raw
-        s.v_thermal = s.v_thermal_raw
-        s.v_drift = s.v_drift_raw
-        self.weight = 1
-
-    def normalize_plasma_params(self, s):
-        if s.num_total == None:
-            s.num_total = s.num_per_cell * self.num_cells
-
-        ref = self[0]
-        w_pe = 1
-        self.weight = (w_pe**2) \
-               * (self.volume/ref.num_total) \
-               * (ref.mass_raw/ref.charge_raw**2)
-
-        s.charge = self.weight*s.charge_raw
-        s.mass = self.weight*s.mass_raw
-
-        if ref.temperature_raw != None:
-            assert s.temperature_raw != None, \
-                "Specify temperature for all or none species"
-
-            ref.v_thermal = 1
-            for s in self:
-                s.v_thermal = ref.v_thermal*np.sqrt( \
-                    (s.temperature_raw/ref.temperature_raw) * \
-                    (ref.mass_raw/s.mass_raw) )
-        elif s.v_thermal_raw == 0:
-            s.v_thermal = 0
-        else:
-            s.v_thermal = s.v_thermal_raw/ref.v_thermal_raw
-
-        if (isinstance(s.v_drift_raw, np.ndarray) and \
-           all(i == 0 for i in s.v_drift_raw) ):
-            s.v_drift = np.zeros((s.v_drift_raw.shape))
-        elif isinstance(s.v_drift_raw, (float,int)) and s.v_drift_raw==0:
-            s.v_drift = 0
-        else:
-            s.v_drift = s.v_drift_raw/ref.v_thermal_raw
-
-    def normalize_particle_scaling(self, s):
-        if s.num_total == None:
-            s.num_total = s.num_per_cell * self.num_cells
-
-        ref = self[0]
-        w_pe = 1
-        self.weight = (w_pe**2) \
-               * (self.volume/ref.num_total) \
-               * (ref.mass_raw/ref.charge_raw**2)
-
-        s.charge = self.weight*s.charge_raw
-        s.mass = self.weight*s.mass_raw
-
-        assert s.temperature_raw == None, \
-                "This normalization does not support providing temperatures"
-
-        s.v_thermal = s.v_thermal_raw
-        s.v_drift   = s.v_drift_raw
-
-    def get_denorm(phys_pfreq, phys_debye, sim_debye):
+    def append_raw(self, q, m, n, vth, vd=0.0, npc=16, num=None):
         """
-        Returns a dictionary of multiplicative factors which can be used to
-        dimensionalize simulation units to SI units. The input is the physical
-        angular plasma frequency [rad/s], the physical debye length [m] as well
-        as how long a debye length is in the units of the mesh.
+        Like append() but without normalization. Can be use to run simulations
+        in non-normalized SI units, use this function instead, and set eps_0
+        in the Poisson solver equal to its true value.
         """
-        electron_mass = 9.10938188e-31 # kg
-        elementary_charge = 1.60217646e-19 # C
-        vacuum_permittivity = 8.854187817e-12 # F/m
 
-        ref = self[0]
-        ref_charge_SI = elementary_charge*ref.charge_raw
-        ref_mass_SI = electron_mass*ref.mass_raw
-        qm_ratio = (ref.charge/ref.mass)/(ref_charge_SI/ref_mass_SI)
+        # Simulation particle scaling
 
-        denorm = dict()
-        denorm['t'] = 1./phys_pfreq
-        denorm['x'] = phys_debye/sim_debye
-        denorm['q'] = ref_charge_SI/ref.charge
-        denorm['m'] = ref_mass_SI/ref.mass
-        denorm['v'] = denorm['x']/denorm['t']
-        denorm['rho'] = qm_ratio*vacuum_permittivity/(denorm['t']**2)
-        denorm['phi'] = qm_ratio*(denorm['x']/denorm['t'])**2
-        denorm['V'] = denorm['phi']
-        denorm['I'] = (vacuum_permittivity/qm_ratio)*denorm['x']**3/denorm['t']**4
-        return denorm
+        if num==None: num = npc*self.num_cells
+        w = (n/num)*self.volume
+
+        q *= w
+        m *= w
+        n /= w # Equals num/self.volume
+
+        list.append(self, Species(q, m, n, vth, vd, num, self.ext_bnd))
+
+    def append(self, q, m, n, vth, vd=0.0, npc=16, num=None):
+        """
+        Appends a species with given parameters:
+
+            q   - Charge
+            m   - Mass
+            n   - Plasma density
+            vth - Thermal speed (scalar)
+            vd  - Drift velocity (vector, default: 0)
+            npc - Initial number of particles per cell (default: 16)
+            num - Initial number of particles in total (overrides npc if set)
+
+        All paremeters are in SI units. The parameters will be appropriately
+        normalized and scaled to simulation particles.
+        """
+
+        epsilon_0 = constants.value('electric constant')
+
+        # Set missing normalization scales
+
+        if self.T==None:
+            wp = np.sqrt(n*q**2/(epsilon_0*m))
+            self.T = wp**(-1)
+
+        if self.M==None:
+            self.M = (self.T*self.Q)**2 / (epsilon_0 * self.X**self.D)
+
+        # Normalize input
+
+        q   /= self.Q
+        m   /= self.M
+        n   *= self.X**self.D
+        vth /= (self.X/self.T)
+        vd  /= (self.X/self.T)
+
+        # Add to list
+        self.append_raw(q, m, n, vth, vd, npc, num)
 
 class Population(list):
     """
@@ -298,19 +151,8 @@ class Population(list):
     must be invoked to relocate the particles.
     """
 
-    def __init__(self, mesh, boundaries, periodic=None, normalization='plasma params'):
+    def __init__(self, mesh, bnd):
         self.mesh = mesh
-        self.Ld = get_mesh_size(mesh)
-        self.periodic = periodic
-       
-        # Particle flux and plasma density     
-        self.flux = []
-        self.plasma_density = []
-        self.N = []
-        self.volume = df.assemble(1*df.dx(mesh))
- 
-        # Species
-        self.species = Species(mesh, normalization)
 
         # Allocate a list of particles for each cell
         for cell in df.cells(self.mesh):
@@ -328,21 +170,9 @@ class Population(list):
             neigh = set(neigh) - set([cell.index()])
             self.neighbors.append(neigh)
 
-        # Allocate some MPI stuff
-        self.num_processes = comm.Get_size()
-        self.myrank = comm.Get_rank()
-        self.all_processes = list(range(self.num_processes))
-        self.other_processes = list(range(self.num_processes))
-        self.other_processes.remove(self.myrank)
-        self.my_escaped_particles = np.zeros(1, dtype='I')
-        self.tot_escaped_particles = np.zeros(self.num_processes, dtype='I')
-        # Dummy particle for receiving/sending at [0, 0, ...]
-        v_zero = np.zeros(self.g_dim)
-        self.particle0 = Particle(v_zero,v_zero,1,1)
+        self.init_localizer(bnd)
 
-        self.init_localizer(boundaries)
-
-    def init_localizer(self, boundaries):
+    def init_localizer(self, bnd):
         # self.facet_adjacents[cell_id][facet_number] is the id of the adjacent cell
         # self.facet_normals[cell_id][facet_number] is the normal vector to a facet
         # self.facet_mids[cell_id][facet_number] is the midpoint on a facet
@@ -369,7 +199,7 @@ class Population(list):
                 if adjacent == []:
                     # Travelled out of bounds through the following boundary
                     # Minus indicates through boundary
-                    adjacent = -int(boundaries.array()[facet_id])
+                    adjacent = -int(bnd.array()[facet_id])
 
                 else:
                     adjacent = int(adjacent[0])
@@ -393,80 +223,6 @@ class Population(list):
             self.facet_adjacents.append(adjacents)
             self.facet_normals.append(normals)
             self.facet_mids.append(mids)
-
-    def init_new_specie(self, specie, exterior_bnd, **kwargs):
-        """
-        To initialize a new specie within a population use this function, e.g.
-        to uniformly populate the domain with 16 (default) cold electrons and
-        protons per cell:
-
-            pop = Population(mesh)
-            pop.init_new_specie('electron')
-            pop.init_new_specie('proton')
-
-        Here, the normalization is such that the electron plasma frequency and
-        Debye lengths are set to one. The electron is used as a reference
-        because that specie is initialized first.
-
-        All species is represented as a Species object internally in the
-        population and consequentially, the init_new_specie() method takes the
-        same arguments as the append_specie() method in the Species class. See
-        that method for information of how to tweak specie properties.
-
-        In addition, init_new_specie() takes two additional keywords:
-
-            pdf:
-                A probability density function of how to distribute particles.
-
-            pdf_max:
-                An upper bound for the values in the pdf.
-
-        E.g. to initialize cold langmuir oscillations (where the initial
-        electron density is sinusoidal) in the x-direction in a unit length
-        domain:
-
-            pop = Population(mesh)
-            pdf = lambda x: 1+0.1*np.sin(2*np.pi*x[0])
-            pop.init_new_specie('electron', pdf=pdf, pdf_max=1.1)
-            pop.init_new_specie('proton')
-
-        """
-
-        self.species.append_specie(specie, **kwargs)
-
-        if 'pdf' in kwargs:
-            pdf = kwargs['pdf']
-        else:
-            pdf = lambda x: 1
-
-        if pdf != None:
-
-            pdf = create_mesh_pdf(pdf, self.mesh)
-
-            if 'pdf_max' in kwargs:
-                pdf_max = kwargs['pdf_max']
-            else:
-                pdf_max = 1
-
-        m = self.species[-1].mass
-        q = self.species[-1].charge
-        v_thermal = self.species[-1].v_thermal
-        v_drift = self.species[-1].v_drift
-        num_total = self.species[-1].num_total
-
-        self.plasma_density.append(num_total / self.volume)
-        self.flux.append(Flux(v_thermal, v_drift, exterior_bnd))
-        self.N.append(self.flux[-1].flux_number(exterior_bnd))
-
-        if not 'empty' in kwargs:
-            xs = random_domain_points(pdf, pdf_max, num_total, self.mesh)
-            vs = maxwellian(v_thermal, v_drift, xs.shape)
-            self.add_particles(xs,vs,q,m)
-
-    def add_particles_of_specie(self, specie, xs, vs=None):
-        q = self.species[specie].charge
-        m = self.species[specie].mass
-        self.add_particles(xs, vs, q, m)
 
     def add_particles(self, xs, vs=None, qs=None, ms=None):
         """
@@ -530,7 +286,7 @@ class Population(list):
         if objects == None: objects = []
 
         # TBD: Could possibly be placed elsewhere
-        object_domains = [o._sub_domain for o in objects]
+        object_domains = [o.id for o in objects]
         object_ids = dict()
         for o,d in enumerate(object_domains):
             object_ids[d] = o
@@ -580,7 +336,7 @@ class Population(list):
 
         # for o, c in zip(objects, collected_charge):
         #     o.charge += c
-    
+
     def num_of_particles(self):
         'Return number of particles in total.'
         return sum([len(x) for x in self])
@@ -591,7 +347,7 @@ class Population(list):
     def num_of_negatives(self):
         return np.sum([np.sum([p.q<0 for p in c],dtype=int) for c in self])
 
-    def num_of_conditioned(self, condition):
+    def num_of_conditioned(self, cond):
         '''
         Number of particles satisfying some condition.
         E.g. pop.num_of_conditions(lambda p: p.q<0)
@@ -610,7 +366,7 @@ class Population(list):
                     datafile.write("%s\t%s\t%s\t%s\n"%(x,v,q,m))
 
     def load_file(self, fname):
-        nDims = len(self.Ld)
+        nDims = self.g_dim
         with open(fname, 'r') as datafile:
             for line in datafile:
                 nums = np.array([float(a) for a in line.split('\t')])

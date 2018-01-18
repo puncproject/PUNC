@@ -23,7 +23,7 @@ periodic = np.ones(n_dims, dtype=bool)
 # Get the mesh:
 # mesh, facet_func = load_mesh("../mesh/2D/nothing_in_square")
 # mesh, facet_func = load_mesh("../mesh/2D/nonuniform_in_square")
-mesh, facet_func = simple_mesh(Ld, Nr)  
+mesh, facet_func = simple_mesh(Ld, Nr)
 
 ext_bnd_id, int_bnd_ids = get_mesh_ids(facet_func)
 
@@ -31,7 +31,7 @@ Ld = get_mesh_size(mesh)  # Get the size of the simulation domain
 
 exterior_bnd = ExteriorBoundaries(facet_func, ext_bnd_id)
 
-V = df.FunctionSpace(mesh, 'CG', 1, 
+V = df.FunctionSpace(mesh, 'CG', 1,
                      constrained_domain=PeriodicBoundary(Ld,periodic))
 
 poisson = PoissonSolver(V, remove_null_space=True)
@@ -93,7 +93,7 @@ def plot(obj, title):
         if (mesh.geometry().dim() != 2):
             raise(AttributeError)
         if obj.vector().size() == mesh.num_cells():
-            C = obj.vector().array()
+            C = obj.vector().get_local()
             plt.tripcolor(mesh2triang(mesh), C, cmap='viridis')
             plt.colorbar()
             plt.title(title)
@@ -122,13 +122,13 @@ else:
     plt.xlim(0, Ld[0])
     plt.ylim(0, Ld[1])
     plt.savefig('rho.png', bbox_inches='tight', dpi=600)
-    
+
     plt.figure()
     plot(phi, 'phi')
     plt.xlim(0, Ld[0])
     plt.ylim(0, Ld[1])
     plt.savefig('phi.png', bbox_inches='tight', dpi=600)
-    
+
     ux = df.Constant((1, 0))
     Ex = df.project(df.inner(E, ux), V)
 

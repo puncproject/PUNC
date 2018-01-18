@@ -171,7 +171,7 @@ uu.vector()[:] = 1
 int_bc.apply(uu.vector())
 # df.plot(uu[0])
 
-inds = np.where(uu.vector().array() == 0)[0]
+inds = np.where(uu.vector().get_local() == 0)[0]
 print("indices: ", inds)
 #-------------------------------------------------------------------------------
 # df.interactive()

@@ -265,7 +265,7 @@ def mesh2triang(mesh):
     return tri.Triangulation(xy[:, 0], xy[:, 1], mesh.cells())
 
 def mplot_cellfunction(cellfn):
-    C = cellfn.array()
+    C = cellfn.get_local()
     tri = mesh2triang(cellfn.mesh())
     return plt.tripcolor(tri, facecolors=C)
 
@@ -275,7 +275,7 @@ def mplot_function(f):
         raise AttributeError('Mesh must be 2D')
     # DG0 cellwise function
     if f.vector().size() == mesh.num_cells():
-        C = f.vector().array()
+        C = f.vector().get_local()
         return plt.tripcolor(mesh2triang(mesh), C)
     # Scalar function, interpolated to vertices
     elif f.value_rank() == 0:
@@ -466,7 +466,7 @@ from matplotlib import cm
 from matplotlib.mlab import griddata
 import matplotlib.pyplot as plt
 
-uvals = phi.vector().array()
+uvals = phi.vector().get_local()
 xyvals = mesh.coordinates()
 xvals = xyvals[:,0]
 yvals=xyvals[:,1]
