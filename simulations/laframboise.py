@@ -41,7 +41,7 @@ print("Expected current:     %e"%Iexp)
 
 species = SpeciesList(mesh, ext_bnd, X)
 species.append(-e, me, ne, vthe, npc=npc)
-species.append( e, mp, ne, vthi, npc=npc)
+species.append(e, mp, ne, vthi, npc=npc)
 
 Inorm  = species.Q/species.T
 Vnorm  = (species.M/species.Q)*(species.X/species.T)**2

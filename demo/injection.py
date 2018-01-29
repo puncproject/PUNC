@@ -7,14 +7,18 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 from punc import *
-
+import time
+from matplotlib.colors import LogNorm
 from matplotlib import pyplot as plt
+
+df.set_log_active(False)
 
 # Simulation parameters
 tot_time = 100                   # Total simulation time
 dim      = 2
 dt       = 0.1              # Time step
-v_thermal = .2
+k = 2.0
+v_thermal = 1.0
 
 debug = True
 plot = True
@@ -22,26 +26,36 @@ plot = True
 if dim == 2:
     v_drift  = np.array([0.0, 0.0])  # Drift velocity
     Ld = [6.0, 6.0]
-    N = [16, 16]
+    N = [32, 32]
 elif dim == 3:
     v_drift  = np.array([0.0, 0.0, 0.0])  # Drift velocity
     Ld = [np.pi, np.pi, np.pi]
     N = [5,5,5]
 
 # Get the mesh
+# mesh, facet_func = load_mesh("../mesh/2D/ellipse")
 mesh, facet_func = simple_mesh(Ld, N) # Get the mesh
 ext_bnd_id, int_bnd_ids = get_mesh_ids(facet_func)
 
 Ld = get_mesh_size(mesh)  # Get the size of the simulation domain
 
-exterior_bnd = ExteriorBoundaries(facet_func, ext_bnd_id)
+ext_bnd = ExteriorBoundaries(facet_func, ext_bnd_id)
 
 # Initialize particle positions and velocities, and populate the domain
-pop = Population(mesh, facet_func, normalization='none')
-pop.init_new_specie('electron', exterior_bnd, v_drift=v_drift,
-                    v_thermal=v_thermal, num_per_cell=32)
-pop.init_new_specie('proton', exterior_bnd, v_drift=v_drift,
-                    v_thermal=v_thermal, num_per_cell=32)
+npc = 8
+me = 1.0#constants.value('electron mass')
+e = 1.0#constants.value('elementary charge')
+ne = 1e6
+X = np.mean(Ld)
+
+vdf_type = 'kappa'
+
+species = SpeciesList(mesh, ext_bnd, X)
+species.append_raw(-e, me, ne, v_thermal, v_drift, npc=npc, k=k,vdf_type=vdf_type)
+
+pop = Population(mesh, facet_func)
+
+load_particles(pop, species)
 
 # Time loop
 N   = tot_time
@@ -67,7 +81,7 @@ for n in range(1,N):
    
     # Move the particles:
     move(pop,dt)
-   
+
     # Update particle positions:
     pop.update()
 
@@ -76,7 +90,7 @@ for n in range(1,N):
     num_particles_outside[n] = tot_num0 -tot_num1
 
     # Inject particles:
-    inject(pop, exterior_bnd, dt)
+    inject_particles(pop, species, ext_bnd, dt)
 
     tot_num2 = pop.num_of_particles()
     # Total number of injected particles:
@@ -96,6 +110,41 @@ for n in range(1,N):
 KE[0] = KE0
 
 if plot:
+    vs = []
+    for cell in pop:
+        for particle in cell:
+            vs.append(particle.v)
+    vs = np.array(vs)        
+    vth = species[0].vth 
+    vd = species[0].vd
+    def pdf_maxwellian(i, t):
+        return 1.0 / (np.sqrt(2 * np.pi) * vth) *\
+            np.exp(-0.5 * ((t - vd[i])**2) / (vth**2))
+
+    def pdf_kappa(i, t):
+        return 1.0 / ((np.pi * (2 * k - 3.) * vth**2)**((dim - 1) / 2.0)) *\
+            ((gamma(k + 0.5 * ((dim - 1) - 1.0))) / (gamma(k - 0.5))) *\
+            (1. + (t - vd[i])**2 / ((2 * k - 3.) * vth**2)
+                )**(-(k + 0.5 * ((dim - 1) - 1.)))
+                
+    xs = np.linspace(vd[0] - 5 * vth, vd[0] + 5 * vth, 1000)
+
+    plt.figure(figsize=(8, 7))
+    plt.hist2d(vs[:,0],vs[:,1],bins=100,norm=LogNorm())
+    plt.figure(figsize=(10, 7))
+    plt.hist(vs[:,0], bins=300, color = 'blue', normed=1)
+    if vdf_type=='maxwellian':
+        plt.plot(xs, pdf_maxwellian(0,xs), color='red')
+    elif vdf_type=='kappa':
+        plt.plot(xs, pdf_kappa(0, xs), color='red')
+    plt.figure(figsize=(10, 7))
+    plt.hist(vs[:,1], bins=300, color = 'blue', normed=1)
+    if vdf_type == 'maxwellian':
+        plt.plot(xs, pdf_maxwellian(1, xs), color='red')
+    elif vdf_type == 'kappa':
+        plt.plot(xs, pdf_kappa(1, xs), color='red')
+    plt.show()
+    
     to_file = open('injection.txt', 'w')
     for i,j,k,l in zip(num_particles, num_injected_particles, num_particles_outside, KE):
         to_file.write("%f %f %f %f\n" %(i, j, k, l))

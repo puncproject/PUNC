@@ -11,6 +11,8 @@ from punc import *
 import numpy as np
 from matplotlib import pyplot as plt
 
+df.set_log_active(False)
+
 #==============================================================================
 # INITIALIZING FENICS
 #------------------------------------------------------------------------------
@@ -29,7 +31,7 @@ ext_bnd_id, int_bnd_ids = get_mesh_ids(facet_func)
 
 Ld = get_mesh_size(mesh)  # Get the size of the simulation domain
 
-exterior_bnd = ExteriorBoundaries(facet_func, ext_bnd_id)
+ext_bnd = ExteriorBoundaries(facet_func, ext_bnd_id)
 
 V = df.FunctionSpace(mesh, 'CG', 1,
                      constrained_domain=PeriodicBoundary(Ld,periodic))
@@ -42,9 +44,24 @@ dv_inv = voronoi_volume(V, Ld, True)
 A, mode = 0.5, 1
 pdf = lambda x: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0])
 
-pop = Population(mesh, facet_func, normalization='plasma params')
-pop.init_new_specie('electron', exterior_bnd, pdf=pdf, pdf_max=1 + A)
-pop.init_new_specie('proton', exterior_bnd)
+eps0 = constants.value('electric constant')
+me = constants.value('electron mass')
+mp = constants.value('proton mass')
+e = constants.value('elementary charge')
+npc = 8
+ne = 1e2
+vthe = np.finfo(float).eps
+vthi = np.finfo(float).eps
+vd = [0.0,0.0]
+X = np.mean(Ld)
+
+species = SpeciesList(mesh, ext_bnd, X)
+species.append(-e, me, ne, vthe, vd, npc, pdf=pdf, pdf_max=1 + A)
+species.append(e, mp, ne, vthi, vd, npc)
+
+pop = Population(mesh, facet_func)
+
+load_particles(pop, species)
 
 dt = 0.251327
 N = 30
@@ -66,7 +83,6 @@ for n in range(1,N):
 KE[0] = KE0
 
 TE = KE + PE
-
 
 plt.plot(KE,label="Kinetic Energy")
 plt.plot(PE,label="Potential Energy")
