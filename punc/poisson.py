@@ -80,7 +80,7 @@ def simple_mesh(Ld, N, ext_bnd_id=1):
     d = len(N)
     mesh_types = [df.RectangleMesh, df.BoxMesh]
 
-    mesh = mesh_types[d-2](df.Point(0,0,0), df.Point(*Ld), *N)
+    mesh = mesh_types[d-2](df.Point(*np.zeros(len(Ld))), df.Point(*Ld), *N)
 
     facet_func = df.FacetFunction('size_t', mesh)
     facet_func.set_all(0)

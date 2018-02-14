@@ -27,7 +27,7 @@ import dolfin as df
 import numpy as np
 import scipy.constants as constants
 from itertools import count
-from punc.injector import Flux, locate
+from punc.injector import flux, locate, shifted_maxwellian, kappa
 
 class Particle(object):
     __slots__ = ('x', 'v', 'q', 'm')
@@ -39,16 +39,47 @@ class Particle(object):
         self.m = m           # Mass
 
 class Species(object):
-    __slots__ = ('q', 'm', 'n', 'vth', 'vd', 'num', 'flux')
-    def __init__(self, q, m, n, vth, vd, num, ext_bnd):
+    __slots__ = ('q', 'm', 'n', 'vth', 'vd', 'k', 'num', 'pdf', 'pdf_max', 
+                 'vdf', 'cutoffs', 'nsp', 'flux')
+
+    def __init__(self, q, m, n, vth, vd, k, num, pdf, pdf_max, vdf_type, vdf, 
+                 cutoffs, nsp, ext_bnd):
         # Parameters apply for normalized simulation particles
-        self.q    = q                      # Charge
-        self.m    = m                      # Mass
-        self.n    = n                      # Density
-        self.vth  = vth                    # Thermal velocity
-        self.vd   = vd                     # Drift velocity
-        self.num  = num                    # Initial number of particles
-        self.flux = Flux(vth, vd, ext_bnd) # Flux object
+        self.q       = q                     # Charge
+        self.m       = m                     # Mass
+        self.n       = n                     # Density
+        self.num     = num                   # Initial number of particles
+        self.vth     = vth                   # Thermal velocity
+        self.vd      = vd                    # Drift velocity
+        self.k       = k                     # Spectral index for kappa vdf
+        self.pdf     = pdf                   # Position distribution function
+        self.pdf_max = pdf_max               # Maximum value of pdf
+        
+        # Create the velocity distribution function (vdf)
+        if vdf is None and vdf_type == 'maxwellian':
+            self.vdf = shifted_maxwellian(vth, vd)
+            vdf_range = 5
+        elif vdf is None and vdf_type == 'kappa':
+            self.vdf = kappa(vth, vd, k)
+            vdf_range = 15
+        else:
+            self.vdf = vdf
+            vdf_range = 5
+        
+        # Velocity cutoffs and number of support points
+        if cutoffs is None:
+            self.cutoffs = [[None] * 2] * len(vd)
+            for i in range(len(vd)):
+                self.cutoffs[i][0] = vd[i] - vdf_range * vth
+                self.cutoffs[i][1] = vd[i] + vdf_range *vth
+        else:
+            self.cutoffs = cutoffs
+        if nsp is None:
+            self.nsp = 60
+        else:
+            self.nsp = nsp
+
+        self.flux = flux(vth, vd, k, vdf_type, self.vdf, self.cutoffs, self.nsp, ext_bnd) 
 
 class SpeciesList(list):
     """
@@ -87,7 +118,9 @@ class SpeciesList(list):
         self.M = None                  # Characteristic mass
         self.D = mesh.geometry().dim() # Number of dimensions
 
-    def append_raw(self, q, m, n, vth, vd=0.0, npc=16, num=None):
+    def append_raw(self, q, m, n, vth=None, vd=None, k=None, npc=16, num=None, 
+                   pdf=lambda x: 1, pdf_max=1, vdf_type='maxwellian', vdf=None, 
+                   cutoffs=None, nsp=None):
         """
         Like append() but without normalization. Can be use to run simulations
         in non-normalized SI units, use this function instead, and set eps_0
@@ -98,14 +131,17 @@ class SpeciesList(list):
 
         if num==None: num = npc*self.num_cells
         w = (n/num)*self.volume
-
+   
         q *= w
         m *= w
         n /= w # Equals num/self.volume
 
-        list.append(self, Species(q, m, n, vth, vd, num, self.ext_bnd))
+        list.append(self, Species(q, m, n, vth, vd, k, num, pdf, pdf_max, 
+                                  vdf_type, vdf, cutoffs, nsp, self.ext_bnd))
 
-    def append(self, q, m, n, vth, vd=0.0, npc=16, num=None):
+    def append(self, q, m, n, vth=None, vd=None, k=None, npc=16, num=None, 
+               pdf=lambda x:1, pdf_max=1, vdf_type='maxwellian', vdf=None, 
+               cutoffs=None, nsp=None):
         """
         Appends a species with given parameters:
 
@@ -137,11 +173,16 @@ class SpeciesList(list):
         q   /= self.Q
         m   /= self.M
         n   *= self.X**self.D
-        vth /= (self.X/self.T)
-        vd  /= (self.X/self.T)
+        if vth is not None:
+            if vth == 0: vth = np.finfo(float).eps
+            vth /= (self.X/self.T)
+        if vd is None:
+            vd = np.zeros(self.D)
+        else:
+            vd  = [vd_i/(self.X/self.T) for vd_i in vd]
 
         # Add to list
-        self.append_raw(q, m, n, vth, vd, npc, num)
+        self.append_raw(q, m, n, vth, vd, k, npc, num, pdf, pdf_max, vdf_type, vdf, cutoffs, nsp)
 
 class Population(list):
     """
@@ -209,7 +250,7 @@ class Population(list):
 
                 # take normal from cell rather than from facet to make sure it
                 # is outwards-pointing
-                normal = cell.normal(facet_number).array()
+                normal = cell.normal(facet_number).array()[:self.g_dim]
 
                 mid = facet.midpoint()
                 mid = np.array([mid.x(), mid.y(), mid.z()])

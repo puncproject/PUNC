@@ -29,7 +29,7 @@ m = .05 # Particle mass
 Np = 1*mesh.num_cells()
 mul = (np.prod(Ld)/np.prod(Np))
 
-pop = Population(mesh, facet_func, normalization='none')
+pop = Population(mesh, facet_func)
 pop.add_particles(xs,vs,q*mul,m*mul) # Add particle to population
 
 V = df.VectorFunctionSpace(mesh, 'CG', 1) # The vector function space
