@@ -10,15 +10,15 @@ import matplotlib.pyplot as plt
 from punc import *
 import time
 
-mesh = Mesh("mesh/sphereinsphere_fine.xml")
-boundaries = MeshFunction("size_t", mesh, "mesh/sphereinsphere_fine_facet_region.xml")
+mesh = Mesh("../mesh/3D/sphere_in_sphere_res1.xml")
+boundaries = MeshFunction("size_t", mesh, "../mesh/3D/sphere_in_sphere_res1_facet_region.xml")
 ext_bnd_id = 58
 int_bnd_id = 59
 
 # Simulation settings
-Q = Constant(10.) # Object 1 charge
-grounded = True # Wether objects should be grounded (Dirichlet)
-direct = False # Use direct solver instead of iterative solver?
+Q = Constant(-10.) # Object 1 charge
+grounded = False # Wether objects should be grounded (Dirichlet)
+direct = True # Use direct solver instead of iterative solver?
 method = 'gmres'
 preconditioner = 'ilu'
 
@@ -42,7 +42,7 @@ else:
     ext_bc = DirichletBC(W.sub(0), Constant(0), boundaries, ext_bnd_id)
     int_bc = FloatingBC(W.sub(0), boundaries, int_bnd_id)
 
-# rho = Constant(0.)
+# rho = Constant(1.)
 rho = df.Expression("100*x[1]", degree=3)
 n = FacetNormal(mesh)
 dss = Measure("ds", domain=mesh, subdomain_data=boundaries)

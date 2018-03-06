@@ -9,3 +9,5 @@
 simulations/results
 **.swp
 tags
+**.ps
+**.eps

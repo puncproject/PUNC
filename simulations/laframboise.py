@@ -45,16 +45,18 @@ species.append(e, mp, ne, vthi, npc=npc)
 
 Inorm  = species.Q/species.T
 Vnorm  = (species.M/species.Q)*(species.X/species.T)**2
+# Inorm  = 1.
+# Vnorm  = 1.
 Inorm /= np.abs(Ilam)
 Vnorm /= Vlam
 
-N          = 200
+N          = 400
 dt         = 0.05#*wpe**(-1)
 cap_factor = 1.
 
-current_collected = Iexp #/(species.Q/species.T)
+current_collected = Iexp/(species.Q/species.T)
 
-object_method = 'variational'
+object_method = 'capacitance'
 imposed_potential = 1.0/Vnorm
 
 eps0=1

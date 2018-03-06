@@ -45,6 +45,7 @@ def get_mesh_ids(boundaries, comm=None):
     tags = np.sort(tags)
 
     if comm is None:
+        tags = tags.tolist()
         return tags[1], tags[2:]
     else:
         comm_mpi4py = comm.tompi4py()
