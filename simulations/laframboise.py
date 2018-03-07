@@ -56,7 +56,7 @@ cap_factor = 1.
 
 current_collected = Iexp/(species.Q/species.T)
 
-object_method = 'capacitance'
+object_method = 'variational'
 imposed_potential = 1.0/Vnorm
 
 eps0=1

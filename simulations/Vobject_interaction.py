@@ -14,23 +14,12 @@ import sys
 # only by expert users.
 exec('from %s import *'%(sys.argv[1]))
 
-object_method = 'capacitance'
-
 assert object_method in ['capacitance', 'variational']
 
 V = df.FunctionSpace(mesh, 'CG', 1)
 
 bc = df.DirichletBC(V, df.Constant(0.0), bnd, ext_bnd_id)
 
-# cell = mesh.ufl_cell()
-# WV = df.FiniteElement("Lagrange", cell, 1)
-# WR = df.FiniteElement("Real", cell, 0)
-# W = df.FunctionSpace(mesh, df.MixedElement([WV, WR]))
-# u, c = df.TrialFunctions(W)
-# v, d = df.TestFunctions(W)
-
-# ext_bc = df.DirichletBC(W.sub(0), df.Constant(0.0), bnd, ext_bnd_id)
-# int_bc = FloatingBC(W.sub(0), bnd, int_bnd_ids[0])
 
 int_bnd_id = int_bnd_ids[0]
 
@@ -39,33 +28,6 @@ if object_method=='capacitance':
 else:
     objects = [Object(V, bnd, i) for i in int_bnd_ids]
     objects[0].set_potential(imposed_potential)
-
-# n = df.FacetNormal(mesh)
-# dss = df.Measure("ds", domain=mesh, subdomain_data=bnd)
-# dsi = dss(int_bnd_ids[0])
-# S = df.assemble(df.Constant(1.0)*dsi)
-
-# a = df.inner(df.grad(u), df.grad(v)) * df.dx -\
-#     df.inner(v, df.dot(df.grad(u), n)) * dsi +\
-#     df.inner(c, df.dot(df.grad(v), n)) * dsi +\
-#     df.inner(d, df.dot(df.grad(u), n)) * dsi
-
-# print("Assembling matrix")
-# A = df.assemble(a)
-# print("Applying boundary conditions")
-# ext_bc.apply(A)
-# int_bc.apply(A)
-
-# solver = df.PETScKrylovSolver('gmres','ilu')
-# solver.parameters['absolute_tolerance'] = 1e-14
-# solver.parameters['relative_tolerance'] = 1e-10 #e-12
-# solver.parameters['maximum_iterations'] = 100000
-# solver.parameters['monitor_convergence'] = True
-# solver.parameters['nonzero_initial_guess'] = True
-
-# print("Setting operator (computing preconditioning?)")
-# solver.set_operator(A)
-# solver.set_reuse_preconditioner(True)
 
 # Get the solver
 poisson = PoissonSolver(V, bc, eps_0=eps0)
@@ -102,7 +64,7 @@ num_i = pop.num_of_positives()
 potential = 0
 current_measured = 0
 
-timer = TaskTimer(N, 'simple')
+timer = TaskTimer(N, 'compact')
 
 Q = -10000.
 # objects[0].charge=Q
@@ -118,6 +80,8 @@ v, d = TestFunctions(W)
 
 ext_bc = DirichletBC(W.sub(0), Constant(0), bnd, ext_bnd_id)
 int_bc = FloatingBC(W.sub(0), bnd, int_bnd_id)
+d2v = df.dof_to_vertex_map(V)
+pot_index = d2v[bnd.where_equal(int_bnd_id)[0]]
 
 normal = FacetNormal(mesh)
 dss = Measure("ds", domain=mesh, subdomain_data=bnd)
@@ -137,7 +101,6 @@ int_bc.apply(A)
 wh = Function(W)
 
 for n in range(nstart, N):
-# for n in range(2):
 
     # We are now at timestep n
     # Velocities and currents are at timestep n-0.5 (or 0 if n==0)
@@ -147,45 +110,31 @@ for n in range(nstart, N):
     # rho = df.Expression('10*x[0]',degree=2)
 
     if object_method == 'capacitance':
-        reset_objects(objects)
 
-        timer.task("Solving potential 1")
+        timer.task("Solving potential (cap. matrix)")
+
+        reset_objects(objects)
         phi = poisson.solve(rho, objects)
 
-        timer.task("Solving E-field 1")
         E = esolver.solve(phi)
-
-        timer.task("Calculate object potential")
         compute_object_potentials(objects, E, inv_cap_matrix, mesh, bnd)
-    else:
-        pass
+        phi = poisson.solve(rho, objects)
 
-    potential = objects[0]._potential*Vnorm # at n
+    if object_method == 'variational':
 
-    # timer.task("Assembling load vector")
-    # L = df.inner(rho, v) * df.dx +\
-    #     df.inner(Q/S, d) * dsi
-    # b = df.assemble(L)
-    # ext_bc.apply(b)
-    # int_bc.apply(b)
+        timer.task("Solving potential (variational)")
 
-    timer.task("Solving potential 2")
-    phi = poisson.solve(rho, objects)
+        L = inner(rho, v) * dx +\
+            inner(Q/S, d) * dsi
 
-    # df.solve(A, wh.vector(), b)
-    # solver.solve(wh.vector(), b)
-    # uh, ph = wh.split(deepcopy=True)
+        b = assemble(L)
+        ext_bc.apply(b)
+        int_bc.apply(b)
 
-    L = inner(rho, v) * dx +\
-        inner(Q/S, d) * dsi
+        solve(A, wh.vector(), b)
+        phi, ph = wh.split(deepcopy=True)
 
-    timer.task("Assembling load vector")
-    b = assemble(L)
-    ext_bc.apply(b)
-    int_bc.apply(b)
-
-    solve(A, wh.vector(), b)
-    uh, ph = wh.split(deepcopy=True)
+    potential = phi.vector().get_local()[pot_index]*Vnorm
 
     # Qm = assemble(dot(grad(uh), normal) * dsi)
     # print("Object charge: ", Qm)
@@ -193,17 +142,15 @@ for n in range(nstart, N):
     # rel_error = df.errornorm(uh,phi)/df.norm(phi)
     # print("Relative error, phi:",rel_error)
 
-    timer.task("Solving E-field 2")
-    E = esolver.solve(uh)
-    E2 = esolver.solve(phi)
+    timer.task("Solving E-field")
+    E = esolver.solve(phi)
 
     # rel_error = df.errornorm(E,E2)/df.norm(E2)
     # print("Relative error, E:",rel_error)
 
-    # potential = uh(5,5,4)*Vnorm
 
     timer.task("Computing potential energy")
-    PE = mesh_potential_energy(rho, uh)
+    PE = mesh_potential_energy(rho, phi)
 
     timer.task("Move particles")
     old_charge = objects[0].charge # Charge at n
@@ -242,7 +189,6 @@ for n in range(nstart, N):
 timer.summary()
 hist_file.close()
 
-df.File('uh.pvd') << uh
 df.File('phi.pvd') << phi
 df.File('rho.pvd') << rho
 df.File('E.pvd') << E
