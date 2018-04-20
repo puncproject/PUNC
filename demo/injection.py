@@ -17,7 +17,6 @@ df.set_log_active(False)
 tot_time = 100                   # Total simulation time
 dim      = 2
 dt       = 0.1              # Time step
-k = 2.0
 v_thermal = 1.0
 
 debug = True
@@ -33,25 +32,27 @@ elif dim == 3:
     N = [5,5,5]
 
 # Get the mesh
-# mesh, facet_func = load_mesh("../mesh/2D/ellipse")
-mesh, facet_func = simple_mesh(Ld, N) # Get the mesh
+if dim==2:
+    mesh, facet_func = load_mesh("../mesh/2D/nothing_in_square")
+    npc = 100
+elif dim==3:
+    mesh, facet_func = load_mesh("../mesh/3D/nothing_in_cube")
+    npc = 16
 ext_bnd_id, int_bnd_ids = get_mesh_ids(facet_func)
 
 Ld = get_mesh_size(mesh)  # Get the size of the simulation domain
 
 ext_bnd = ExteriorBoundaries(facet_func, ext_bnd_id)
-
 # Initialize particle positions and velocities, and populate the domain
-npc = 8
-me = 1.0#constants.value('electron mass')
-e = 1.0#constants.value('elementary charge')
+
+me = constants.value('electron mass')
+e = constants.value('elementary charge')
 ne = 1e6
 X = np.mean(Ld)
 
-vdf_type = 'kappa'
-
-species = SpeciesList(mesh, ext_bnd, X)
-species.append_raw(-e, me, ne, v_thermal, v_drift, npc=npc, k=k,vdf_type=vdf_type)
+species = SpeciesList(mesh, X)
+#species.append(-e, me, ne, v_thermal, v_drift, npc=npc,vdf_type=vdf_type)
+species.append_raw(-1, 1, 100, v_thermal, v_drift, npc, ext_bnd)
 
 pop = Population(mesh, facet_func)
 
@@ -75,10 +76,10 @@ num_i[0] = num_particles[0] / 2
 for n in range(1,N):
     if debug:
         print("Computing timestep %d/%d"%(n,N-1))
-   
+
     # Total number of particles before injection:
     tot_num0 = pop.num_of_particles()
-   
+
     # Move the particles:
     move(pop,dt)
 
@@ -109,13 +110,14 @@ for n in range(1,N):
 
 KE[0] = KE0
 
+vdf_type = 'maxwellian'
 if plot:
     vs = []
     for cell in pop:
         for particle in cell:
             vs.append(particle.v)
-    vs = np.array(vs)        
-    vth = species[0].vth 
+    vs = np.array(vs)
+    vth = species[0].vth
     vd = species[0].vd
     def pdf_maxwellian(i, t):
         return 1.0 / (np.sqrt(2 * np.pi) * vth) *\
@@ -126,7 +128,7 @@ if plot:
             ((gamma(k + 0.5 * ((dim - 1) - 1.0))) / (gamma(k - 0.5))) *\
             (1. + (t - vd[i])**2 / ((2 * k - 3.) * vth**2)
                 )**(-(k + 0.5 * ((dim - 1) - 1.)))
-                
+
     xs = np.linspace(vd[0] - 5 * vth, vd[0] + 5 * vth, 1000)
 
     plt.figure(figsize=(8, 7))
@@ -144,7 +146,7 @@ if plot:
     elif vdf_type == 'kappa':
         plt.plot(xs, pdf_kappa(1, xs), color='red')
     plt.show()
-    
+
     to_file = open('injection.txt', 'w')
     for i,j,k,l in zip(num_particles, num_injected_particles, num_particles_outside, KE):
         to_file.write("%f %f %f %f\n" %(i, j, k, l))
@@ -174,7 +176,7 @@ if plot:
     plt.xlabel("Timestep")
     plt.ylabel("Normalized Energy")
     plt.savefig('kineticEnergy.png')
-    
+
     plt.figure()
     plt.plot(num_i, label="Number of ions")
     plt.plot(num_e, label="Number of electrons")

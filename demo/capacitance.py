@@ -13,7 +13,7 @@ import sys
 import importlib
 
 
-r_inner = 0.2
+r_inner = 0.1
 r_outer = 1.0
 
 phi_inner = 1.0
@@ -22,14 +22,13 @@ phi_outer = 0.0
 cap_matrix = 4.0 * np.pi * r_inner * r_outer / (r_outer - r_inner)
 
 fname = "../mesh/3D/sphere_in_sphere_res1"
-
 mesh, boundaries = load_mesh(fname)
 ext_bnd_id, int_bnd_ids = get_mesh_ids(boundaries)
 
 V = df.FunctionSpace(mesh, 'CG', 1)
 
 bc = df.DirichletBC(V, df.Constant(phi_outer), boundaries, ext_bnd_id)
-objects = [Object(V, int(j), boundaries) for j in int_bnd_ids]
+objects = [Object(V, boundaries, int(j)) for j in int_bnd_ids]
 
 poisson = PoissonSolver(V, bc)
 

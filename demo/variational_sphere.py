@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 from punc import *
 import time
 
-mesh = Mesh("mesh/sphereinsphere_fine.xml")
-boundaries = MeshFunction("size_t", mesh, "mesh/sphereinsphere_fine_facet_region.xml")
+mesh = Mesh("../mesh/3D/sphere_in_sphere_res1.xml")
+boundaries = MeshFunction("size_t", mesh, "../mesh/3D/sphere_in_sphere_res1_facet_region.xml")
 ext_bnd_id = 58
 int_bnd_id = 59
 
@@ -113,5 +113,5 @@ else:
 Qm = assemble(dot(grad(uh), n) * dsi)
 print("Object charge: ", Qm)
 
-# df.plot(uh, interactive=True)
+#df.plot(uh, interactive=True)
 # df.File("phi.pvd") << uh

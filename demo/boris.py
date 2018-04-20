@@ -57,7 +57,7 @@ pos = np.zeros((N,3)) # Particle positions
 pos[0] = xs
 for n in range(1,N):
     print("t: ", n)
-    KE[n-1] = boris(pop,E,B,(1-0.5*(n==1))*dt)
+    KE[n-1] = boris_nonuniform(pop,E,B,(1-0.5*(n==1))*dt)
     move_periodic(pop, Ld, dt)
     pop.update()
 

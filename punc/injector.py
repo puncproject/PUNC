@@ -29,44 +29,149 @@ from scipy.special import gamma
 
 __UINT32_MAX__ = np.iinfo('uint32').max
 
-def shifted_maxwellian(vth, vd):
-    """
-    Shifted-Maxwellian velocity distribution.
-    Parameteres: 
-                vth - Thermal speed (scalar)
-                vd  - Drift velocity (vector)
-    """
-    D = len(vd)
-    def vdf(v):
-        return (1.0 / ((np.sqrt(2 * np.pi * vth**2))**D)) *\
-            np.exp(-0.5 * np.array(reduce(np.add, [(v[i] - vd[i])**2 \
-                                    for i in range(D)])) / (vth**2))
-    return vdf 
+class ShiftedMaxwellian(object):
 
-def kappa(vth, vd, k):
-    """
-    Kappa velocity distribution.
-    Parameteres: 
-        vth - Thermal speed (scalar)
-        vd  - Drift velocity (vector)
-        k   - Spectral index for Kappa vdf
-    """
-    D = len(vd)
-    def vdf(v):
-        return 1.0 / ((np.pi*(2*k-3.)*vth**2)**(D/2.0)) *\
-        ((gamma(k + 0.5*(D-1.0))) / (gamma(k - 0.5))) *\
-        (1. + np.array(reduce(np.add, [(v[i] - vd[i])**2\
-        for i in range(D)])) / ((2*k-3.)*vth**2))**(-(k + 0.5*(D-1.)))
-    return vdf
+    def __init__(self, vth, vd, nsp=60, vdf_range=5):
+        self.vth = vth
+        self.vd = vd
+        self.D = len(vd)
+        self.nsp = nsp
+        self.cutoffs = [[None] * 2] * self.D
+        for i in range(len(vd)):
+            self.cutoffs[i][0] = vd[i] - vdf_range * vth
+            self.cutoffs[i][1] = vd[i] + vdf_range *vth
+
+    def get_vdf(self):
+        D = self.D
+        vd = self.vd
+        vth = self.vth
+        def vdf(v):
+            return (1.0 / ((np.sqrt(2 * np.pi * vth**2))**D)) *\
+                np.exp(-0.5 * np.array(reduce(np.add, [(v[i] - vd[i])**2
+                                                for i in range(D)])) / (vth**2))
+        return vdf
+
+    def get_num_particles(self, ext_bnd):
+        vd = self.vd
+        vth = self.vth
+        num_particles = [None]*len(ext_bnd)
+        for i, facet in enumerate(ext_bnd):
+            n = facet.normal
+            vdn = np.dot(n, vd)
+            num_particles[i] = facet.area * (vth / (np.sqrt(2 * np.pi)) *\
+                                np.exp(-0.5 * (vdn/vth)**2) +\
+                                0.5*vdn*(1. + erf(vdn / (np.sqrt(2) *vth))))
+        return num_particles
+
+    def get_flux_vdf(self, n):
+        vdf = self.get_vdf()
+        D = self.D
+        def vdf_flux(v):
+            return reduce(np.add, [v[i] * n[i] for i in range(D)]) * vdf(v)
+        return vdf_flux
+
+class Kappa(object):
+
+    def __init__(self, vth, vd, k, nsp=60, vdf_range=15):
+        self.vth = vth
+        self.vd = vd
+        self.k = k
+        self.D = len(vd)
+        self.nsp = nsp
+        self.cutoffs = [[None] * 2] * self.D
+        for i in range(len(vd)):
+            self.cutoffs[i][0] = vd[i] - vdf_range * vth
+            self.cutoffs[i][1] = vd[i] + vdf_range *vth
+
+    def get_vdf(self):
+        D = self.D
+        vd = self.vd
+        vth = self.vth
+        k = self.k
+        def vdf(v):
+            return 1.0 / ((np.pi*(2*k-3.)*vth**2)**(D/2.0)) *\
+            ((gamma(k + 0.5*(D-1.0))) / (gamma(k - 0.5))) *\
+            (1. + np.array(reduce(np.add, [(v[i] - vd[i])**2\
+            for i in range(D)])) / ((2*k-3.)*vth**2))**(-(k + 0.5*(D-1.)))
+        return vdf
+
+    def get_num_particles(self, ext_bnd):
+        vd = self.vd
+        vth = self.vth
+        k = self.k
+        num_particles = [None]*len(ext_bnd)
+        for i, facet in enumerate(ext_bnd):
+            num_particles[i] = facet.area * (vth / (np.sqrt(2. * np.pi))) *\
+                np.sqrt(k - 1.5) * gamma(k - 1.) / gamma(k - 0.5)
+    
+        return num_particles
+
+    def get_flux_vdf(self, n):
+        vdf = self.get_vdf()
+        D = self.D
+        def vdf_flux(v):
+            return reduce(np.add, [v[i] * n[i] for i in range(D)]) * vdf(v)
+        return vdf_flux
+
+class Carin(object):
+
+    def __init__(self, vth, vd, alpha, nsp=60, vdf_range=15):
+        self.vth = vth
+        self.vd = vd
+        self.alpha = alpha
+        self.D = len(vd)
+        self.nsp = nsp
+        self.cutoffs = [[None] * 2] * self.D
+        for i in range(len(vd)):
+            self.cutoffs[i][0] = vd[i] - vdf_range * vth
+            self.cutoffs[i][1] = vd[i] + vdf_range *vth
+
+    def get_vdf(self):
+        D = self.D
+        vd = self.vd
+        vth = self.vth
+        alpha = self.alpha
+        def v_sqrt(v):
+            return np.array(reduce(np.add, [(v[i] - vd[i])**2 for i in range(D)]))
+
+        def vdf(v):
+            return 1.0/((1+15*alpha)*(2*np.pi*vth**2)**(D/2.0))*\
+                (1. + (D**2-8*D+15)*alpha + 2*alpha*(3.-D)*v_sqrt(v)/vth**2 +\
+                (alpha/vth**4)* v_sqrt(v)*v_sqrt(v)) *\
+                np.exp(-0.5 *v_sqrt(v) / (vth**2))
+
+        return vdf
+
+    def get_num_particles(self, ext_bnd):
+        vd = self.vd
+        vth = self.vth
+        alpha = self.alpha
+        num_particles = [None]*len(ext_bnd)
+        for i, facet in enumerate(ext_bnd):
+            n = facet.normal
+            vdn = np.dot(n, vd)
+            num_particles[i] = facet.area * ( (vth / (np.sqrt(2 * np.pi))) *\
+                    ((1+24*alpha)/(1+15*alpha))*np.exp(-0.5 * (vdn / vth)**2)+\
+                    (alpha*vdn**2/((1+15*alpha)*np.sqrt(2*np.pi*vth**2)))*\
+                    np.exp(-0.5 * (vdn / vth)**2)+\
+                    0.5 * vdn * (1. + erf(vdn / (np.sqrt(2) * vth))))
+    
+        return num_particles
+
+    def get_flux_vdf(self, n):
+        vdf = self.get_vdf()
+        D = self.D
+        def vdf_flux(v):
+            return reduce(np.add, [v[i] * n[i] for i in range(D)]) * vdf(v)
+        return vdf_flux
 
 class ORS(object):
-    """
-    Optimized rejection sampling
-    """
-    def __init__(self, pdf, cutoffs, nsp=50):
-        self.pdf = pdf
-        self.dim = len(cutoffs)
 
+    def __init__(self, vdf_type, ext_bnd=[]):
+        cutoffs = vdf_type.cutoffs
+        nsp = vdf_type.nsp
+        self.dim = len(cutoffs)
+        
         if isinstance(cutoffs[0], (np.int, np.float)):
             cutoffs = [cutoffs]
 
@@ -75,14 +180,14 @@ class ORS(object):
         for i in range(1, self.dim):
             nsp[i] = nsp[i - 1] * df[i][0] / df[i - 1][0]
 
-        midpoints = [(cutoffs[i][1] + cutoffs[i][0])/2.0 \
-                                                      for i in range(self.dim)]
+        midpoints = [(cutoffs[i][1] + cutoffs[i][0]) / 2.0
+                     for i in range(self.dim)]
 
         ind = [None] * self.dim
         found = [False] * self.dim
         while all(found) is False:
-            points = np.array([np.linspace(*cutoffs[i], nsp[i], retstep=True)\
-                                                    for i in range(self.dim)])
+            points = np.array([np.linspace(*cutoffs[i], nsp[i], retstep=True)
+                               for i in range(self.dim)])
             for i in range(self.dim):
                 ind[i] = np.where(points[i][0] == midpoints[i])[0]
                 if len(ind[i]) == 0:
@@ -97,49 +202,56 @@ class ORS(object):
         sp = [points[i][0] for i in range(self.dim)]
         self.sp = np.array(np.meshgrid(*sp, indexing='ij'))
 
-        self.build_pdf()
-
-    def build_pdf(self):
-        f_sp = self.pdf(self.sp)
-        f_sp[np.where(f_sp < 0)] = 0
-
         u_slice = [slice(0, None), slice(0, None), slice(1, None)]
         l_slice = [slice(0, None), slice(0, None), slice(0, -1)]
-        u_sl = [None] * self.dim
-        l_sl = [None] * self.dim
+        self.u_sl = [None] * self.dim
+        self.l_sl = [None] * self.dim
         for i in range(self.dim):
-            u_sl[i] = u_slice[-(i + 1):]
-            l_sl[i] = l_slice[-(i + 1):]
+            self.u_sl[i] = u_slice[-(i + 1):]
+            self.l_sl[i] = l_slice[-(i + 1):]
+        
+        if len(ext_bnd) == 0:
+            self.pdf_max, self.weights, self.w_s = [None], [None], [None]
+            self.vdf = [vdf_type.get_vdf()]
+            self.build_vdf(self.vdf[0])
+        else:
+            self.vdf     = [None] * len(ext_bnd)
+            self.pdf_max = [None] * len(ext_bnd)
+            self.weights = [None] * len(ext_bnd)
+            self.w_s     = [None] * len(ext_bnd)
+            for i, facet in enumerate(ext_bnd):
+                self.vdf[i] = vdf_type.get_flux_vdf(facet.normal)
+                self.build_vdf(self.vdf[i], i)
 
-        pdf_max = np.maximum(f_sp[u_sl[0]], f_sp[l_sl[0]])
+    def build_vdf(self, vdf, f=0):
+        f_sp = vdf(self.sp)
+        f_sp[np.where(f_sp < 0)] = 0
+
+        pdf_max = np.maximum(f_sp[self.u_sl[0]], f_sp[self.l_sl[0]])
         for i in range(1, self.dim):
-            pdf_max = np.maximum(pdf_max[u_sl[i]], pdf_max[l_sl[i]])
+            pdf_max = np.maximum(pdf_max[self.u_sl[i]], pdf_max[self.l_sl[i]])
 
         integral = self.volume * pdf_max
         w = integral / np.sum(integral)
 
-        self.pdf_max = pdf_max.flatten()
-        self.w_s = w.shape
+        self.pdf_max[f] = pdf_max.flatten()
+        self.w_s[f] = w.shape
         w = w.flatten()
-        self.weights = np.cumsum(w)
+        self.weights[f] = np.cumsum(w)
 
-    def sample_pdf(self, n):
-        r = np.random.rand(n)
-        inds = np.searchsorted(self.weights, r, side='right')
-        index = np.unravel_index(inds, self.w_s)
-
-        vs = np.array([self.sp[i][index] + self.dv[i] * np.random.rand(n)
-                       for i in range(self.dim)]).T
-
-        pdf_vs = self.pdf_max[inds] * np.random.rand(n)
-        return vs, pdf_vs
-
-    def sample(self, N):
+    def sample(self, N, f=0):
         vs = np.array([]).reshape(-1, self.dim)
         while len(vs) < N:
             n = N - len(vs)
-            vs_new, p_vs_new = self.sample_pdf(n)
-            pdf_vs_new = self.pdf(vs_new.T)
+            r = np.random.rand(n)
+            inds = np.searchsorted(self.weights[f], r, side='right')
+            index = np.unravel_index(inds, self.w_s[f])
+
+            vs_new = np.array([self.sp[i][index] + self.dv[i] * np.random.rand(n)
+                               for i in range(self.dim)]).T
+
+            p_vs_new = self.pdf_max[f][inds] * np.random.rand(n)
+            pdf_vs_new = self.vdf[f](vs_new.T)
             vs_new = vs_new[np.where(p_vs_new < pdf_vs_new)]
             vs = np.concatenate([vs, vs_new])
         return vs
@@ -286,77 +398,22 @@ class ExteriorBoundaries(list):
                 np.array([fs.normal()[j] for j in range(self.g_dim)])
         return normal
 
-def flux(vth, vd, k, vdf_type, vdf, cutoffs, nsp, ext_bnd):
-    
-    num_particles, generator = [None] * len(ext_bnd), [None] * len(ext_bnd)
-    D = len(cutoffs)
-
-    if vdf_type=='maxwellian':
-        for i, facet in enumerate(ext_bnd):
-            n = facet.normal
-            vdn = np.dot(n, vd)
-            num_particles[i] = facet.area * (vth / (np.sqrt(2 * np.pi)) *\
-                                np.exp(-0.5 * (vdn/vth)**2) +\
-                                0.5*vdn*(1. + erf(vdn / (np.sqrt(2) *vth))))
-            
-            vdf_flux = lambda x, n=n, vdf=vdf, D=D: reduce(np.add, [x[i] * n[i]\
-                                                    for i in range(D)]) * vdf(x)
-
-            generator[i] = ORS(vdf_flux, cutoffs, nsp=nsp)
-    elif vdf_type=='kappa':
-        for i, facet in enumerate(ext_bnd):
-            n = facet.normal
-            num_particles[i] = facet.area*(vth/(np.sqrt(2.*np.pi)))*\
-                               np.sqrt(k - 1.5)*gamma(k - 1.)/gamma(k - 0.5)
-
-            vdf_flux = lambda x, n=n, vdf=vdf, D=D: reduce(np.add, [x[i] * n[i]\
-                                                    for i in range(D)]) * vdf(x)
-
-            generator[i] = ORS(vdf_flux, cutoffs, nsp=nsp)
-    else:
-        from scipy.integrate import nquad
-        for i, facet in enumerate(ext_bnd):
-            n = facet.normal
-            if D == 1:
-                pdf_flux = lambda x, n=n, vdf=vdf: x*n*vdf(x)\
-                                                   if x * n >= 0.0 else 0
-            elif D == 2:
-                vdf_flux = lambda x, y, n=n, vdf=vdf:\
-                                           (x * n[0] + y * n[1]) * vdf([x, y]) \
-                                          if (x * n[0] + y * n[1]) >= 0 else 0.0
-            elif D == 3:
-                vdf_flux = lambda x, y, z, n=n, vdf=vdf:\
-                              (x * n[0] + y * n[1] + z * n[2]) * vdf([x, y, z])\
-                              if (x * n[0] + y * n[1] + z * n[2]) >= 0 else 0.0
-
-            num_particles[i] = facet.area * nquad(vdf_flux, cutoffs)[0]
-
-            vdf_flux = lambda x, n=n, vdf=vdf, D=D: reduce(np.add, [x[i]*n[i] \
-                                                    for i in range(D)]) * vdf(x)
-
-            generator[i] = ORS(vdf_flux, cutoffs, nsp=nsp)
-    return (num_particles, generator)
-
 def inject_particles(pop, species, exterior_bnd, dt):
     D = pop.g_dim
     for s in species:
         xs = np.array([]).reshape(0, D)
         vs = np.array([]).reshape(0, D)
 
-        num_particles = s.flux[0]
-        flux = s.flux[1]
-        n_p = s.n
+        num_particles = s.num_particles
         for i, facet in enumerate(exterior_bnd):
-            N = int(n_p*dt*num_particles[i])
-
-            if np.random.random() < n_p * dt * num_particles[i] - N:
+            N = int(s.n*dt*num_particles[i])
+            if np.random.random() < s.n * dt * num_particles[i] - N:
                 N += 1
             count = 0
             while count < N:
                 n = N - count
                 new_xs = random_facet_points(n, facet.vertices)
-                new_vs = flux[i].sample(n)
-
+                new_vs = s.flux.sample(n, i)
                 w_random = np.random.random(len(new_vs))
                 for k in range(D):
                     new_xs[:, k] += dt * w_random * new_vs[:, k]
@@ -369,14 +426,11 @@ def inject_particles(pop, species, exterior_bnd, dt):
                         xs = np.concatenate([xs, x[None, :]])
                         vs = np.concatenate([vs, v[None, :]])
                     count += 1
-
         pop.add_particles(xs, vs, s.q, s.m)
 
 def load_particles(pop, species):
-    # To load just one species at a time, e.g. to give them
-    # different pdf's, use a range operator on species
     for s in species:
         xs = random_domain_points(s.pdf, s.pdf_max, s.num, pop.mesh)
-        ors = ORS(s.vdf, s.cutoffs, nsp=s.nsp)
+        ors = ORS(s.vdf_type)
         vs = ors.sample(s.num)
         pop.add_particles(xs, vs, s.q, s.m)

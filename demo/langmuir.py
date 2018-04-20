@@ -23,9 +23,9 @@ Nr = 32*np.ones(n_dims,dtype=int)    # Number of 'rectangles' in mesh
 periodic = np.ones(n_dims, dtype=bool)
 
 # Get the mesh:
-# mesh, facet_func = load_mesh("../mesh/2D/nothing_in_square")
+mesh, facet_func = load_mesh("../mesh/2D/nothing_in_square")
 # mesh, facet_func = load_mesh("../mesh/2D/nonuniform_in_square")
-mesh, facet_func = simple_mesh(Ld, Nr)
+# mesh, facet_func = simple_mesh(Ld, Nr)
 
 ext_bnd_id, int_bnd_ids = get_mesh_ids(facet_func)
 
@@ -39,7 +39,7 @@ V = df.FunctionSpace(mesh, 'CG', 1,
 poisson = PoissonSolver(V, remove_null_space=True)
 esolver = ESolver(V)
 
-dv_inv = voronoi_volume(V, Ld, True)
+dv_inv = voronoi_volume_approx(V)
 
 A, mode = 0.5, 1
 pdf = lambda x: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0])
@@ -48,16 +48,16 @@ eps0 = constants.value('electric constant')
 me = constants.value('electron mass')
 mp = constants.value('proton mass')
 e = constants.value('elementary charge')
-npc = 8
+npc = 32
 ne = 1e2
 vthe = np.finfo(float).eps
 vthi = np.finfo(float).eps
 vd = [0.0,0.0]
 X = np.mean(Ld)
 
-species = SpeciesList(mesh, ext_bnd, X)
-species.append(-e, me, ne, vthe, vd, npc, pdf=pdf, pdf_max=1 + A)
-species.append(e, mp, ne, vthi, vd, npc)
+species = SpeciesList(mesh, X)
+species.append(-e, me, ne, vthe, vd, npc, ext_bnd, pdf=pdf, pdf_max=1 + A)
+species.append(e, mp, ne, vthi, vd, npc, ext_bnd)
 
 pop = Population(mesh, facet_func)
 
@@ -76,8 +76,9 @@ for n in range(1,N):
     phi = poisson.solve(rho)
     E = esolver.solve(phi)
     PE[n-1] = particle_potential_energy(pop, phi)
+    # PE[n - 1] = mesh_potential_energy(rho, phi)
     KE[n-1] = accel(pop,E,(1-0.5*(n==1))*dt)
-    move_periodic(pop,Ld,dt)
+    move_periodic(pop, Ld, dt)
     pop.update()
 
 KE[0] = KE0
@@ -91,8 +92,8 @@ plt.legend(loc='lower right')
 plt.grid()
 plt.xlabel("Timestep")
 plt.ylabel("Normalized Energy")
-plt.savefig('langmuir.eps',bbox_inches='tight',dpi=600)
-plt.savefig('langmuir.png',bbox_inches='tight',dpi=600)
+# plt.savefig('langmuir.eps',bbox_inches='tight',dpi=600)
+# plt.savefig('langmuir.png',bbox_inches='tight',dpi=600)
 
 plt.show()
 

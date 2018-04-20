@@ -39,22 +39,22 @@ print("Laframboise voltage:  %e"%Vlam)
 print("Laframboise current:  %e"%Ilam)
 print("Expected current:     %e"%Iexp)
 
-species = SpeciesList(mesh, ext_bnd, X)
-species.append(-e, me, ne, vthe, npc=npc)
-species.append(e, mp, ne, vthi, npc=npc)
+species = SpeciesList(mesh, X)
+species.append(-e, me, ne, vthe, npc=npc, ext_bnd=ext_bnd)
+species.append(e, mp, ne, vthi, npc=npc, ext_bnd=ext_bnd)
 
 Inorm  = species.Q/species.T
 Vnorm  = (species.M/species.Q)*(species.X/species.T)**2
 Inorm /= np.abs(Ilam)
 Vnorm /= Vlam
 
-N          = 200
+N          = 1000
 dt         = 0.05#*wpe**(-1)
 cap_factor = 1.
 
 current_collected = Iexp #/(species.Q/species.T)
 
-object_method = 'variational'
+object_method = 'capacitance'#'variational'
 imposed_potential = 1.0/Vnorm
 
 eps0=1

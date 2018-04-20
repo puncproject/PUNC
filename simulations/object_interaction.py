@@ -26,7 +26,7 @@ V = df.FunctionSpace(mesh, 'CG', 1)
 bc = df.DirichletBC(V, df.Constant(0.0), bnd, ext_bnd_id)
 
 if object_method=='capacitance':
-    objects = [Object(V, bnd, i) for i in int_bnd_ids]
+    objects = [Object(V, bnd, int(i)) for i in int_bnd_ids]
 else:
     objects = [Object(V, bnd, i) for i in int_bnd_ids]
     objects[0].set_potential(imposed_potential)
@@ -99,7 +99,7 @@ for n in range(nstart, N):
     E = esolver.solve(phi)
 
     timer.task("Computing potential energy")
-    # PE = particle_potential_energy(pop, phi)
+    PE = particle_potential_energy(pop, phi)
     PE = mesh_potential_energy(rho, phi)
 
     timer.task("Move particles")

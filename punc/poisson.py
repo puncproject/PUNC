@@ -239,7 +239,7 @@ class PoissonSolver(object):
         self.bcs = bcs
         self.remove_null_space = remove_null_space
 
-        self.solver = df.PETScKrylovSolver('cg', 'hypre_amg')
+        self.solver = df.PETScKrylovSolver(V.mesh().mpi_comm(), 'cg', 'hypre_amg')
         self.solver.parameters['absolute_tolerance'] = 1e-14
         self.solver.parameters['relative_tolerance'] = 1e-12
         self.solver.parameters['maximum_iterations'] = 1000
@@ -318,7 +318,7 @@ class ESolver(object):
 
         self.V = V
 
-        self.solver = df.PETScKrylovSolver('cg', 'hypre_amg')
+        self.solver = df.PETScKrylovSolver(V.mesh().mpi_comm(),'cg', 'hypre_amg')
         self.solver.parameters['absolute_tolerance'] = 1e-14
         self.solver.parameters['relative_tolerance'] = 1e-12
         self.solver.parameters['maximum_iterations'] = 1000

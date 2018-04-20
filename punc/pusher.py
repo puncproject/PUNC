@@ -77,19 +77,12 @@ def boris(pop, E, B, dt):
     v_dim = element.value_dimension(0) # Number of values per node (=geom. dim.)
     basis_matrix = np.zeros((s_dim,v_dim))
     coefficients = np.zeros(s_dim)
-    mag_coefficients = np.zeros(s_dim)
     dim = mesh.geometry().dim()
-
+    assert dim == 3
     KE = 0.0
     for cell in df.cells(mesh):
 
         E.restrict( coefficients,
-                    element,
-                    cell,
-                    cell.get_vertex_coordinates(),
-                    cell)
-
-        B.restrict( mag_coefficients,
                     element,
                     cell,
                     cell.get_vertex_coordinates(),
@@ -102,14 +95,13 @@ def boris(pop, E, B, dt):
                                         cell.orientation())
 
             Ei = np.dot(coefficients, basis_matrix)[:]
-            Bi = np.dot(mag_coefficients, basis_matrix)[:]
 
             m = particle.m
             q = particle.q
 
             vel = particle.v
-            assert dim == 3
-            t = np.tan((dt*q/(2.*m))*Bi)
+            
+            t = np.tan((dt*q/(2.*m))*B)
             s = 2.*t/(1.+t[0]**2+t[1]**2+t[2]**2)
             v_minus = vel + 0.5*dt*(q/m)*Ei
 
@@ -120,6 +112,63 @@ def boris(pop, E, B, dt):
             v_prime_cross_s = np.cross(v_prime, s)
             v_plus = v_minus + v_prime_cross_s
             particle.v = v_plus[:] + 0.5*dt*(q/m)*Ei
+
+    return KE
+
+
+def boris_nonuniform(pop, E, B, dt):
+
+    W = E.function_space()
+    mesh = W.mesh()
+    element = W.dolfin_element()
+    s_dim = element.space_dimension()  # Number of nodes per element
+    # Number of values per node (=geom. dim.)
+    v_dim = element.value_dimension(0)
+    basis_matrix = np.zeros((s_dim, v_dim))
+    coefficients = np.zeros(s_dim)
+    mag_coefficients = np.zeros(s_dim)
+    dim = mesh.geometry().dim()
+    assert dim == 3
+    KE = 0.0
+    for cell in df.cells(mesh):
+
+        E.restrict(coefficients,
+                   element,
+                   cell,
+                   cell.get_vertex_coordinates(),
+                   cell)
+
+        B.restrict(mag_coefficients,
+                   element,
+                   cell,
+                   cell.get_vertex_coordinates(),
+                   cell)
+
+        for particle in pop[cell.index()]:
+            element.evaluate_basis_all(basis_matrix,
+                                       particle.x,
+                                       cell.get_vertex_coordinates(),
+                                       cell.orientation())
+
+            Ei = np.dot(coefficients, basis_matrix)[:]
+            Bi = np.dot(mag_coefficients, basis_matrix)[:]
+
+            m = particle.m
+            q = particle.q
+
+            vel = particle.v
+            
+            t = np.tan((dt * q / (2. * m)) * Bi)
+            s = 2. * t / (1. + t[0]**2 + t[1]**2 + t[2]**2)
+            v_minus = vel + 0.5 * dt * (q / m) * Ei
+
+            KE += 0.5 * m * np.dot(v_minus, v_minus)
+
+            v_minus_cross_t = np.cross(v_minus, t)
+            v_prime = v_minus + v_minus_cross_t
+            v_prime_cross_s = np.cross(v_prime, s)
+            v_plus = v_minus + v_prime_cross_s
+            particle.v = v_plus[:] + 0.5 * dt * (q / m) * Ei
 
     return KE
 
