@@ -10,8 +10,9 @@ import matplotlib.pyplot as plt
 from punc import *
 import time
 
-mesh = Mesh("mesh/two_obj_fine.xml")
-boundaries = MeshFunction("size_t", mesh, "mesh/two_obj_fine_facet_region.xml")
+mesh = Mesh("../mesh/2D/circle_and_square_in_square_res2.xml")
+boundaries = MeshFunction("size_t", mesh,
+                          "../mesh/2D/circle_and_square_in_square_res2_facet_region.xml")
 ext_bnd_id = 17
 int1_bnd_id = 18
 int2_bnd_id = 19
@@ -21,12 +22,35 @@ Q1 = Constant(15.) # Object 1 charge
 Q2 = Constant(20.) # Object 2 charge
 V12 = Constant(3.)
 connected = True # Connect voltage source of voltage V12 between objects
-grounded = False # Wether objects should be grounded (Dirichlet)
+grounded = True # Wether objects should be grounded (Dirichlet)
 direct = False # Use direct solver instead of iterative solver?
-method = 'tfqmr'
-preconditioner = 'none'
+method = 'bicgstab'
+preconditioner = 'ilu'
 
-# Benchmark results on Sigvald's computer.
+# New Benchmark results on Sigvald's computer (07.03.18)
+# (Not quite sure what changed, but I get faster results)
+#
+# Connected (not grounded) objects:
+# BICGSTAB/ILU  0.16s
+# TFQMR/ILU     0.18s
+# GMRES/ILU     0.35s
+# BICGSTAB/ICC  0.57s
+# TFQMR/none    0.72s
+# TFQMR/ICC     1.15s
+# TFQMR/Jacobi  2.02s
+# GMRES/Jacobi  3.72s
+# GMRES/None   12.20s
+# GMRES/ICC    18.50s
+#
+# Non-connected, floating objects didn't seem to alter the results
+# significantly for TFQMR/none.
+#
+# Grounded (Dirichlet) objects (as for Capacitance Matrix method).
+# GMRES/hypre_AMG   0.03s
+# BICGSTAB/ILU      0.09s
+# GMRES/ILU         0.13s
+
+# Old Benchmark results on Sigvald's computer.
 #
 # Connected (not grounded) objects:
 # TFQMR/none    2.20s
@@ -132,12 +156,16 @@ else:
     solver.parameters['relative_tolerance'] = 1e-12 #e-12
     solver.parameters['maximum_iterations'] = 100000
     # solver.parameters['monitor_convergence'] = True
+    # solver.parameters['nonzero_initial_guess'] = True
 
-    print("Started solving")
-    t0 = time.time()
-    solver.solve(A, wh.vector(), b)
-    t1 = time.time()
-    print("Time:",t1-t0)
+    print("Setting operator (computing preconditioning?)")
+    solver.set_operator(A)
+
+    for it in range(3):
+        t0 = time.time()
+        solver.solve(wh.vector(), b)
+        t1 = time.time()
+        print("Solving %dst time: %.5f"%(it+1,t1-t0))
 
 if grounded:
     uh = wh
@@ -151,5 +179,5 @@ print("Object 2 charge: ", Q2m)
 print("Total charge:", Q1m+Q2m)
 print("Potential difference:", uh(0.4,0)-uh(-0.4,0))
 
-df.plot(uh, interactive=True)
+df.plot(uh)
 df.File("phi.pvd") << uh
