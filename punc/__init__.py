@@ -23,6 +23,7 @@ __all__ = [ "population",
             "diagnostics",
             "injector",
             "objects",
+            "varobjects",
             "profiling",
             "interior"]
 """

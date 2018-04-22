@@ -333,7 +333,7 @@ def solve_laplace(V, poisson, objects, boundaries, ext_bnd_id):
             else:
                 p.set_potential(0.0)
 
-        rho = df.Function(V)
+        rho = df.Function(V) # zero by default
         phi = poisson.solve(rho, objects)
         object_e_field[i] = esolver.solve(phi)
     poisson.bcs = bcs

@@ -41,7 +41,8 @@ class FloatingBC(df.DirichletBC):
         else:
             ind = self.get_boundary_values().keys()
 
-            for i in ind[1:]:
+            # for i in ind[1:]: # Old method stopped working
+            for i in list(ind)[1:]:
                 neighbors = A.getrow(i)[0]
                 A.zero(np.array([i], dtype=np.intc))
 
@@ -59,14 +60,20 @@ class FloatingBC(df.DirichletBC):
 class VObject(df.DirichletBC):
 
     def __init__(self, V, bnd, bnd_id, floating=True, potential=0, charge=0):
+        if floating and potential != 0:
+            potential=0
+            print("Potential cannot be set when using floating")
         self.charge = charge
-        self._potential = potential
-        self.floating = floating
+        self._potential = df.Constant(potential)
+        self.floating = df.Constant(floating)
         self.V = V
         self.id = bnd_id
         df.DirichletBC.__init__(self, V, df.Constant(potential), bnd, bnd_id, "topological")
 
     def set_potential(self, potential):
+        if self.floating and potential != 0:
+            potential=0
+            print("Potential cannot be set when using floating")
         self._potential = potential
         self.set_value(df.Constant(self._potential))
 
@@ -75,9 +82,10 @@ class VObject(df.DirichletBC):
             df.DirichletBC.apply(self, A)
 
         else:
+            print('APPLYING CONSTANT BOUNDARY CONSTRAINT')
             ind = self.get_boundary_values().keys()
 
-            for i in ind[1:]:
+            for i in list(ind)[1:]:
                 neighbors = A.getrow(i)[0]
                 A.zero(np.array([i], dtype=np.intc))
 

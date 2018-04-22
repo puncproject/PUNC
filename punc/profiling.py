@@ -1,3 +1,10 @@
+# BUGS:
+#
+# - Timings should have ms resolution and probably better formatting
+# - Header row is sometimes offset
+# - Doesn't work when loop doesn't start on 0 (e.g. after reset)
+#
+
 from __future__ import print_function, division
 import sys
 if sys.version_info.major == 2:
