@@ -27,7 +27,7 @@ if object_method=='capacitance':
     objects = [Object(V, bnd, i) for i in int_bnd_ids]
 else:
     objects = [Object(V, bnd, i) for i in int_bnd_ids]
-    objects[0].set_potential(imposed_potential)
+    # objects[0].set_potential(imposed_potential)
 
 # Get the solver
 poisson = PoissonSolver(V, bc, eps_0=eps0)
@@ -40,6 +40,7 @@ if object_method=='capacitance':
 
 pop = Population(mesh, bnd)
 
+print("Loading particles")
 if os.path.isfile('stop'):
     os.remove('stop')
     pop.load_file('population.dat')
@@ -94,6 +95,7 @@ a = inner(grad(u), grad(v)) * dx -\
     inner(c, dot(grad(v), normal)) * dsi +\
     inner(d, dot(grad(u), normal)) * dsi
 
+print("Applying boundaries")
 A = assemble(a)
 ext_bc.apply(A)
 int_bc.apply(A)
@@ -134,7 +136,9 @@ for n in range(nstart, N):
         solve(A, wh.vector(), b)
         phi, ph = wh.split(deepcopy=True)
 
-    potential = phi.vector().get_local()[pot_index]*Vnorm
+    # There's something wrong with pot_index
+    # potential = phi.vector().get_local()[pot_index]*Vnorm
+    potential = phi(0,0,1)*Vnorm
 
     # Qm = assemble(dot(grad(uh), normal) * dsi)
     # print("Object charge: ", Qm)

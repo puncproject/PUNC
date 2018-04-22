@@ -50,11 +50,12 @@ Vnorm  = (species.M/species.Q)*(species.X/species.T)**2
 Inorm /= np.abs(Ilam)
 Vnorm /= Vlam
 
-N          = 400
+N          = 1000
 dt         = 0.05#*wpe**(-1)
 cap_factor = 1.
 
 current_collected = Iexp/(species.Q/species.T)
+current_collected = 0.0
 
 object_method = 'variational'
 imposed_potential = 1.0/Vnorm
