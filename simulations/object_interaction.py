@@ -1,15 +1,12 @@
-from __future__ import print_function, division
-import sys
-if sys.version_info.major == 2:
-    from itertools import izip as zip
-    range = xrange
+# For now, just put ConstantBC and punc directories in PYTHONPATH
 
 import dolfin as df
 import numpy as np
 import matplotlib.pyplot as plt
 from punc import *
+from ConstantBC import *
+from ConstantBC import Circuit as Circ
 import os
-import sys
 
 df.set_log_level(df.WARNING)
 
@@ -19,7 +16,7 @@ df.set_log_level(df.WARNING)
 # only by expert users.
 exec('from %s import *'%(sys.argv[1]))
 
-assert object_method in ['capacitance', 'variational']
+assert object_method in ['capacitance', 'stiffness']
 
 V = df.FunctionSpace(mesh, 'CG', 1)
 
@@ -27,20 +24,21 @@ bc = df.DirichletBC(V, df.Constant(0.0), bnd, ext_bnd_id)
 
 if object_method=='capacitance':
     objects = [Object(V, bnd, int(i)) for i in int_bnd_ids]
-else:
-    objects = [Object(V, bnd, i) for i in int_bnd_ids]
-    objects[0].set_potential(imposed_potential)
+    poisson = PoissonSolver(V, bc, eps0=eps0)
 
-# Get the solver
-poisson = PoissonSolver(V, bc, eps_0=eps0)
-esolver = ESolver(V)
-
-if object_method=='capacitance':
-    # The inverse of capacitance matrix
     inv_cap_matrix = capacitance_matrix(V, poisson, objects, bnd, ext_bnd_id)
     inv_cap_matrix /= cap_factor
 
+else:
+    objects = [ObjectBC(V, bnd, i) for i in int_bnd_ids]
+    circuit = Circ(V, bnd, objects, vsources, isources, dt, eps0=eps0)
+    poisson = PoissonSolver(V, bc, objects, circuit, eps0=eps0)
+    # objects = [df.DirichletBC(V, df.Constant(1), bnd, i) for i in int_bnd_ids]
+    # poisson = PoissonSolver(V, bc, objects, eps0=eps0)
+
+esolver = ESolver(V)
 pop = Population(mesh, bnd)
+dv_inv = voronoi_volume_approx(V)
 
 if os.path.isfile('stop'):
     os.remove('stop')
@@ -56,8 +54,6 @@ else:
     nstart = 0
     hist_file = open('history.dat', 'w')
 
-dv_inv = voronoi_volume_approx(V)
-
 KE  = np.zeros(N-1)
 PE  = np.zeros(N-1)
 
@@ -66,7 +62,7 @@ num_i = pop.num_of_positives()
 potential = 0
 current_measured = 0
 
-timer = TaskTimer(N, 'compact')
+timer = TaskTimer(N, 'simple')
 
 for n in range(nstart, N):
 
@@ -76,26 +72,21 @@ for n in range(nstart, N):
     timer.task("Distribute charge")
     rho = distribute(V, pop, dv_inv)
 
+    timer.task("Solving potential ({})".format(object_method))
     if object_method == 'capacitance':
         reset_objects(objects)
-
-        timer.task("Solving potential 1")
         phi = poisson.solve(rho, objects)
-
-        timer.task("Solving E-field 1")
         E = esolver.solve(phi)
-
-        timer.task("Calculate object potential")
         compute_object_potentials(objects, E, inv_cap_matrix, mesh, bnd)
+        potential = objects[0]._potential*Vnorm # at n
+        phi = poisson.solve(rho, objects)
     else:
-        pass
+        phi = poisson.solve(rho)
+        # for o in objects:
+        #     o.correct_charge(phi)
+        potential = objects[0].get_potential(phi)*Vnorm
 
-    potential = objects[0]._potential*Vnorm # at n
-
-    timer.task("Solving potential 2")
-    phi = poisson.solve(rho, objects)
-
-    timer.task("Solving E-field 2")
+    timer.task("Solving E-field")
     E = esolver.solve(phi)
 
     timer.task("Computing potential energy")
@@ -140,4 +131,4 @@ hist_file.close()
 
 df.File('phi.pvd') << phi
 df.File('rho.pvd') << rho
-df.File('E.pvd') << E
+df.File('E.pvd')   << E

@@ -218,8 +218,14 @@ class PoissonSolver(object):
     Boundary conditions (bcs) can be applied either in solve() and/or in the
     constructor if a boundary should always have the same condition. Overriding
     boundaries in the constructor with boundaries in solve() is not tested but
-    may work. bcs can be a single DirichletBC object or Object object or a list
-    of such.
+    may work. bcs can be a single DirichletBC object or an Object object or an
+    ObjectBC object or list of such.
+
+    The objects argument do the exact same thing as the bcs argument, but it
+    may be convenient to separate e.g. object boundaries and exterior
+    boundaries. circuit applies a Circuit object to the solver. Circuit relies
+    upon all objects being in a separate list, which makes the objects input
+    particularly handy.
 
     Periodic boundaries are specified indirectly through V. A handy class for
     defining periodic boundaries is PeriodicBoundary. If all boundaries are
@@ -228,19 +234,28 @@ class PoissonSolver(object):
     this null space set remove_null_space=True in the constructor.
     """
 
-    def __init__(self, V, bcs=[], remove_null_space=False, eps_0=1):
-
-        if not isinstance(bcs, list):
-            bcs = [bcs]
+    def __init__(self, V, bcs=None, objects=None,
+                 circuit=None, remove_null_space=False, eps0=1):
 
         if bcs == None:
             bcs = []
 
+        if objects == None:
+            objects = []
+
+        if not isinstance(bcs, list):
+            bcs = [bcs]
+
+        if not isinstance(objects, list):
+            objects = [objects]
+
         self.V = V
         self.bcs = bcs
+        self.objects = objects
+        self.circuit = circuit
         self.remove_null_space = remove_null_space
 
-        self.solver = df.PETScKrylovSolver(V.mesh().mpi_comm(), 'cg', 'hypre_amg')
+        self.solver = df.PETScKrylovSolver(V.mesh().mpi_comm(), 'gmres', 'hypre_amg')
         self.solver.parameters['absolute_tolerance'] = 1e-14
         self.solver.parameters['relative_tolerance'] = 1e-12
         self.solver.parameters['maximum_iterations'] = 1000
@@ -249,11 +264,17 @@ class PoissonSolver(object):
         phi = df.TrialFunction(V)
         phi_ = df.TestFunction(V)
 
-        self.a = df.Constant(eps_0)*df.inner(df.grad(phi), df.grad(phi_))*df.dx
+        self.a = df.Constant(eps0)*df.inner(df.grad(phi), df.grad(phi_))*df.dx
         A = df.assemble(self.a)
 
         for bc in bcs:
             bc.apply(A)
+
+        for o in objects:
+            o.apply(A)
+
+        if circuit != None:
+            A, = circuit.apply(A)
 
         if remove_null_space:
             phi = df.Function(V)
@@ -267,13 +288,13 @@ class PoissonSolver(object):
         self.A = A
         self.phi_ = phi_
 
-    def solve(self, rho, bcs=[]):
-
-        if not isinstance(bcs,list):
-            bcs = [bcs]
+    def solve(self, rho, bcs=None):
 
         if bcs == None:
             bcs = []
+
+        if not isinstance(bcs,list):
+            bcs = [bcs]
 
         L = rho*self.phi_*df.dx
         b = df.assemble(L)
@@ -281,8 +302,14 @@ class PoissonSolver(object):
         for bc in self.bcs:
             bc.apply(b)
 
+        for o in self.objects:
+            o.apply(b)
+
+        if self.circuit != None:
+            b, = self.circuit.apply(b)
+
         for bc in bcs:
-            bc.apply(self.A)
+            # bc.apply(self.A)    # Could this perchance be removed?
             bc.apply(b)
 
         # NB: A may not be symmetric in this case. To get it symmetric we need

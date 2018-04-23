@@ -2,12 +2,13 @@ import numpy as np
 import dolfin as df
 from punc import *
 import scipy.constants as constants
+from ConstantBC import load_mesh as ld_mesh
 
 # Filename of mesh (excluding .xml)
 fname = "../mesh/3D/laframboise_sphere_in_cube_res1"
 
 # Get the mesh
-mesh, bnd = load_mesh(fname)
+mesh, bnd, num_objects = ld_mesh(fname)
 ext_bnd_id, int_bnd_ids = get_mesh_ids(bnd)
 ext_bnd = ExteriorBoundaries(bnd, ext_bnd_id)
 
@@ -55,9 +56,15 @@ dt         = 0.05#*wpe**(-1)
 cap_factor = 1.
 
 current_collected = Iexp/(species.Q/species.T)
-current_collected = 0.0
+# current_collected = 0.0
 
-object_method = 'capacitance'#'variational'
+object_method = 'stiffness'
+# object_method = 'capacitance'
 imposed_potential = 1.0/Vnorm
+
+vsources = [[-1,0,1.0/Vnorm]]
+vsources = []
+isources = [[-1,0,-current_collected]]
+isources = None
 
 eps0=1
