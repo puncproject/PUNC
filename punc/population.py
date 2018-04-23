@@ -142,6 +142,16 @@ class SpeciesList(list):
             self.T = wp**(-1)
 
         if self.M==None:
+            # This is the firs species added.
+
+            # These line fixes it such that a simulation electron has
+            # charge -1 instead of -w. This elimnates large magnitudes.
+            if num==None: num = npc*self.num_cells
+            w = (n/num)*self.volume
+            self.Q *= w
+
+            # This make the mass normalized such that all epsilon_0's
+            # disappear from the equations.
             self.M = (self.T*self.Q)**2 / (epsilon_0 * self.X**self.D)
 
         # Normalize input
