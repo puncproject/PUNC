@@ -62,7 +62,7 @@ num_i = pop.num_of_positives()
 potential = 0
 current_measured = 0
 
-timer = TaskTimer(N, 'simple')
+timer = TaskTimer(N, 'compact')
 
 for n in range(nstart, N):
 
@@ -82,8 +82,8 @@ for n in range(nstart, N):
         phi = poisson.solve(rho, objects)
     else:
         phi = poisson.solve(rho)
-        # for o in objects:
-        #     o.correct_charge(phi)
+        for o in objects:
+            o.correct_charge(phi)
         potential = objects[0].get_potential(phi)*Vnorm
 
     timer.task("Solving E-field")
@@ -108,7 +108,8 @@ for n in range(nstart, N):
 
     timer.task("Impose current")
     current_measured = ((objects[0].charge-old_charge)/dt)*Inorm # at n+0.5
-    objects[0].charge -= current_collected*dt
+    if object_method == 'capacitance': # use isources for stiffness method
+        objects[0].charge -= current_collected*dt
 
     timer.task("Inject particles")
     inject_particles(pop, species, ext_bnd, dt)

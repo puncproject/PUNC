@@ -2,13 +2,12 @@ import numpy as np
 import dolfin as df
 from punc import *
 import scipy.constants as constants
-from ConstantBC import load_mesh as ld_mesh
 
 # Filename of mesh (excluding .xml)
-fname = "../mesh/3D/laframboise_sphere_in_cube_res1"
+fname = "../mesh/3D/laframboise_sphere_in_sphere_res1"
 
 # Get the mesh
-mesh, bnd, num_objects = ld_mesh(fname)
+mesh, bnd = load_mesh(fname)
 ext_bnd_id, int_bnd_ids = get_mesh_ids(bnd)
 ext_bnd = ExteriorBoundaries(bnd, ext_bnd_id)
 
@@ -30,12 +29,13 @@ Te      = (e*debye)**2*ne/(eps0*kB)
 wpe     = np.sqrt(ne*e**2/(eps0*me))
 vthe    = debye*wpe
 vthi    = vthe/np.sqrt(1836)
-Rp      = 1*debye
+Rp      = 2*debye
 X       = Rp
 
 Vlam    = kB*Te/e
 Ilam    = -e*ne*Rp**2*np.sqrt(8*np.pi*kB*Te/me)
 Iexp    = 1.987*Ilam
+Iexp    = 11.482*Ilam
 print("Laframboise voltage:  %e"%Vlam)
 print("Laframboise current:  %e"%Ilam)
 print("Expected current:     %e"%Iexp)
@@ -62,9 +62,11 @@ object_method = 'stiffness'
 # object_method = 'capacitance'
 imposed_potential = 1.0/Vnorm
 
-vsources = [[-1,0,1.0/Vnorm]]
+# vsources = [[-1,0,imposed_potential]]
 vsources = []
 isources = [[-1,0,-current_collected]]
-isources = None
+
+print("vsources:",vsources)
+print("isources:",isources)
 
 eps0=1
