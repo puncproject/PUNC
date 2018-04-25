@@ -4,7 +4,7 @@ from punc import *
 import scipy.constants as constants
 
 # Filename of mesh (excluding .xml)
-fname = "../mesh/3D/laframboise_sphere_in_sphere_res1"
+fname = "../mesh/3D/laframboise_sphere_in_sphere_res1b"
 
 # Get the mesh
 mesh, bnd = load_mesh(fname)
@@ -29,13 +29,13 @@ Te      = (e*debye)**2*ne/(eps0*kB)
 wpe     = np.sqrt(ne*e**2/(eps0*me))
 vthe    = debye*wpe
 vthi    = vthe/np.sqrt(1836)
-Rp      = 2*debye
+Rp      = 1*debye
 X       = Rp
 
 Vlam    = kB*Te/e
 Ilam    = -e*ne*Rp**2*np.sqrt(8*np.pi*kB*Te/me)
 Iexp    = 1.987*Ilam
-Iexp    = 11.482*Ilam
+Iexp    = 2.945*Ilam
 print("Laframboise voltage:  %e"%Vlam)
 print("Laframboise current:  %e"%Ilam)
 print("Expected current:     %e"%Iexp)
@@ -51,8 +51,8 @@ Vnorm  = (species.M/species.Q)*(species.X/species.T)**2
 Inorm /= np.abs(Ilam)
 Vnorm /= Vlam
 
-N          = 1000
-dt         = 0.05#*wpe**(-1)
+N          = 3000
+dt         = 0.10#*wpe**(-1)
 cap_factor = 1.
 
 current_collected = Iexp/(species.Q/species.T)
