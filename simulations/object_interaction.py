@@ -1,3 +1,10 @@
+"""
+PUNC based program (PUNC is only the library of functions for working with FEM-PIC) for doing plasma-object interaction simulations, e.g. reproducing the results of Laframboise. Usage:
+
+    python object_interaction.py input_file.cfg.py
+
+The input file specifies the geometry and all the simulation parameters. For convenience it is fully Python-scriptable and has its own sandbox, i.e. separate workspace from the rest of the program (this sandbox is not unbreakable, but sufficient for a program only used by privileged users). Certain variables from the configuration file is read as input.
+"""
 # For now, just put ConstantBC and punc directories in PYTHONPATH
 
 import dolfin as df
@@ -10,11 +17,28 @@ import os
 
 df.set_log_level(df.WARNING)
 
-# NB: This is generally a discouraged technique, but allows great flexibility
-# in the config file and is therefore used at least temporarily. That it is
-# unsafe is not considered a problem since it's currently supposed to be used
-# only by expert users.
-exec('from %s import *'%(sys.argv[1]))
+# Loading input script in params (acting as a simplified sandbox)
+params = {}
+fname  = sys.argv[1]
+code   = compile(open(fname, 'rb').read(), fname, 'exec')
+exec(code, params)
+
+# Loading input parameters
+object_method = params.pop('object_method')
+mesh          = params.pop('mesh')
+bnd           = params.pop('bnd')
+ext_bnd       = params.pop('ext_bnd')
+ext_bnd_id    = params.pop('ext_bnd_id')
+int_bnd_ids   = params.pop('int_bnd_ids')
+species       = params.pop('species')
+eps0          = params.pop('eps0')
+cap_factor    = params.pop('cap_factor')
+dt            = params.pop('dt')
+N             = params.pop('N')
+vsources      = params.pop('vsources')
+isources      = params.pop('isources')
+Vnorm         = params.pop('Vnorm')
+Inorm         = params.pop('Inorm')
 
 assert object_method in ['capacitance', 'stiffness']
 
