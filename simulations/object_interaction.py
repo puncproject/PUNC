@@ -94,7 +94,8 @@ for n in range(nstart, N):
     # Velocities and currents are at timestep n-0.5 (or 0 if n==0)
 
     timer.task("Distribute charge")
-    rho = distribute(V, pop, dv_inv)
+    # rho = distribute(V, pop, dv_inv)
+    rho = distribute_elementwise(V, pop)
 
     timer.task("Solving potential ({})".format(object_method))
     if object_method == 'capacitance':

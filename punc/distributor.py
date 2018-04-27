@@ -316,3 +316,33 @@ def distribute(V, pop, dv_inv):
     rho.vector().set_local(rho_arr)
 
     return rho
+
+def distribute_elementwise(V, pop):
+
+    assert V.ufl_element().family() == 'Lagrange'
+    assert V.ufl_element().degree() == 1
+
+    element = V.dolfin_element()
+    s_dim = element.space_dimension() # Number of nodes per element
+    basis_matrix = np.zeros((s_dim,1))
+
+    rho = df.Function(V)
+
+    for cell in df.cells(V.mesh()):
+        cellindex = cell.index()
+        dofindex = V.dofmap().cell_dofs(cellindex)
+
+        accum = np.zeros(s_dim)
+        for particle in pop[cellindex]:
+
+            element.evaluate_basis_all( basis_matrix,
+                                        particle.x,
+                                        cell.get_vertex_coordinates(),
+                                        cell.orientation())
+
+            accum += particle.q * basis_matrix.T[0]
+
+        accum /= cell.volume()
+        rho.vector()[dofindex] += accum
+
+    return rho
