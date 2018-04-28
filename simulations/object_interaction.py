@@ -24,23 +24,25 @@ code   = compile(open(fname, 'rb').read(), fname, 'exec')
 exec(code, params)
 
 # Loading input parameters
-object_method = params.pop('object_method')
+object_method = params.pop('object_method', 'stiffness')
+dist_method   = params.pop('dist_method', 'element')
 mesh          = params.pop('mesh')
 bnd           = params.pop('bnd')
 ext_bnd       = params.pop('ext_bnd')
-ext_bnd_id    = params.pop('ext_bnd_id')
+ext_bnd_id    = params.pop('ext_bnd_id', 1)
 int_bnd_ids   = params.pop('int_bnd_ids')
 species       = params.pop('species')
-eps0          = params.pop('eps0')
-cap_factor    = params.pop('cap_factor')
+eps0          = params.pop('eps0', 1)
+cap_factor    = params.pop('cap_factor', 1)
 dt            = params.pop('dt')
 N             = params.pop('N')
-vsources      = params.pop('vsources')
-isources      = params.pop('isources')
-Vnorm         = params.pop('Vnorm')
-Inorm         = params.pop('Inorm')
+vsources      = params.pop('vsources', None)
+isources      = params.pop('isources', None)
+Vnorm         = params.pop('Vnorm', 1)
+Inorm         = params.pop('Inorm', 1)
 
 assert object_method in ['capacitance', 'stiffness']
+assert dist_method in ['voronoi', 'element']
 
 V = df.FunctionSpace(mesh, 'CG', 1)
 
@@ -94,8 +96,10 @@ for n in range(nstart, N):
     # Velocities and currents are at timestep n-0.5 (or 0 if n==0)
 
     timer.task("Distribute charge")
-    # rho = distribute(V, pop, dv_inv)
-    rho = distribute_elementwise(V, pop)
+    if dist_method == 'voronoi':
+        rho = distribute(V, pop, dv_inv)
+    else:
+        rho = distribute_elementwise(V, pop)
 
     timer.task("Solving potential ({})".format(object_method))
     if object_method == 'capacitance':
