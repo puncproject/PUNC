@@ -114,7 +114,7 @@ PE  = np.zeros(N-1)
 num_e = pop.num_of_negatives()
 num_i = pop.num_of_positives()
 
-timer = TaskTimer(N, 'simple')
+timer = TaskTimer(N, 'compact')
 
 t = 0.
 for n in range(nstart, N):
@@ -130,6 +130,13 @@ for n in range(nstart, N):
 
     timer.task("Solving potential ({})".format(object_method))
     if object_method == 'capacitance':
+
+        # TBD: It would be nice if capacitance matrix method could be
+        # re-implemented to support vsources and isources and thus be
+        # completely interchangeable with stiffness matrix method. To be
+        # planned a bit prior to execution.
+        objects[0].charge -= current_collected*dt
+
         reset_objects(objects)
         phi = poisson.solve(rho, objects)
         E = esolve(phi)
@@ -149,32 +156,30 @@ for n in range(nstart, N):
     else:
         PE = mesh_potential_energy(rho, phi)
 
-    timer.task("Move particles")
-    KE = accel(pop, E, (1-0.5*(n==1))*dt) # Advancing velocities to n+0.5
+    timer.task("Count particles")
+    num_i = pop.num_of_positives()
+    num_e = pop.num_of_negatives()
+
+    timer.task("Accelerate particles")
+    # Advancing velocities to n+0.5
+    KE = accel(pop, E, (1-0.5*(n==1))*dt)
     if n==0: KE = kinetic_energy(pop)
+
+    timer.task("Write history")
+    # Everything at n, except currents wich are at n-0.5.
+    hist_write(hist_file, n, num_e, num_i, KE, PE, objects, Vnorm, Inorm)
+    hist_file.flush()
+
+    timer.task("Move particles")
     move(pop, dt) # Advancing position to n+1
+    t += dt
 
     timer.task("Updating particles")
     pop.update(objects, dt)
 
-    timer.task("Write history")
-    hist_write(hist_file, n, num_e, num_i, KE, PE, objects, Vnorm, Inorm)
-    hist_file.flush()
-
-    if object_method == 'capacitance':
-        # TBD: It would be nice if capacitance matrix method could be
-        # re-implemented to support vsources and isources and thus be
-        # completely interchangeable with stiffness matrix method. To be
-        # planned a bit prior to execution.
-        timer.task("Impose current")
-        objects[0].charge -= current_collected*dt
-
     timer.task("Inject particles")
     inject_particles(pop, species, ext_bnd, dt)
 
-    timer.task("Count particles")
-    num_i = pop.num_of_positives()
-    num_e = pop.num_of_negatives()
 
     if os.path.isfile('stop') or exit_now or n==N-1:
         pop.save_file('population.dat')
