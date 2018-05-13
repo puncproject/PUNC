@@ -68,8 +68,8 @@ while(True):
 
     fig = plt.figure(3)
     fig.clear()
-    plt.plot(data[:,0], data[:,5], '#999999', label='raw data')
-    plt.plot(data[:,0], expAverage(data[:,5]), label='exp. average (%.2f)'%defweight)
+    plt.plot(data[:,0], data[:,6], '#999999', label='raw data')
+    plt.plot(data[:,0], expAverage(data[:,6]), label='exp. average (%.2f)'%defweight)
     plt.legend(loc="lower left")
     plt.xlabel("Timestep")
     plt.ylabel("Laframboise units")
@@ -79,8 +79,8 @@ while(True):
 
     fig = plt.figure(4)
     fig.clear()
-    plt.plot(data[:,0], data[:,6], '#999999', label='raw data')
-    plt.plot(data[:,0], expAverage(data[:,6]), label='exp. average (%.2f)'%defweight)
+    plt.plot(data[:,0], data[:,7], '#999999', label='raw data')
+    plt.plot(data[:,0], expAverage(data[:,7]), label='exp. average (%.2f)'%defweight)
     plt.legend(loc="lower left")
     plt.xlabel("Timestep")
     plt.ylabel("Laframboise units")

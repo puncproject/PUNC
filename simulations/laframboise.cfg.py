@@ -52,7 +52,7 @@ Vnorm  = (species.M/species.Q)*(species.X/species.T)**2
 Inorm /= np.abs(Ilam)
 Vnorm /= Vlam
 
-N          = 3000
+N          = 1000
 dt         = 0.10#*wpe**(-1)
 cap_factor = 1.
 
@@ -60,6 +60,7 @@ current_collected = Iexp/(species.Q/species.T)
 # current_collected = 0.0
 
 object_method = 'stiffness'
+dist_method = 'voronoi'
 # object_method = 'capacitance'
 imposed_potential = 1.0/Vnorm
 
