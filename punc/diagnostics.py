@@ -34,7 +34,7 @@ def hist_load(fname, objects):
         values = line.split()
 
     for i,o in enumerate(objects):
-        o.charge = float(values[3*i+5])
+        o.charge = float(values[3*i+6])
 
 def hist_last_step(fname):
 
@@ -45,9 +45,9 @@ def hist_last_step(fname):
 
     return int(values[0])
 
-def hist_write(fh, n, num_e=0, num_i=0, KE=0, PE=0, objects=[],
+def hist_write(fh, n, t=0, num_e=0, num_i=0, KE=0, PE=0, objects=[],
                   Vnorm=1, Inorm=1):
-    fh.write("%d\t%d\t%d\t%f\t%f"%(n, num_e, num_i, KE, PE))
+    fh.write("%d\t%f\t%d\t%d\t%f\t%f"%(n, t, num_e, num_i, KE, PE))
     for o in objects:
         fh.write("\t%f\t%f\t%f"%(o.charge,
                                  o.potential*Vnorm,

@@ -4,6 +4,10 @@ the results of Laframboise. Usage:
 
     python object_interaction.py input_file.cfg.py
 
+To force restarts:
+
+    python object_interaction.py -r input_file.cfg.py
+
 The input file specifies the geometry and all the simulation parameters. For
 convenience it is fully Python-scriptable and has its own sandbox, i.e.
 separate workspace from the rest of the program (this sandbox is not
@@ -37,7 +41,7 @@ df.set_log_level(df.WARNING)
 
 # Loading input script in params (acting as a simplified sandbox)
 params = {}
-fname  = sys.argv[1]
+fname  = sys.argv[-1]
 code   = compile(open(fname, 'rb').read(), fname, 'exec')
 exec(code, params)
 
@@ -96,9 +100,17 @@ elif efield_method == 'ci':
 pop = Population(mesh, bnd)
 dv_inv = voronoi_volume_approx(V)
 
-if os.path.isfile('stop'):
-    os.remove('stop')
-    nstart = hist_last_step('history.dat') + 1
+continue_simulation = False
+if os.path.isfile('population.dat') and os.path.isfile('history.dat'):
+    if '-r' in sys.argv:
+        print("Overwriting existing simulation results.")
+    else:
+        print("Continuing previous simulation.")
+        continue_simulation = True
+
+if continue_simulation:
+    # There's a glitch when continuing simulations which should be looked into.
+    nstart = hist_last_step('history.dat')# + 1
     hist_load('history.dat', objects)
     hist_file = open('history.dat', 'a')
     pop.load_file('population.dat')
@@ -107,12 +119,6 @@ else:
     nstart = 0
     load_particles(pop, species)
     hist_file = open('history.dat', 'w')
-
-KE  = np.zeros(N-1)
-PE  = np.zeros(N-1)
-
-num_e = pop.num_of_negatives()
-num_i = pop.num_of_positives()
 
 timer = TaskTimer(N, 'compact')
 
@@ -167,7 +173,7 @@ for n in range(nstart, N):
 
     timer.task("Write history")
     # Everything at n, except currents wich are at n-0.5.
-    hist_write(hist_file, n, num_e, num_i, KE, PE, objects, Vnorm, Inorm)
+    hist_write(hist_file, n, t, num_e, num_i, KE, PE, objects, Vnorm, Inorm)
     hist_file.flush()
 
     timer.task("Move particles")
@@ -181,11 +187,8 @@ for n in range(nstart, N):
     inject_particles(pop, species, ext_bnd, dt)
 
 
-    if os.path.isfile('stop') or exit_now or n==N-1:
+    if exit_now or n==N-1:
         pop.save_file('population.dat')
-        # f = open('state.dat','w')
-        # f.write("%d\n%f"%(n,objects[0].charge))
-        # f.close()
         break
 
     timer.end()
