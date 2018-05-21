@@ -235,7 +235,8 @@ class PoissonSolver(object):
     """
 
     def __init__(self, V, bcs=None, objects=None,
-                 circuit=None, remove_null_space=False, eps0=1):
+                 circuit=None, remove_null_space=False, eps0=1,
+                 linalg_solver='gmres', linalg_precond='hypre_amg'):
 
         if bcs == None:
             bcs = []
@@ -255,7 +256,11 @@ class PoissonSolver(object):
         self.circuit = circuit
         self.remove_null_space = remove_null_space
 
-        self.solver = df.PETScKrylovSolver(V.mesh().mpi_comm(), 'gmres', 'hypre_amg')
+        """
+        One could perhaps identify the cases in which different solvers and preconditioners
+        should be used, and by default choose the best suited for the problem.
+        """
+        self.solver = df.PETScKrylovSolver(V.mesh().mpi_comm(), linalg_solver, linalg_precond)
         self.solver.parameters['absolute_tolerance'] = 1e-14
         self.solver.parameters['relative_tolerance'] = 1e-12
         self.solver.parameters['maximum_iterations'] = 1000

@@ -42,7 +42,7 @@ class Object(df.DirichletBC):
         interpolated_charge (:obj: float): The total interpolated charge of the
         object.
 
-        _potential (:obj: list): The electric potential of the object.
+        potential (:obj: list): The electric potential of the object.
 
         dofs (:obj: list): A list of dof indices of the finite element
         function space corresponding to the object.
@@ -69,8 +69,9 @@ class Object(df.DirichletBC):
         """
 
         self.charge = charge
+        self.collected_current = 0
         self.floating = floating
-        self._potential = potential
+        self.potential = potential
         self.interpolated_charge = 0
         self.V = V
 
@@ -115,8 +116,8 @@ class Object(df.DirichletBC):
         Args:
             potential (float): The electric potential.
         """
-        self._potential = potential
-        self.set_value(df.Constant(self._potential))
+        self.potential = potential
+        self.set_value(df.Constant(self.potential))
 
     def vertices(self):
         """

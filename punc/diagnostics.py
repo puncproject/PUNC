@@ -26,6 +26,34 @@ if sys.version_info.major == 2:
 import dolfin as df
 import numpy as np
 
+def hist_load(fname, objects):
+
+    with open(fname, 'r') as fh:
+        for line in fh:
+            pass # Get the last line
+        values = line.split()
+
+    for i,o in enumerate(objects):
+        o.charge = float(values[3*i+6])
+
+def hist_last_step(fname):
+
+    with open(fname, 'r') as fh:
+        for line in fh:
+            pass # Get the last line
+        values = line.split()
+
+    return int(values[0])
+
+def hist_write(fh, n, t=0, num_e=0, num_i=0, KE=0, PE=0, objects=[],
+                  Vnorm=1, Inorm=1):
+    fh.write("%d\t%f\t%d\t%d\t%f\t%f"%(n, t, num_e, num_i, KE, PE))
+    for o in objects:
+        fh.write("\t%f\t%f\t%f"%(o.charge,
+                                 o.potential*Vnorm,
+                                 o.collected_current*Inorm))
+    fh.write("\n")
+
 def kinetic_energy(pop):
     """
     Computes kinetic energy at current velocity time step.

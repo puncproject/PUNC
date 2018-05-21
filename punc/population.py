@@ -309,8 +309,10 @@ class Population(list):
             else:
                 return new_cell_id # crossed a boundary
 
-    def update(self, objects = None):
+    def update(self, objects = None, dt = None):
 
+        assert (dt == None and objects == None) or \
+               (dt != None and objects != None)
         if objects == None: objects = []
 
         # TBD: Could possibly be placed elsewhere
@@ -319,8 +321,8 @@ class Population(list):
         for o,d in enumerate(object_domains):
             object_ids[d] = o
 
-        # This times dt is an accurate measurement of collected current
-        # collected_charge = np.zeros(len(objects))
+        for o in objects:
+            o.collected_current = 0.
 
         for cell_id, cell in enumerate(self):
 
@@ -343,9 +345,8 @@ class Population(list):
 
                         if -new_cell_id in object_ids:
                             # Particle entered object. Accumulate charge.
-                            # collected_charge[object_ids[-new_cell_id]] += particle.q
                             obj = objects[object_ids[-new_cell_id]]
-                            obj.charge += particle.q
+                            obj.collected_current += particle.q
                     else:
                         # Particle has moved to another cell
                         self[new_cell_id].append(particle)
@@ -362,8 +363,9 @@ class Population(list):
                     # More efficient then shifting the whole list.
                     cell[particle_id] = cell.pop()
 
-        # for o, c in zip(objects, collected_charge):
-        #     o.charge += c
+        for o in objects:
+            o.charge += o.collected_current
+            o.collected_current /= dt
 
     def num_of_particles(self):
         'Return number of particles in total.'
