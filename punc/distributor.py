@@ -281,6 +281,33 @@ def voronoi_length(V, Ld, periodic=True, inv=True, raw=True):
     else:
         return dv
 
+def patch_volume(V, voronoi_volume_approx=False, inv=True, raw=True):
+
+    assert V.ufl_element().family() == 'Lagrange'
+    assert V.ufl_element().degree() == 1
+
+    n_dofs = V.dim()
+    dof_indices = df.vertex_to_dof_map(V)
+    volumes = np.zeros(n_dofs)
+
+    # These loops inherently deal with periodic boundaries
+    for i,v in enumerate(df.vertices(V.mesh())):
+        for c in df.cells(v):
+            volumes[dof_indices[i]] += c.volume()
+
+    if voronoi_volume_approx:
+        volumes /= (V.mesh().geometry().dim()+1)
+
+    if inv:
+        volumes = volumes**(-1)
+
+    if raw:
+        return volumes
+    else:
+        dv = df.Function(V)
+        dv.vector()[:] = volumes
+        return dv
+
 def distribute(V, pop, dv_inv):
 
     assert V.ufl_element().family() == 'Lagrange'
@@ -344,5 +371,24 @@ def distribute_elementwise(V, pop):
 
         accum /= cell.volume()
         rho.vector()[dofindex] += accum
+
+    return rho
+
+def distribute_dg0(Q, pop):
+
+    assert Q.ufl_element().family() == 'Discontinuous Lagrange'
+    assert Q.ufl_element().degree() == 0
+
+    rho = df.Function(Q)
+
+    for cell in df.cells(Q.mesh()):
+        cellindex = cell.index()
+        dofindex = Q.dofmap().cell_dofs(cellindex)
+        accum = 0
+        for particle in pop[cellindex]:
+            accum += particle.q
+
+        accum /= cell.volume()
+        rho.vector()[dofindex] = accum
 
     return rho

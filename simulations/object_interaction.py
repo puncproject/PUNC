@@ -25,7 +25,7 @@ exec(code, params)
 
 # Loading input parameters
 object_method = params.pop('object_method', 'stiffness')
-dist_method   = params.pop('dist_method', 'element')
+dist_method   = params.pop('dist_method', 'voronoi')
 mesh          = params.pop('mesh')
 bnd           = params.pop('bnd')
 ext_bnd       = params.pop('ext_bnd')
@@ -42,9 +42,11 @@ Vnorm         = params.pop('Vnorm', 1)
 Inorm         = params.pop('Inorm', 1)
 
 assert object_method in ['capacitance', 'stiffness']
-assert dist_method in ['voronoi', 'element']
+assert dist_method in ['voronoi', 'element', 'dg0']
 
 V = df.FunctionSpace(mesh, 'CG', 1)
+Q = df.FunctionSpace(mesh, 'DG', 0)
+
 
 bc = df.DirichletBC(V, df.Constant(0.0), bnd, ext_bnd_id)
 
@@ -65,6 +67,7 @@ else:
 esolver = ESolver(V)
 pop = Population(mesh, bnd)
 dv_inv = voronoi_volume_approx(V)
+# dv_inv = element_volume(V)
 
 if os.path.isfile('stop'):
     os.remove('stop')
@@ -98,8 +101,10 @@ for n in range(nstart, N):
     timer.task("Distribute charge")
     if dist_method == 'voronoi':
         rho = distribute(V, pop, dv_inv)
-    else:
+    elif dist_method == 'element':
         rho = distribute_elementwise(V, pop)
+    elif dist_method == 'dg0':
+        rho = distribute_dg0(Q, pop)
 
     timer.task("Solving potential ({})".format(object_method))
     if object_method == 'capacitance':
