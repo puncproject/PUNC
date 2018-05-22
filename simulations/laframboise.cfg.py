@@ -5,7 +5,7 @@ import scipy.constants as constants
 
 # Filename of mesh (excluding .xml)
 fname = "../mesh/3D/laframboise_sphere_in_sphere_res1b"
-fname = "../mesh/3D/laframboise_sphere_in_cube_res1"
+# fname = "../mesh/3D/laframboise_sphere_in_cube_res1"
 
 # Get the mesh
 mesh, bnd = load_mesh(fname)
@@ -37,6 +37,7 @@ Vlam    = kB*Te/e
 Ilam    = -e*ne*Rp**2*np.sqrt(8*np.pi*kB*Te/me)
 Iexp    = 1.987*Ilam
 Iexp    = 2.945*Ilam
+Iexp    = 21.895*Ilam
 print("Laframboise voltage:  %e"%Vlam)
 print("Laframboise current:  %e"%Ilam)
 print("Expected current:     %e"%Iexp)

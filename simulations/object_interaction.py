@@ -66,12 +66,14 @@ Vnorm         = params.pop('Vnorm', 1)
 Inorm         = params.pop('Inorm', 1)
 
 assert object_method in ['capacitance', 'stiffness']
-assert dist_method in ['voronoi', 'element']
+assert dist_method in ['voronoi', 'element', 'patch', 'dg0']
 assert pe_method in ['mesh', 'particle']
 assert efield_method in ['project', 'evaluate', 'am', 'ci']
 # NB: only 'project' is tested as I do not have PETSC4py installed yet.
 
 V = df.FunctionSpace(mesh, 'CG', 1)
+Q = df.FunctionSpace(mesh, 'DG', 0)
+
 
 bc = df.DirichletBC(V, df.Constant(0.0), bnd, ext_bnd_id)
 
@@ -98,7 +100,13 @@ elif efield_method == 'ci':
     esolve = esolver.mean
 
 pop = Population(mesh, bnd)
-dv_inv = voronoi_volume_approx(V)
+if dist_method == 'voronoi':
+    dv_inv = patch_volume(V, voronoi_volume_approx=True)
+elif dist_method == 'patch':
+    dv_inv = patch_volume(V)
+
+# dv_inv = voronoi_volume_approx(V)
+# dv_inv = element_volume(V)
 
 continue_simulation = False
 if os.path.isfile('population.dat') and os.path.isfile('history.dat'):
@@ -129,10 +137,12 @@ for n in range(nstart, N):
     # Velocities and currents are at timestep n-0.5 (or 0 if n==0)
 
     timer.task("Distribute charge ({})".format(dist_method))
-    if dist_method == 'voronoi':
+    if dist_method == 'voronoi' or dist_method == 'patch':
         rho = distribute(V, pop, dv_inv)
-    else:
+    elif dist_method == 'element':
         rho = distribute_elementwise(V, pop)
+    elif dist_method == 'dg0':
+        rho = distribute_dg0(Q, pop)
 
     timer.task("Solving potential ({})".format(object_method))
     if object_method == 'capacitance':
