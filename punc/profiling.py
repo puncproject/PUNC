@@ -5,12 +5,6 @@
 # - Doesn't work when loop doesn't start on 0 (e.g. after reset)
 #
 
-from __future__ import print_function, division
-import sys
-if sys.version_info.major == 2:
-    from itertools import izip as zip
-    range = xrange
-
 import time as t
 import numpy as np
 import sys
