@@ -15,9 +15,9 @@ Nr = 32*np.ones(n_dims,dtype=int)    # Number of 'rectangles' in mesh
 periodic = np.ones(n_dims, dtype=bool)
 
 # Get the mesh:
-mesh, facet_func = load_mesh("../mesh/2D/nothing_in_square")
+# mesh, facet_func = load_mesh("../mesh/2D/nothing_in_square")
 # mesh, facet_func = load_mesh("../mesh/2D/nonuniform_in_square")
-# mesh, facet_func = simple_mesh(Ld, Nr)
+mesh, facet_func = simple_mesh(Ld, Nr)
 
 ext_bnd_id, int_bnd_ids = get_mesh_ids(facet_func)
 
@@ -40,7 +40,7 @@ eps0 = constants.value('electric constant')
 me = constants.value('electron mass')
 mp = constants.value('proton mass')
 e = constants.value('elementary charge')
-npc = 32
+npc = 8
 ne = 1e2
 vthe = np.finfo(float).eps
 vthi = np.finfo(float).eps
@@ -77,15 +77,18 @@ KE[0] = KE0
 
 TE = KE + PE
 
-plt.plot(KE,label="Kinetic Energy")
-plt.plot(PE,label="Potential Energy")
-plt.plot(KE+PE,label="Total Energy")
+plt.plot(KE, label="Kinetic Energy")
+plt.plot(PE, label="Potential Energy")
+plt.plot(TE, label="Total Energy")
 plt.legend(loc='lower right')
 plt.grid()
 plt.xlabel("Timestep")
 plt.ylabel("Normalized Energy")
 # plt.savefig('langmuir.eps',bbox_inches='tight',dpi=600)
 # plt.savefig('langmuir.png',bbox_inches='tight',dpi=600)
+
+error = np.abs(TE[-1]-TE[0])/TE[0]
+print("Relative energy error: {}".format(error))
 
 plt.show()
 
@@ -116,18 +119,19 @@ def plot(obj, title):
             raise(AttributeError)
         plt.triplot(mesh2triang(obj), color='k')
 
-# Otherwise use matplotlib
+dpi=72
+
 plt.figure()
 plot(rho, 'rho')
 plt.xlim(0, Ld[0])
 plt.ylim(0, Ld[1])
-plt.savefig('rho.png', bbox_inches='tight', dpi=600)
+plt.savefig('rho.png', bbox_inches='tight', dpi=dpi)
 
 plt.figure()
 plot(phi, 'phi')
 plt.xlim(0, Ld[0])
 plt.ylim(0, Ld[1])
-plt.savefig('phi.png', bbox_inches='tight', dpi=600)
+plt.savefig('phi.png', bbox_inches='tight', dpi=dpi)
 
 ux = df.Constant((1, 0))
 Ex = df.project(df.inner(E, ux), V)
@@ -136,7 +140,7 @@ plt.figure()
 plot(Ex, 'Ex')
 plt.xlim(0, Ld[0])
 plt.ylim(0, Ld[1])
-plt.savefig('Ex.png', bbox_inches='tight', dpi=600)
+plt.savefig('Ex.png', bbox_inches='tight', dpi=dpi)
 plt.show()
 
 # Save solution in VTK format
