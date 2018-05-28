@@ -15,14 +15,6 @@
 # You should have received a copy of the GNU General Public License along with
 # PUNC.  If not, see <http://www.gnu.org/licenses/>.
 
-# Imports important python 3 behaviour to ensure correct operation and
-# performance in python 2
-from __future__ import print_function, division
-import sys
-if sys.version_info.major == 2:
-    from itertools import izip as zip
-    range = xrange
-
 import dolfin as df
 import numpy as np
 import subprocess as sp

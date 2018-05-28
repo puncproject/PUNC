@@ -14,17 +14,10 @@
 #
 # You should have received a copy of the GNU General Public License along with
 # PUNC.  If not, see <http://www.gnu.org/licenses/>.
-
-# Imports important python 3 behaviour to ensure correct operation and
-# performance in python 2
-from __future__ import print_function, division
-import sys
-if sys.version_info.major == 2:
-    from itertools import izip as zip
-    range = xrange
-
 import dolfin as df
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.tri as tri
 
 def hist_load(fname, objects):
 
@@ -79,6 +72,10 @@ def mesh_potential_energy(rho, phi):
 
     return 0.5*df.assemble(rho*phi*df.dx)
 
+def efield_potential_energy(E):
+
+    return 0.5*df.assemble(df.dot(E,E)*df.dx)
+
 def particle_potential_energy(pop ,phi):
     """
     Computes potential energy at current time step from particles. Should
@@ -114,3 +111,26 @@ def particle_potential_energy(pop ,phi):
             PE += 0.5*q*phii
 
     return PE
+
+def mesh2triang(mesh):
+    xy = mesh.coordinates()
+    return tri.Triangulation(xy[:, 0], xy[:, 1], mesh.cells())
+
+def plot(obj):
+    plt.gca().set_aspect('equal')
+    if isinstance(obj, df.Function):
+        mesh = obj.function_space().mesh()
+        if (mesh.geometry().dim() != 2):
+            raise AttributeError
+        if obj.vector().size() == mesh.num_cells():
+            C = obj.vector().get_local()
+            plt.tripcolor(mesh2triang(mesh), C, cmap='viridis')
+            plt.colorbar()
+        else:
+            C = obj.compute_vertex_values(mesh)
+            plt.tripcolor(mesh2triang(mesh), C, shading='gouraud', cmap='viridis')
+            plt.colorbar()
+    elif isinstance(obj, df.Mesh):
+        if (obj.geometry().dim() != 2):
+            raise AttributeError
+        plt.triplot(mesh2triang(obj), color='k')

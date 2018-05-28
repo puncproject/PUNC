@@ -17,12 +17,6 @@
 # Loosely based on fenicstools/LagrangianParticles by Mikeal Mortensen and
 # Miroslav Kuchta.
 
-from __future__ import print_function, division
-import sys
-if sys.version_info.major == 2:
-    from itertools import izip as zip
-    range = xrange
-
 import dolfin as df
 import numpy as np
 import scipy.constants as constants

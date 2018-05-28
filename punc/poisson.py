@@ -15,12 +15,6 @@
 # You should have received a copy of the GNU General Public License along with
 # PUNC.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import print_function, division
-import sys
-if sys.version_info.major == 2:
-    from itertools import izip as zip
-    range = xrange
-
 import dolfin as df
 import numpy as np
 
