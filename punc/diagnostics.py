@@ -72,6 +72,10 @@ def mesh_potential_energy(rho, phi):
 
     return 0.5*df.assemble(rho*phi*df.dx)
 
+def efield_potential_energy(E):
+
+    return 0.5*df.assemble(df.dot(E,E)*df.dx)
+
 def particle_potential_energy(pop ,phi):
     """
     Computes potential energy at current time step from particles. Should
