@@ -16,6 +16,8 @@
 # PUNC.  If not, see <http://www.gnu.org/licenses/>.
 import dolfin as df
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.tri as tri
 
 def hist_load(fname, objects):
 
@@ -105,3 +107,26 @@ def particle_potential_energy(pop ,phi):
             PE += 0.5*q*phii
 
     return PE
+
+def mesh2triang(mesh):
+    xy = mesh.coordinates()
+    return tri.Triangulation(xy[:, 0], xy[:, 1], mesh.cells())
+
+def plot(obj):
+    plt.gca().set_aspect('equal')
+    if isinstance(obj, df.Function):
+        mesh = obj.function_space().mesh()
+        if (mesh.geometry().dim() != 2):
+            raise AttributeError
+        if obj.vector().size() == mesh.num_cells():
+            C = obj.vector().get_local()
+            plt.tripcolor(mesh2triang(mesh), C, cmap='viridis')
+            plt.colorbar()
+        else:
+            C = obj.compute_vertex_values(mesh)
+            plt.tripcolor(mesh2triang(mesh), C, shading='gouraud', cmap='viridis')
+            plt.colorbar()
+    elif isinstance(obj, df.Mesh):
+        if (obj.geometry().dim() != 2):
+            raise AttributeError
+        plt.triplot(mesh2triang(obj), color='k')
