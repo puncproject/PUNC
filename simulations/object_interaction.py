@@ -24,6 +24,7 @@ from ConstantBC import *
 from ConstantBC import Circuit as Circ
 import os
 import signal
+from ClementInterpolation import clement_interpolate
 
 exit_now = False
 def signal_handler(signal, frame):
@@ -47,7 +48,7 @@ exec(code, params)
 
 # Loading input parameters
 object_method = params.pop('object_method', 'stiffness')
-dist_method   = params.pop('dist_method', 'element')
+dist_method   = params.pop('dist_method', 'dg0')
 pe_method     = params.pop('pe_method', 'mesh')
 efield_method = params.pop('efield_method', 'project')
 mesh          = params.pop('mesh')
@@ -143,6 +144,7 @@ for n in range(nstart, N):
         rho = distribute_elementwise(V, pop)
     elif dist_method == 'dg0':
         rho = distribute_dg0(Q, pop)
+        rho = clement_interpolate(rho)
 
     timer.task("Solving potential ({})".format(object_method))
     if object_method == 'capacitance':

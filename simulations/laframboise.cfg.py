@@ -53,7 +53,7 @@ Vnorm  = (species.M/species.Q)*(species.X/species.T)**2
 Inorm /= np.abs(Ilam)
 Vnorm /= Vlam
 
-N          = 1000
+N          = 12000
 dt         = 0.10#*wpe**(-1)
 cap_factor = 1.
 
