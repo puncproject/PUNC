@@ -49,7 +49,7 @@ exec(code, params)
 
 # Loading input parameters
 object_method = params.pop('object_method', 'stiffness')
-dist_method   = params.pop('dist_method', 'element')
+dist_method   = params.pop('dist_method', 'patch')
 pe_method     = params.pop('pe_method', 'mesh')
 efield_method = params.pop('efield_method', 'project')
 mesh          = params.pop('mesh')
@@ -68,7 +68,7 @@ Vnorm         = params.pop('Vnorm', 1)
 Inorm         = params.pop('Inorm', 1)
 
 assert object_method in ['capacitance', 'stiffness']
-assert dist_method in ['voronoi', 'element', 'patch', 'dg0']
+assert dist_method in ['DG0', 'voronoi', 'weighted', 'patch', 'element']
 assert pe_method in ['mesh', 'particle']
 assert efield_method in ['project', 'evaluate', 'am', 'ci']
 # NB: only 'project' is tested as I do not have PETSC4py installed yet.
@@ -103,12 +103,11 @@ elif efield_method == 'ci':
 
 pop = Population(mesh, bnd)
 if dist_method == 'voronoi':
-    dv_inv = patch_volume(V, voronoi_volume_approx=True)
+    dv_inv = voronoi_volume_approx(V)
 elif dist_method == 'patch':
     dv_inv = patch_volume(V)
-
-# dv_inv = voronoi_volume_approx(V)
-# dv_inv = element_volume(V)
+elif dist_method == 'weighted':
+    dv_inv = weighted_element_volume(V)
 
 continue_simulation = False
 if os.path.isfile('population.dat') and os.path.isfile('history.dat'):
@@ -139,12 +138,12 @@ for n in timer.range(nstart, N):
     # Velocities and currents are at timestep n-0.5 (or 0 if n==0)
 
     timer.task("Distribute charge ({})".format(dist_method))
-    if dist_method == 'voronoi' or dist_method == 'patch':
+    if dist_method=='voronoi' or dist_method=='patch' or dist_method=='weighted':
         rho = distribute(V, pop, dv_inv)
     elif dist_method == 'element':
         rho = distribute_elementwise(V, pop)
-    elif dist_method == 'dg0':
-        rho = distribute_dg0(Q, pop)
+    elif dist_method == 'DG0':
+        rho = distribute_DG0(Q, pop)
 
     timer.task("Solving potential ({})".format(object_method))
     if object_method == 'capacitance':
