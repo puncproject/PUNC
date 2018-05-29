@@ -35,9 +35,9 @@ X       = Rp
 
 Vlam    = kB*Te/e
 Ilam    = -e*ne*Rp**2*np.sqrt(8*np.pi*kB*Te/me)
-Iexp    = 1.987*Ilam
+# Iexp    = 1.987*Ilam
 Iexp    = 2.945*Ilam
-Iexp    = 21.895*Ilam
+# Iexp    = 21.895*Ilam
 print("Laframboise voltage:  %e"%Vlam)
 print("Laframboise current:  %e"%Ilam)
 print("Expected current:     %e"%Iexp)
@@ -61,7 +61,7 @@ current_collected = Iexp/(species.Q/species.T)
 # current_collected = 0.0
 
 object_method = 'stiffness'
-dist_method = 'voronoi'
+dist_method = 'patch'
 # object_method = 'capacitance'
 imposed_potential = 1.0/Vnorm
 
