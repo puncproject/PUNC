@@ -28,10 +28,22 @@ ext_bnd = ExteriorBoundaries(facet_func, ext_bnd_id)
 V = df.FunctionSpace(mesh, 'CG', 1,
                      constrained_domain=PeriodicBoundary(Ld,periodic))
 
+Q = df.FunctionSpace(
+    mesh, 'DG', 0, constrained_domain=PeriodicBoundary(Ld, periodic))
+
 poisson = PoissonSolver(V, remove_null_space=True)
 esolver = ESolver(V)
 
-dv_inv = voronoi_volume_approx(V)
+dist_method = 'element'
+
+assert dist_method in ['DG0', 'voronoi', 'weighted', 'patch', 'element']
+
+if dist_method == 'voronoi':
+    dv_inv = voronoi_volume_approx(V)
+elif dist_method == 'patch':
+    dv_inv = patch_volume(V)
+elif dist_method == 'weighted':
+    dv_inv = weighted_element_volume(V)
 
 A, mode = 0.5, 1
 pdf = lambda x: 1+A*np.sin(mode*2*np.pi*x[0]/Ld[0])
@@ -64,7 +76,13 @@ KE0 = kinetic_energy(pop)
 
 for n in range(1,N):
     print("Computing timestep %d/%d"%(n,N-1))
-    rho = distribute(V,pop, dv_inv)
+    # rho = distribute(V,pop, dv_inv)
+    if dist_method == 'voronoi' or dist_method == 'patch' or dist_method == 'weighted':
+        rho = distribute(V, pop, dv_inv)
+    elif dist_method == 'element':
+        rho = distribute_elementwise(V, pop)
+    elif dist_method == 'DG0':
+        rho = distribute_DG0(Q, pop)
     phi = poisson.solve(rho)
     E = esolver.solve(phi)
     PE[n-1] = particle_potential_energy(pop, phi)
