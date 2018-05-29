@@ -24,7 +24,6 @@ __all__ = [ "population",
             "injector",
             "objects",
             "varobjects",
-            "profiling",
             "interior"]
 """
 from punc.injector import *
@@ -35,4 +34,3 @@ from punc.population import *
 from punc.diagnostics import *
 from punc.objects import *
 from punc.varobjects import *
-from punc.profiling import *

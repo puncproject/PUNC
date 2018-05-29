@@ -19,11 +19,13 @@ Certain variables from the configuration file is read as input.
 import dolfin as df
 import numpy as np
 import matplotlib.pyplot as plt
+from tasktimer import TaskTimer # pip install TaskTimer
 from punc import *
 from ConstantBC import *
 from ConstantBC import Circuit as Circ
 import os
 import signal
+import sys
 
 exit_now = False
 def signal_handler(signal, frame):
@@ -128,10 +130,10 @@ else:
     load_particles(pop, species)
     hist_file = open('history.dat', 'w')
 
-timer = TaskTimer(N, 'compact')
+timer = TaskTimer()
 
 t = 0.
-for n in range(nstart, N):
+for n in timer.range(nstart, N):
 
     # We are now at timestep n
     # Velocities and currents are at timestep n-0.5 (or 0 if n==0)
@@ -196,14 +198,12 @@ for n in range(nstart, N):
     timer.task("Inject particles")
     inject_particles(pop, species, ext_bnd, dt)
 
-
     if exit_now or n==N-1:
+        print("\n")
         pop.save_file('population.dat')
         break
 
-    timer.end()
-
-timer.summary()
+print(timer)
 hist_file.close()
 
 df.File('phi.pvd') << phi
