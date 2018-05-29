@@ -180,7 +180,7 @@ for n in timer.range(nstart, N):
 
     timer.task("Accelerate particles")
     # Advancing velocities to n+0.5
-    KE = accel(pop, E, (1-0.5*(n==1))*dt)
+    KE = accel(pop, E, (1-0.5*(n==0))*dt)
     if n==0: KE = kinetic_energy(pop)
 
     timer.task("Write history")
