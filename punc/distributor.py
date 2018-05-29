@@ -290,6 +290,52 @@ def patch_volume(V, voronoi_volume_approx=False, inv=True, raw=True):
     if voronoi_volume_approx:
         volumes /= (V.mesh().geometry().dim()+1)
 
+
+    if inv:
+        volumes = volumes**(-1)
+
+    if raw:
+        return volumes
+    else:
+        dv = df.Function(V)
+        dv.vector()[:] = volumes
+        return dv
+
+def weighted_element_volume(V, inv=True, raw=True):
+
+    """
+    Calculates the weighted element volumes.
+    
+    """
+    assert V.ufl_element().family() == 'Lagrange'
+    assert V.ufl_element().degree() == 1
+
+    if element == 'weighted':
+    u = df.TestFunction(V)
+    dv = df.assemble(u*df.dx)
+
+    volumes = dv.get_local()
+
+    if inv:
+        volumes = volumes**(-1)
+
+    if raw:
+        return volumes
+    else:
+        return dv
+
+    n_dofs = V.dim()
+    dof_indices = df.vertex_to_dof_map(V)
+    volumes = np.zeros(n_dofs)
+
+    # These loops inherently deal with periodic boundaries
+    for i, v in enumerate(df.vertices(V.mesh())):
+        for c in df.cells(v):
+            volumes[dof_indices[i]] += c.volume()
+
+    if voronoi_volume_approx:
+        volumes /= (V.mesh().geometry().dim() + 1)
+
     if inv:
         volumes = volumes**(-1)
 

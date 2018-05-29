@@ -48,7 +48,7 @@ exec(code, params)
 
 # Loading input parameters
 object_method = params.pop('object_method', 'stiffness')
-dist_method   = params.pop('dist_method', 'dg0')
+dist_method   = params.pop('dist_method', 'patch')
 pe_method     = params.pop('pe_method', 'mesh')
 efield_method = params.pop('efield_method', 'project')
 mesh          = params.pop('mesh')
@@ -104,7 +104,7 @@ pop = Population(mesh, bnd)
 if dist_method == 'voronoi':
     dv_inv = patch_volume(V, voronoi_volume_approx=True)
 elif dist_method == 'patch':
-    dv_inv = patch_volume(V)
+    dv_inv = element_volume(V)
 
 # dv_inv = voronoi_volume_approx(V)
 # dv_inv = element_volume(V)
