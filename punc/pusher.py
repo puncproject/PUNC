@@ -53,7 +53,7 @@ def accel(pop, E, dt):
 
             inc = dt*(q/m)*Ei
 
-            KE += 0.5*m*np.dot(vel,vel+inc)
+            KE += 0.5*m*np.dot(vel,vel+inc) # This has error O(dt^2)
 
             particle.v += inc
 
