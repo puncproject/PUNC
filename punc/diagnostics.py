@@ -19,24 +19,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
 
-def hist_load(fname, objects):
+def save_state(fname, objects, n, t):
+    with open(fname,'w') as file:
+        file.write("{} {}".format(n, t))
+        for o in objects:
+            file.write(" {} {}".format(o.charge, o.collected_current))
 
-    with open(fname, 'r') as fh:
-        for line in fh:
-            pass # Get the last line
-        values = line.split()
-
-    for i,o in enumerate(objects):
-        o.charge = float(values[3*i+6])
-
-def hist_last_step(fname):
-
-    with open(fname, 'r') as fh:
-        for line in fh:
-            pass # Get the last line
-        values = line.split()
-
-    return int(values[0])
+def load_state(fname, objects):
+    with open(fname) as file:
+        row = file.readline().split()
+        n = int(row[0])
+        t = float(row[1])
+        for i, o in enumerate(objects):
+            o.charge = float(row[2*i+2])
+            o.collected_current = float(row[2*i+3])
+        return n, t
 
 def hist_write(fh, n, t=0, num_e=0, num_i=0, KE=0, PE=0, objects=[],
                   Vnorm=1, Inorm=1):

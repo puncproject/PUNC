@@ -76,7 +76,6 @@ assert efield_method in ['project', 'evaluate', 'am', 'ci']
 V = df.FunctionSpace(mesh, 'CG', 1)
 Q = df.FunctionSpace(mesh, 'DG', 0)
 
-
 bc = df.DirichletBC(V, df.Constant(0.0), bnd, ext_bnd_id)
 
 if object_method=='capacitance':
@@ -118,20 +117,16 @@ if os.path.isfile('population.dat') and os.path.isfile('history.dat'):
         continue_simulation = True
 
 if continue_simulation:
-    # There's a glitch when continuing simulations which should be looked into.
-    nstart = hist_last_step('history.dat')# + 1
-    hist_load('history.dat', objects)
-    hist_file = open('history.dat', 'a')
+    nstart, t = load_state('state.dat', objects)
     pop.load_file('population.dat')
+    hist_file = open('history.dat', 'a')
 
 else:
-    nstart = 0
+    nstart, t = 0, 0.
     load_particles(pop, species)
     hist_file = open('history.dat', 'w')
 
 timer = TaskTimer()
-
-t = 0.
 for n in timer.range(nstart, N):
 
     # We are now at timestep n
@@ -152,7 +147,7 @@ for n in timer.range(nstart, N):
         # re-implemented to support vsources and isources and thus be
         # completely interchangeable with stiffness matrix method. To be
         # planned a bit prior to execution.
-        objects[0].charge -= current_collected*dt
+        objects[0].charge -= collected_current*dt
 
         reset_objects(objects)
         phi = poisson.solve(rho, objects)
@@ -199,6 +194,7 @@ for n in timer.range(nstart, N):
 
     if exit_now or n==N-1:
         print("\n")
+        save_state('state.dat', objects, n+1, t)
         pop.save_file('population.dat')
         break
 
