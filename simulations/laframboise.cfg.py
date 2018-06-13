@@ -13,6 +13,7 @@ ext_bnd_id, int_bnd_ids = get_mesh_ids(bnd)
 ext_bnd = ExteriorBoundaries(bnd, ext_bnd_id)
 
 npc = 4             # Number of particles per cell
+num = 300000        # Total number of particles in the domain
 V = df.assemble(1*df.dx(mesh))
 Np = npc*mesh.num_cells()
 
@@ -43,8 +44,8 @@ print("Laframboise current:  %e"%Ilam)
 print("Expected current:     %e"%Iexp)
 
 species = SpeciesList(mesh, X)
-species.append(-e, me, ne, vthe, npc=npc, ext_bnd=ext_bnd)
-species.append(e, mp, ne, vthi, npc=npc, ext_bnd=ext_bnd)
+species.append(-e, me, ne, vthe, num=num, ext_bnd=ext_bnd)
+species.append(e, mp, ne, vthi, num=num, ext_bnd=ext_bnd)
 
 Inorm  = species.Q/species.T
 Vnorm  = (species.M/species.Q)*(species.X/species.T)**2
@@ -54,14 +55,14 @@ Inorm /= np.abs(Ilam)
 Vnorm /= Vlam
 
 N          = 12000
-dt         = 0.10#*wpe**(-1)
+dt         = 0.05#*wpe**(-1)
 cap_factor = 1.
 
 current_collected = Iexp/(species.Q/species.T)
 # current_collected = 0.0
 
 object_method = 'stiffness'
-dist_method = 'patch'
+dist_method = 'voronoi'
 # object_method = 'capacitance'
 imposed_potential = 1.0/Vnorm
 
