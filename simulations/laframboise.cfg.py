@@ -4,7 +4,7 @@ from punc import *
 import scipy.constants as constants
 
 # Filename of mesh (excluding .xml)
-fname = "../mesh/3D/laframboise_sphere_in_sphere_res1b"
+fname = "../mesh/3D/laframboise_sphere_in_sphere_res1c"
 # fname = "../mesh/3D/laframboise_sphere_in_cube_res1"
 
 # Get the mesh

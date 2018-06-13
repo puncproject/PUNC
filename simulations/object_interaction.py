@@ -109,7 +109,7 @@ elif dist_method == 'weighted':
     dv_inv = weighted_element_volume(V)
 
 continue_simulation = False
-if os.path.isfile('population1.dat') and os.path.isfile('history1.dat'):
+if os.path.isfile('population.dat') and os.path.isfile('history.dat'):
     if '-r' in sys.argv:
         print("Overwriting existing simulation results.")
     else:
@@ -117,14 +117,14 @@ if os.path.isfile('population1.dat') and os.path.isfile('history1.dat'):
         continue_simulation = True
 
 if continue_simulation:
-    nstart, t = load_state('state1.dat', objects)
-    pop.load_file('population1.dat')
-    hist_file = open('history1.dat', 'a')
+    nstart, t = load_state('state.dat', objects)
+    pop.load_file('population.dat')
+    hist_file = open('history.dat', 'a')
 
 else:
     nstart, t = 0, 0.
     load_particles(pop, species)
-    hist_file = open('history1.dat', 'w')
+    hist_file = open('history.dat', 'w')
 
 timer = TaskTimer()
 for n in timer.range(nstart, N):
@@ -194,13 +194,13 @@ for n in timer.range(nstart, N):
 
     if exit_now or n==N-1:
         print("\n")
-        save_state('state1.dat', objects, n+1, t)
-        pop.save_file('population1.dat')
+        save_state('state.dat', objects, n+1, t)
+        pop.save_file('population.dat')
         break
 
 print(timer)
 hist_file.close()
 
-df.File('phi1.pvd') << phi
-df.File('rho1.pvd') << rho
-df.File('E1.pvd')   << E
+df.File('phi.pvd') << phi
+df.File('rho.pvd') << rho
+df.File('E.pvd')   << E
