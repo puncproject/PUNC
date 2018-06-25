@@ -64,11 +64,12 @@ current_collected = Iexp/(species.Q/species.T)
 object_method = 'stiffness'
 dist_method = 'voronoi'
 # object_method = 'capacitance'
-imposed_potential = 1.0/Vnorm
+imposed_potential = 2.0/Vnorm
 
-# vsources = [[-1,0,imposed_potential]]
-vsources = []
-isources = [[-1,0,-current_collected]]
+vsources = [[-1,0,imposed_potential]]
+isources = []
+# vsources = []
+# isources = [[-1,0,-current_collected]]
 
 print("vsources:",vsources)
 print("isources:",isources)
