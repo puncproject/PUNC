@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 PUNC program for doing plasma-object interaction simulations, e.g. reproducing
 the results of Laframboise. Usage:
@@ -14,15 +15,13 @@ separate workspace from the rest of the program (this sandbox is not
 unbreakable, but sufficient for a program only used by privileged users).
 Certain variables from the configuration file is read as input.
 """
-# For now, just put ConstantBC and punc directories in PYTHONPATH
+# For now, just put punc directory in PYTHONPATH
 
 import dolfin as df
 import numpy as np
 import matplotlib.pyplot as plt
 from tasktimer import TaskTimer # pip install TaskTimer
 from punc import *
-from ConstantBC import *
-from ConstantBC import Circuit as Circ
 import os
 import signal
 import sys
@@ -86,7 +85,7 @@ if object_method=='capacitance':
     inv_cap_matrix /= cap_factor
 else:
     objects = [ObjectBC(V, bnd, i) for i in int_bnd_ids]
-    circuit = Circ(V, bnd, objects, vsources, isources, dt, eps0=eps0)
+    circuit = Circuit(V, bnd, objects, vsources, isources, dt, eps0=eps0)
     poisson = PoissonSolver(V, bc, objects, circuit, eps0=eps0)
 
 if efield_method == 'project':

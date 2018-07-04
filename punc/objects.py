@@ -191,7 +191,7 @@ def compute_object_potentials(objects, E, inv_cap_matrix, mesh, bnd):
              object_potential += (p.charge - image_charge[j])*inv_cap_matrix[i,j]
         o.set_potential(df.Constant(object_potential))
 
-class Circuit(object):
+class CircuitCM(object):
     """
     A circuit is a collection of an arbitrary number of electrical components
     (represented as Object objects), and it is a disjoint entity from the rest
