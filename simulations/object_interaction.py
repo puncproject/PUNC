@@ -26,6 +26,7 @@ from ConstantBC import Circuit as Circ
 import os
 import signal
 import sys
+import logging
 
 exit_now = False
 def signal_handler(signal, frame):
@@ -39,7 +40,7 @@ def signal_handler(signal, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-df.set_log_level(df.WARNING)
+df.set_log_level(logging.WARNING)
 
 # Loading input script in params (acting as a simplified sandbox)
 params = {}

@@ -4,8 +4,8 @@ from punc import *
 import scipy.constants as constants
 
 # Filename of mesh (excluding .xml)
-fname = "../mesh/3D/laframboise_sphere_in_sphere_res1c"
-# fname = "../mesh/3D/laframboise_sphere_in_cube_res1"
+# fname = "../mesh/3D/laframboise_sphere_in_sphere_res1c"
+fname = "../mesh/3D/laframboise_sphere_in_cube_res1"
 
 # Get the mesh
 mesh, bnd = load_mesh(fname)
@@ -13,7 +13,7 @@ ext_bnd_id, int_bnd_ids = get_mesh_ids(bnd)
 ext_bnd = ExteriorBoundaries(bnd, ext_bnd_id)
 
 npc = 4             # Number of particles per cell
-num = 300000        # Total number of particles in the domain
+# num = 300000        # Total number of particles in the domain
 V = df.assemble(1*df.dx(mesh))
 Np = npc*mesh.num_cells()
 
@@ -44,8 +44,8 @@ print("Laframboise current:  %e"%Ilam)
 print("Expected current:     %e"%Iexp)
 
 species = SpeciesList(mesh, X)
-species.append(-e, me, ne, vthe, num=num, ext_bnd=ext_bnd)
-species.append(e, mp, ne, vthi, num=num, ext_bnd=ext_bnd)
+species.append(-e, me, ne, vthe, npc=npc, ext_bnd=ext_bnd)
+species.append(e, mp, ne, vthi, npc=npc, ext_bnd=ext_bnd)
 
 Inorm  = species.Q/species.T
 Vnorm  = (species.M/species.Q)*(species.X/species.T)**2

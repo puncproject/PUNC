@@ -18,31 +18,57 @@
 import dolfin as df
 import numpy as np
 
+code="""
+#include <pybind11/pybind11.h>
+#include <pybind11/eigen.h>
+#include <dolfin/function/Function.h>
+#include <dolfin/mesh/Cell.h>
+#include <dolfin/fem/FiniteElement.h>
+
+Eigen::VectorXd restrict(const dolfin::GenericFunction& self,
+                         const dolfin::FiniteElement& element,
+                         const dolfin::Cell& cell){
+
+    ufc::cell ufc_cell;
+    cell.get_cell_data(ufc_cell);
+
+    std::vector<double> coordinate_dofs;
+    cell.get_coordinate_dofs(coordinate_dofs);
+
+    std::size_t s_dim = element.space_dimension();
+    Eigen::VectorXd w(s_dim);
+    self.restrict(w.data(), element, cell, coordinate_dofs.data(), ufc_cell);
+
+    return w; // no copy
+}
+PYBIND11_MODULE(SIGNATURE, m){
+    m.def("restrict", &restrict);
+}
+"""
+compiled = df.compile_cpp_code(code, cppargs='-O3')
+
+def restrict(function, element, cell):
+    return compiled.restrict(function.cpp_object(), element, cell)
+
 def accel(pop, E, dt):
 
     W = E.function_space()
     mesh = W.mesh()
     element = W.dolfin_element()
-    s_dim = element.space_dimension()  # Number of nodes per element
     v_dim = element.value_dimension(0) # Number of values per node (=geom. dim.)
-    basis_matrix = np.zeros((s_dim,v_dim))
-    coefficients = np.zeros(s_dim)
-    dim = mesh.geometry().dim()
 
     KE = 0.0
     for cell in df.cells(mesh):
 
-        E.restrict( coefficients,
-                    element,
-                    cell,
-                    cell.get_vertex_coordinates(),
-                    cell)
+        coefficients = restrict(E, element, cell)
 
         for particle in pop[cell.index()]:
-            element.evaluate_basis_all( basis_matrix,
-                                        particle.x,
-                                        cell.get_vertex_coordinates(),
-                                        cell.orientation())
+
+            basis_matrix = element.evaluate_basis_all(
+                               particle.x,
+                               cell.get_vertex_coordinates(),
+                               cell.orientation()
+                           ).reshape((-1,v_dim))
 
             Ei = np.dot(coefficients, basis_matrix)[:]
 
@@ -62,29 +88,24 @@ def accel(pop, E, dt):
 
 def boris(pop, E, B, dt):
 
+    assert mesh.geometry().dim() == 3
+
     W = E.function_space()
     mesh = W.mesh()
     element = W.dolfin_element()
-    s_dim = element.space_dimension()  # Number of nodes per element
     v_dim = element.value_dimension(0) # Number of values per node (=geom. dim.)
-    basis_matrix = np.zeros((s_dim,v_dim))
-    coefficients = np.zeros(s_dim)
-    dim = mesh.geometry().dim()
-    assert dim == 3
     KE = 0.0
     for cell in df.cells(mesh):
 
-        E.restrict( coefficients,
-                    element,
-                    cell,
-                    cell.get_vertex_coordinates(),
-                    cell)
+        coefficients = restrict(E, element, cell)
 
         for particle in pop[cell.index()]:
-            element.evaluate_basis_all( basis_matrix,
-                                        particle.x,
-                                        cell.get_vertex_coordinates(),
-                                        cell.orientation())
+
+            basis_matrix = element.evaluate_basis_all(
+                               particle.x,
+                               cell.get_vertex_coordinates(),
+                               cell.orientation()
+                           ).reshape((-1,v_dim))
 
             Ei = np.dot(coefficients, basis_matrix)[:]
 
@@ -92,7 +113,7 @@ def boris(pop, E, B, dt):
             q = particle.q
 
             vel = particle.v
-            
+
             t = np.tan((dt*q/(2.*m))*B)
             s = 2.*t/(1.+t[0]**2+t[1]**2+t[2]**2)
             v_minus = vel + 0.5*dt*(q/m)*Ei
@@ -110,37 +131,26 @@ def boris(pop, E, B, dt):
 
 def boris_nonuniform(pop, E, B, dt):
 
+    assert mesh.geometry().dim() == 3
+
     W = E.function_space()
     mesh = W.mesh()
     element = W.dolfin_element()
-    s_dim = element.space_dimension()  # Number of nodes per element
-    # Number of values per node (=geom. dim.)
     v_dim = element.value_dimension(0)
-    basis_matrix = np.zeros((s_dim, v_dim))
-    coefficients = np.zeros(s_dim)
-    mag_coefficients = np.zeros(s_dim)
-    dim = mesh.geometry().dim()
-    assert dim == 3
+
     KE = 0.0
     for cell in df.cells(mesh):
 
-        E.restrict(coefficients,
-                   element,
-                   cell,
-                   cell.get_vertex_coordinates(),
-                   cell)
-
-        B.restrict(mag_coefficients,
-                   element,
-                   cell,
-                   cell.get_vertex_coordinates(),
-                   cell)
+        coefficients = restrict(E, element, cell)
+        mag_coefficients = restrict(B, element, cell)
 
         for particle in pop[cell.index()]:
-            element.evaluate_basis_all(basis_matrix,
-                                       particle.x,
-                                       cell.get_vertex_coordinates(),
-                                       cell.orientation())
+
+            basis_matrix = element.evaluate_basis_all(
+                               particle.x,
+                               cell.get_vertex_coordinates(),
+                               cell.orientation()
+                           ).reshape((-1,v_dim))
 
             Ei = np.dot(coefficients, basis_matrix)[:]
             Bi = np.dot(mag_coefficients, basis_matrix)[:]
@@ -149,7 +159,7 @@ def boris_nonuniform(pop, E, B, dt):
             q = particle.q
 
             vel = particle.v
-            
+
             t = np.tan((dt * q / (2. * m)) * Bi)
             s = 2. * t / (1. + t[0]**2 + t[1]**2 + t[2]**2)
             v_minus = vel + 0.5 * dt * (q / m) * Ei

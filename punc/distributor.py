@@ -344,8 +344,6 @@ def distribute(V, pop, dv_inv):
 
     element = V.dolfin_element()
     s_dim = element.space_dimension() # Number of nodes per element
-    basis_matrix = np.zeros((s_dim,1))
-
 
     rho = df.Function(V)
 
@@ -356,7 +354,7 @@ def distribute(V, pop, dv_inv):
         accum = np.zeros(s_dim)
         for particle in pop[cellindex]:
 
-            element.evaluate_basis_all( basis_matrix,
+            basis_matrix = element.evaluate_basis_all(
                                         particle.x,
                                         cell.get_vertex_coordinates(),
                                         cell.orientation())
