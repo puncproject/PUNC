@@ -1,38 +1,95 @@
-# __authors__ = ('Sigvald Marholm <sigvaldm@fys.uio.no>')
-# __date__ = '2017-02-22'
-# __copyright__ = 'Copyright (C) 2017' + __authors__
-# __license__  = 'GNU Lesser GPL version 3 or any later version'
-
-from __future__ import print_function, division
-import sys
-if sys.version_info.major == 2:
-    from itertools import izip as zip
-    range = xrange
+# Copyright (C) 2017, Sigvald Marholm and Diako Darian
+#
+# This file is part of PUNC.
+#
+# PUNC is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# PUNC is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# PUNC. If not, see <http://www.gnu.org/licenses/>.
 
 import dolfin as df
 import numpy as np
 
-def unit_mesh(N):
-	"""
-	Given a list of cell divisions, N, returns a mesh with unit size in each
-	spatial direction.
-	"""
-	d = len(N)
-	mesh_types = [df.UnitIntervalMesh,
-	     		  df.UnitSquareMesh,
-				  df.UnitCubeMesh]
+def load_mesh(fname):
+    mesh   = df.Mesh(fname+".xml")
+    boundaries = df.MeshFunction("size_t", mesh, fname+"_facet_region.xml")
+    return mesh, boundaries
 
-	return mesh_types[d-1](*N)
+def load_h5_mesh(fname):
+    mesh = df.Mesh()
+    comm = mesh.mpi_comm()
+    hdf = df.HDF5File(comm, fname, "r")
+    hdf.read(mesh, "/mesh", False)
+    subdomains = df.CellFunction("size_t", mesh)
+    hdf.read(subdomains, "/subdomains")
+    boundaries = df.FacetFunction("size_t", mesh)
+    hdf.read(boundaries, "/boundaries")
+    return mesh, boundaries, comm
 
-def simple_mesh(Ld, N):
-	"""
-	Returns a mesh for a given list, Ld, containing the size of domain in each
-	spatial direction, and the corresponding number of cell divisions N.
-	"""
-	d = len(N)
-	mesh_types = [df.RectangleMesh, df.BoxMesh]
+def get_mesh_ids(boundaries, comm=None):
+    tags = np.array([int(tag) for tag in set(boundaries.array())])
+    tags = np.sort(tags)
 
-	return mesh_types[d-2](df.Point(0,0,0), df.Point(*Ld), *N)
+    if comm is None:
+        tags = tags.tolist()
+        return tags[1], tags[2:]
+    else:
+        comm_mpi4py = comm.tompi4py()
+        ids = []
+        ids = sum(comm_mpi4py.allgather(tags.tolist()), [])
+        ids = sorted(set(ids))
+        return ids[1], ids[2:]
+
+def unit_mesh(N, ext_bnd_id=1):
+    """
+    Given a list of cell divisions, N, returns a mesh with unit size in each
+    spatial direction.
+    """
+    d = len(N)
+    mesh_types = [df.UnitIntervalMesh, df.UnitSquareMesh, df.UnitCubeMesh]
+    mesh = mesh_types[d-1](*N)
+    facet_func = df.FacetFunction('size_t', mesh)
+    facet_func.set_all(0)
+
+    class ExtBnd(df.SubDomain):
+        def inside(self, x, on_boundary):
+            return on_boundary
+
+    bnd = ExtBnd()
+    bnd.mark(facet_func, ext_bnd_id)
+    return mesh, facet_func
+
+def simple_mesh(Ld, N, ext_bnd_id=1):
+    """
+    Returns a mesh for a given list, Ld, containing the size of domain in each
+    spatial direction, and the corresponding number of cell divisions N.
+    """
+    d = len(N)
+    mesh_types = [df.RectangleMesh, df.BoxMesh]
+
+    if d==1:
+        mesh = df.IntervalMesh(N[0],0.0,Ld[0])
+    else:
+        mesh = mesh_types[d-2](df.Point(*np.zeros(len(Ld))), df.Point(*Ld), *N)
+
+    facet_func = df.FacetFunction('size_t', mesh)
+    facet_func.set_all(0)
+
+    class ExtBnd(df.SubDomain):
+        def inside(self, x, on_boundary):
+            return on_boundary
+
+    bnd = ExtBnd()
+    bnd.mark(facet_func, ext_bnd_id)
+    return mesh, facet_func
 
 def get_mesh_size(mesh):
 	"""
@@ -158,8 +215,14 @@ class PoissonSolver(object):
     Boundary conditions (bcs) can be applied either in solve() and/or in the
     constructor if a boundary should always have the same condition. Overriding
     boundaries in the constructor with boundaries in solve() is not tested but
-    may work. bcs can be a single DirichletBC object or Object object or a list
-    of such.
+    may work. bcs can be a single DirichletBC object or an Object object or an
+    ObjectBC object or list of such.
+
+    The objects argument do the exact same thing as the bcs argument, but it
+    may be convenient to separate e.g. object boundaries and exterior
+    boundaries. circuit applies a Circuit object to the solver. Circuit relies
+    upon all objects being in a separate list, which makes the objects input
+    particularly handy.
 
     Periodic boundaries are specified indirectly through V. A handy class for
     defining periodic boundaries is PeriodicBoundary. If all boundaries are
@@ -168,32 +231,52 @@ class PoissonSolver(object):
     this null space set remove_null_space=True in the constructor.
     """
 
-    def __init__(self, V, bcs=[], remove_null_space=False):
-
-        # Make sure bcs is an iterable list
-        if isinstance(bcs,df.fem.bcs.DirichletBC):
-            bcs = [bcs]
+    def __init__(self, V, bcs=None, objects=None,
+                 circuit=None, remove_null_space=False, eps0=1,
+                 linalg_solver='gmres', linalg_precond='hypre_amg'):
 
         if bcs == None:
             bcs = []
 
+        if objects == None:
+            objects = []
+
+        if not isinstance(bcs, list):
+            bcs = [bcs]
+
+        if not isinstance(objects, list):
+            objects = [objects]
+
         self.V = V
         self.bcs = bcs
+        self.objects = objects
+        self.circuit = circuit
         self.remove_null_space = remove_null_space
 
-        self.solver = df.PETScKrylovSolver('gmres', 'hypre_amg')
+        """
+        One could perhaps identify the cases in which different solvers and preconditioners
+        should be used, and by default choose the best suited for the problem.
+        """
+        self.solver = df.PETScKrylovSolver(linalg_solver, linalg_precond)
         self.solver.parameters['absolute_tolerance'] = 1e-14
         self.solver.parameters['relative_tolerance'] = 1e-12
         self.solver.parameters['maximum_iterations'] = 1000
+        self.solver.parameters['nonzero_initial_guess'] = True
 
         phi = df.TrialFunction(V)
         phi_ = df.TestFunction(V)
 
-        self.a = df.inner(df.nabla_grad(phi), df.nabla_grad(phi_))*df.dx
+        self.a = df.Constant(eps0)*df.inner(df.grad(phi), df.grad(phi_))*df.dx
         A = df.assemble(self.a)
 
         for bc in bcs:
             bc.apply(A)
+
+        for o in objects:
+            o.apply(A)
+
+        if circuit != None:
+            A, = circuit.apply(A)
 
         if remove_null_space:
             phi = df.Function(V)
@@ -207,14 +290,13 @@ class PoissonSolver(object):
         self.A = A
         self.phi_ = phi_
 
-    def solve(self, rho, bcs=[]):
-
-        # Make sure bcs is an iterable list
-        if isinstance(bcs,df.fem.bcs.DirichletBC):
-            bcs = [bcs]
+    def solve(self, rho, bcs=None):
 
         if bcs == None:
             bcs = []
+
+        if not isinstance(bcs,list):
+            bcs = [bcs]
 
         L = rho*self.phi_*df.dx
         b = df.assemble(L)
@@ -222,8 +304,14 @@ class PoissonSolver(object):
         for bc in self.bcs:
             bc.apply(b)
 
+        for o in self.objects:
+            o.apply(b)
+
+        if self.circuit != None:
+            b, = self.circuit.apply(b)
+
         for bc in bcs:
-            bc.apply(self.A)
+            # bc.apply(self.A)    # Could this perchance be removed?
             bc.apply(b)
 
         # NB: A may not be symmetric in this case. To get it symmetric we need
@@ -239,26 +327,107 @@ class PoissonSolver(object):
 
         return phi
 
-def electric_field(phi):
+# Faster than the efield-function
+class ESolver(object):
     """
-    This function calculates the gradient of the electric potential, which
-    is the electric field:
+    Solves the E-field Equation on the function space V:
 
-            E = -\del\varPhi
+        E = - grad phi
 
-    Args:
-          phi   : The electric potential.
+    Example:
 
-    returns:
-          E: The electric field.
+        solver = PoissonSolver(V, bcs_stationary)
+        esolver = ESolver(V)
+        phi = solver.solve(rho, bcs)
+        E = esolver.solve(phi)
+
+    solve() can be called multiple times while the stiffness matrix is
+    assembled only in the constructor to save computations.
     """
-    V = phi.ufl_function_space()
-    mesh = V.mesh()
-    degree = V.ufl_element().degree()
-    constr = V.constrained_domain
-    W = df.VectorFunctionSpace(mesh, 'CG', degree, constrained_domain=constr)
-    return df.project(-df.grad(phi), W, solver_type="gmres",
-                       preconditioner_type="petsc_amg")
+    def __init__(self, V, element='CG', degree=1):
+
+        self.V = V
+
+        self.solver = df.PETScKrylovSolver('cg', 'hypre_amg')
+        self.solver.parameters['absolute_tolerance'] = 1e-14
+        self.solver.parameters['relative_tolerance'] = 1e-12
+        self.solver.parameters['maximum_iterations'] = 1000
+        self.solver.parameters['nonzero_initial_guess'] = True
+
+        # cell = V.mesh().ufl_cell()
+        # W = df.VectorElement("Lagrange", cell, 1)
+        W = df.VectorFunctionSpace(V.mesh(), element, degree)
+        # V = FiniteElement("Lagrange", cell, 1)
+        self.W = W
+
+        E = df.TrialFunction(W)
+        E_ = df.TestFunction(W)
+        # phi = Coefficient(V)
+
+        self.a = df.inner(E, E_)*df.dx
+        self.A = df.assemble(self.a)
+        self.E_ = E_
+
+    def solve(self, phi):
+
+        L = df.inner(-df.grad(phi), self.E_)*df.dx
+        b = df.assemble(L)
+
+        E = df.Function(self.W)
+        self.solver.solve(self.A, E.vector(), b)
+
+        return E
+
+def efield_DG0(mesh, phi):
+    Q = df.VectorFunctionSpace(mesh, 'DG', 0)
+    q = df.TestFunction(Q)
+
+    M = (1.0 / df.CellVolume(mesh)) * df.inner(-df.grad(phi), q) * df.dx
+    E_dg0 = df.assemble(M)
+    return df.Function(Q, E_dg0)
+
+class EfieldMean(object):
+
+    def __init__(self, mesh, arithmetic_mean=False):
+        assert df.parameters['linear_algebra_backend'] == 'PETSc'
+        self.arithmetic_mean = arithmetic_mean
+        tdim = mesh.topology().dim()
+        gdim = mesh.geometry().dim()
+        self.cv = df.CellVolume(mesh)
+
+        self.W = df.VectorFunctionSpace(mesh, 'CG', 1)
+        Q = df.VectorFunctionSpace(mesh, 'DG', 0)
+        p, self.q = df.TrialFunction(Q), df.TestFunction(Q)
+        v = df.TestFunction(self.W)
+
+        ones = df.assemble(
+            (1. / self.cv) * df.inner(df.Constant((1,) * gdim), self.q) * df.dx)
+
+        dX = df.dx(metadata={'form_compiler_parameters': {
+                   'quadrature_degree': 1, 'quadrature_scheme': 'vertex'}})
+
+        if self.arithmetic_mean:
+            A = df.assemble((1./self.cv)*df.Constant(tdim+1)*df.inner(p, v)*dX)
+        else:
+            A = df.assemble(df.Constant(tdim+1)*df.inner(p, v)*dX)
+
+        Av = df.Function(self.W).vector()
+        A.mult(ones, Av)
+        Av = df.as_backend_type(Av).vec()
+        Av.reciprocal()
+        mat = df.as_backend_type(A).mat()
+        mat.diagonalScale(L=Av)
+
+        self.A = A
+
+    def mean(self, phi):
+        M = (1. / self.cv) * df.inner(-df.grad(phi), self.q) * df.dx
+        e_dg0 = df.assemble(M)
+
+        e_field = df.Function(self.W)
+        self.A.mult(e_dg0, e_field.vector())
+        df.as_backend_type(e_field.vector()).update_ghost_values()
+        return e_field
 
 if __name__=='__main__':
 

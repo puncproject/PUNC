@@ -1,21 +1,26 @@
-# __authors__ = ('Sigvald Marholm <sigvaldm@fys.uio.no>')
-# __date__ = '2017-02-22'
-# __copyright__ = 'Copyright (C) 2017' + __authors__
-# __license__  = 'GNU Lesser GPL version 3 or any later version'
-
-# Imports important python 3 behaviour to ensure correct operation and
-# performance in python 2
-from __future__ import print_function, division
-import sys
-if sys.version_info.major == 2:
-    from itertools import izip as zip
-    range = xrange
+# Copyright (C) 2017, Sigvald Marholm and Diako Darian
+#
+# This file is part of PUNC.
+#
+# PUNC is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# PUNC is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# PUNC. If not, see <http://www.gnu.org/licenses/>.
 
 import dolfin as df
 import numpy as np
 import subprocess as sp
 import os
 import tempfile
+import warnings
 
 # This is not yet parallelized
 #comm = pyMPI.COMM_WORLD
@@ -177,11 +182,11 @@ def voronoi_volume(V, Ld, periodic=True, inv=True,
         dv.vector()[:] = volumes
         return dv
 
-def voronoi_volume_approx(V, Ld, inv=True, raw=True):
+def voronoi_volume_approx(V, inv=True, raw=True):
     """
     Returns the approximated volume for every Voronoi cell centered at
     the a DOF as a FEniCS function. V is the function space for the function
-    to be returned (must be CG1) and Ld is the size of the domain. Works for
+    to be returned (must be CG1). Works for
     1D, 2D and 3D, with and without periodic boundaries and objects.
 
     The approximated volume of a Voronoi cell centered at a vertex is the
@@ -264,12 +269,119 @@ def voronoi_length(V, Ld, periodic=True, inv=True, raw=True):
     dv.vector()[v2d] = volume
 
     if raw:
-        return dv.vector().array()
+        return dv.vector().get_local()
     else:
         return dv
 
-def distribute(V, pop):
+def patch_volume(V, inv=True, raw=True):
+    """
+    Returns an array containing the volumes (or their reciprocal values) of each 
+    patch M_j, where M_j is the set of all the cells sharing vertex x_j. 
+    """
+    assert V.ufl_element().family() == 'Lagrange'
+    assert V.ufl_element().degree() == 1
 
+    n_dofs = V.dim()
+    dof_indices = df.vertex_to_dof_map(V)
+    volumes = np.zeros(n_dofs)
+
+    for i,v in enumerate(df.vertices(V.mesh())):
+        for c in df.cells(v):
+            volumes[dof_indices[i]] += c.volume()
+    if inv:
+        volumes = volumes**(-1)
+
+    if raw:
+        return volumes
+    else:
+        dv = df.Function(V)
+        dv.vector()[:] = volumes
+        return dv
+
+def weighted_element_volume(V, inv=True, raw=True):
+    """
+    Returns the weighted element volumes (or their reciprocal values). Each 
+    element is weighted by the corresponding finite element basis function of 
+    continuous Lagrange space of order 1, CG1. 
+
+    It can be shown that this method is mathematically equivalent to the 
+    approximated Voronoi cell volumes (see function "voronoi_volume_approx"). 
+    """
+    assert V.ufl_element().family() == 'Lagrange'
+    assert V.ufl_element().degree() == 1
+
+    u = df.TestFunction(V)
+    dv = df.assemble(u*df.dx)
+
+    volumes = dv.get_local()
+
+    if inv:
+        volumes = volumes**(-1)
+
+    if raw:
+        return volumes
+    else:
+        return dv
+
+def distribute(V, pop, dv_inv):
+    """
+    Returns the charge volume density in CG1 (continuous Lagrange space of order
+    1). The charge of each particle inside a given cell is weighted to the 
+    vertices of the cell by using the finite element basis function of CG1 
+    defined at each vertex. The charge at each vertex x_j, is then divied by 
+    either the approximated volume of the Voronoi cell or the volume of 
+    corresponding patch consisting of the cells sharing vertex x_j.
+
+    Args:
+         V (DOLFIN: FunctionSpace): CG1 function space
+         pop (PUNC: Population) 
+         dv_inv (NUMPY: array) : Array containing the (approximated) volume of 
+                                 Voronoi cells or the volume of each patch 
+                                 in the mesh.
+    """
+    assert V.ufl_element().family() == 'Lagrange'
+    assert V.ufl_element().degree() == 1
+
+    element = V.dolfin_element()
+    s_dim = element.space_dimension() # Number of nodes per element
+
+    rho = df.Function(V)
+
+    for cell in df.cells(V.mesh()):
+        cellindex = cell.index()
+        dofindex = V.dofmap().cell_dofs(cellindex)
+
+        accum = np.zeros(s_dim)
+        for particle in pop[cellindex]:
+
+            basis_matrix = element.evaluate_basis_all(
+                                        particle.x,
+                                        cell.get_vertex_coordinates(),
+                                        cell.orientation())
+
+            accum += particle.q * basis_matrix.T[0]
+
+
+        rho.vector()[dofindex] += accum
+
+    # rho.vector()[:] *= dv_inv
+    rho_arr = rho.vector().get_local()
+    rho_arr *= dv_inv
+    rho.vector().set_local(rho_arr)
+
+    return rho
+
+def distribute_elementwise(V, pop):
+    """
+    Returns the charge volume density in CG1 (continuous Lagrange space of order
+    1). The charge of each particle inside a given cell is weighted to the 
+    vertices of the cell by using the finite element basis function of CG1 
+    defined at each vertex. The charge at each vertex is then divied by the 
+    volume of corresponding cell.
+
+    Note: this method doesn't give correct results for Laframboise simulations, 
+    and shouldn't be used.  
+    """
     assert V.ufl_element().family() == 'Lagrange'
     assert V.ufl_element().degree() == 1
 
@@ -293,7 +405,34 @@ def distribute(V, pop):
 
             accum += particle.q * basis_matrix.T[0]
 
-
+        accum /= cell.volume()
         rho.vector()[dofindex] += accum
+
+    return rho
+
+def distribute_DG0(Q, pop):
+    """
+    Returns the charge volume density in DG0 (discontinuous Lagrange space of 
+    order 0). The charge of all the particles inside a given cell is simply 
+    added together and then divided by the volume of the cell.
+
+    Args:
+        Q (DOLFIN: FunctionSpace): DG0 function space
+        pop (PUNC: Population) 
+    """
+    assert Q.ufl_element().family() == 'Discontinuous Lagrange'
+    assert Q.ufl_element().degree() == 0
+
+    rho = df.Function(Q)
+
+    for cell in df.cells(Q.mesh()):
+        cellindex = cell.index()
+        dofindex = Q.dofmap().cell_dofs(cellindex)
+        accum = 0
+        for particle in pop[cellindex]:
+            accum += particle.q
+
+        accum /= cell.volume()
+        rho.vector()[dofindex] = accum
 
     return rho
