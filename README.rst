@@ -1,6 +1,10 @@
 PUNC
 ====
 
+**NB: PUNC is replaced by** `PUNC++`_.
+
+.. _`PUNC++`: https://github.com/puncproject/PUNCpp
+
 *Particles-in-UNstructured-Cells* (PUNC) is a program that simulate plasmas in the kinetic regime through *Particle-In-Cell* (PIC) modelling on an unstructured mesh, using the *Finite Element Method* (FEM). It is written in Python and centered around FEniCS, which makes it particularly flexible and suited for rapid prototyping of novel methods.
 
 PUNC supports 1D, 2D and 3D simulations of arbitrarily many species. It is particularly well suited for plasma-object interaction studies, with a flexible framework for handling arbitrary circuits of objects.
