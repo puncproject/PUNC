@@ -33,12 +33,11 @@ separate workspace from the rest of the program (this sandbox is not
 unbreakable, but sufficient for a program only used by privileged users).
 Certain variables from the configuration file is read as input.
 """
-# For now, just put punc directory in PYTHONPATH
 
 import dolfin as df
 import numpy as np
 import matplotlib.pyplot as plt
-from tasktimer import TaskTimer # pip install TaskTimer
+from tasktimer import TaskTimer
 from punc import *
 import os
 import signal

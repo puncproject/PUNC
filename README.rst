@@ -31,6 +31,7 @@ Contributors and mentors:
 
 Installation
 ------------
+
 The easiest way to install PUNC is through Anaconda_::
 
     $ git clone https://www.github.com/puncproject/punc
@@ -68,14 +69,12 @@ In addition, we recommend the following tools for pre- and post-processing:
 Getting Started
 ---------------
 
-PUNC is like a library of objects and methods which can be glued together like Lego pieces in small scripts to carry out various FEM-PIC simulations. This library is located in ```punc/punc``` and further documentation is available in the docstrings in the source files.
+PUNC consists of a Python library, as well as an executable program. The library can be imported as `import punc` in Python, and contains classes and functions that can be glued together like Lego to make highly customized FEM-PIC simulations. The library is documented in terms of docstrings. Beware that PUNC is highly experimental, and not for production use. The command line program ``punc`` is a complete program for plasma-object interaction simulations. It can for instance be run as follows::
 
-A simulation program for plasma-object interaction is ```punc/simulations/object_interaction.py``` (other simulation scripts can also be found in this folder). ```object_interaction.py``` can be run like an executable::
+    $ cd punc/simulations
+    $ punc laframboise.cfg.py
 
-    cd punc/simulations
-    ./object_interaction.py laframboise.cfg.py
-
-where ```laframboise.cfg.py``` is a configuration file where you specify the plasma parameters and simulation parameters. It is fully Python scriptable, which means you can for instance compute the thermal velocity (needed by PUNC) from temperature, etc (which parameters are used can readily be seen at the top of the ```object_interaction.py``` script).
+where ```laframboise.cfg.py``` is a configuration file where you specify the plasma parameters and simulation parameters. It is fully Python scriptable, which means you can for instance compute the thermal velocity (needed by PUNC) from temperature, etc. Specific variables in the configuration file is treated as input. What these are, is for now only documented in the top of ```punc/object_interaction.py``` (which is, in fact, the ``punc`` command).
 
 The configuration file also specifies which mesh to use. The attached configuration file ```laframboise.cfg.py``` looks for a collection of XML files starting with ```laframboise_sphere_in_cub_res1```. This is the mesh format used by FEniCS and the mesh is not included in the repository. However, a suite of simulation geometries (```.geo``` files) for Gmsh, including the one needed for the example, is available in the folder ```punc/mesh```. The mesh can be created from the file ```laframboise_sphere_in_cub_res1.geo``` using Gmsh, and converted to FEniCS XML format using FEniCS's built-in command line tool::
 

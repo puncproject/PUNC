@@ -42,6 +42,7 @@ setup(name='punc',
                         'mshr',
                         'metaplot',
                         'tasktimer'],
+      entry_points = {'console_scripts': ['punc = punc.object_interaction']},
       license='GPL',
       classifiers=[
         'Programming Language :: Python :: 3.7'
