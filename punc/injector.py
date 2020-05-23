@@ -219,9 +219,9 @@ class ORS(object):
         f_sp = vdf(self.sp)
         f_sp[np.where(f_sp < 0)] = 0
 
-        pdf_max = np.maximum(f_sp[self.u_sl[0]], f_sp[self.l_sl[0]])
+        pdf_max = np.maximum(f_sp[tuple(self.u_sl[0])], f_sp[tuple(self.l_sl[0])])
         for i in range(1, self.dim):
-            pdf_max = np.maximum(pdf_max[self.u_sl[i]], pdf_max[self.l_sl[i]])
+            pdf_max = np.maximum(pdf_max[tuple(self.u_sl[i])], pdf_max[tuple(self.l_sl[i])])
 
         integral = self.volume * pdf_max
         w = integral / np.sum(integral)
