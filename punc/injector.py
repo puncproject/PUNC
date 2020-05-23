@@ -178,7 +178,7 @@ class ORS(object):
         ind = [None] * self.dim
         found = [False] * self.dim
         while all(found) is False:
-            points = np.array([np.linspace(*cutoffs[i], nsp[i], retstep=True)
+            points = np.array([np.linspace(*cutoffs[i], int(nsp[i]), retstep=True)
                                for i in range(self.dim)])
             for i in range(self.dim):
                 ind[i] = np.where(points[i][0] == midpoints[i])[0]
