@@ -28,7 +28,7 @@ PYBIND11_MODULE(SIGNATURE, m){
     m.def("restrict", &restrict);
 }
 """
-compiled = compile_cpp_code(code, cppargs='-O3')
+compiled = compile_cpp_code(code) #, cppargs='-O3')
 
 def restrict(function, element, cell):
     return compiled.restrict(function.cpp_object(), element, cell)
