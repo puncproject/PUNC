@@ -45,7 +45,8 @@ PYBIND11_MODULE(SIGNATURE, m){
     m.def("restrict", &restrict);
 }
 """
-compiled = df.compile_cpp_code(code, cppargs='-O3')
+# compiled = df.compile_cpp_code(code, cppargs='-O3') # Doesn't appear to work in 2019.1
+compiled = df.compile_cpp_code(code)
 
 def restrict(function, element, cell):
     return compiled.restrict(function.cpp_object(), element, cell)
