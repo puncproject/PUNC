@@ -1,0 +1,33 @@
+# To make a punc environment:
+#
+#   $ conda env create -f punc.yml
+#
+# To update a punc environment:
+#
+#   $ conda activate punc
+#   $ conda env update -f punc.yml
+#
+# To use a different name for the environment use "-n <name>".
+#
+# To add packages to the punc environment, add packages here and then update.
+
+name: punc
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - ipython
+  - matplotlib
+  - scipy
+  - mshr
+  - fenics=2019.1
+  - pip
+  - pip:
+      - metaplot
+      - tasktimer
+
+  # Would be nice, but these are erroneous when installed in Anaconda
+  # - conda-forge::gmsh
+  # - conda-forge::paraview

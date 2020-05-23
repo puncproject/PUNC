@@ -1,7 +1,7 @@
 PUNC
 ====
 
-**NB: PUNC is replaced by** `PUNC++`_.
+**NB: See** `PUNC++`_ **for the faster C++ version**.
 
 .. _`PUNC++`: https://github.com/puncproject/PUNCpp
 
@@ -31,14 +31,18 @@ Contributors and mentors:
 
 Installation
 ------------
+The easiest way to install PUNC is through Anaconda_::
 
-The following dependencies must be installed prior to using PUNC:
+    $ git clone https://www.github.com/puncproject/punc
+    $ cd punc/envs
+    $ conda env create -f punc.yml
+    $ conda activate punc
+    $ cd ..
+    $ pip install -e .
 
-- Python_ 3
-- FEniCS_ 2018.1.0 (stable)
-- TaskTimer_ 1
+PUNC is unfortunately not yet available from PyPI or as a conda package, so it must be cloned and installed as described above. The ``-e`` flag means that PUNC is installed in "editable" mode or "developer's" mode, and can be ommitted if you do not intend to edit the PUNC source code.
 
-In addition, FEniCS must be compiled with *at least* the following optional dependencies:
+If you choose to install PUNC any other way, make sure to install the correct version of FEniCS_, and with *at least* the following optional dependencies:
 
 - hdf5_
 - hypre_
@@ -46,25 +50,12 @@ In addition, FEniCS must be compiled with *at least* the following optional depe
 - petsc4py_
 - matplotlib_
 
-It is crucial that the correct version of FEniCS is used. For more on installing these dependencies, see their official pages. For Arch Linux, the arch-fenics-packages_ repository can also be used. It contains full installation instructions for FEniCS and its dependencies.
-
-Instead of installing PUNC to a system directory, we add its directory to ```PYTHONPATH``` so it is easier to tamper with for rapid prototyping. An example installation can look like the following::
-
-    cd ~ # Or other parent folder
-    git clone --recurse-submodules https://github.com/sigvaldm/punc
-    echo "export PYTHONPATH=\"$PYTHONPATH:$(pwd)/punc\"" >> ~/.bashrc # Or .zshrc for Zsh, etc.
-
-Note that the subfolder ```punc/mesh``` is a Git submodule and will be empty if submodules are not initialized. The ```--recurse-submodules``` flag should take care of this.
-
-In addition we recommend the following tools for pre- and post-processing:
+In addition, we recommend the following tools for pre- and post-processing:
 
 - Gmsh_
 - ParaView_
 
 .. _FEniCS: https://fenicsproject.org
-.. _Python: https://www.python.org
-.. _TaskTimer: https://github.com/sigvaldm/TaskTimer
-.. _arch-fenics-packages: https://github.com/sigvaldm/arch-fenics-packages
 .. _petsc4py: https://bitbucket.org/petsc/petsc4py/src/master/
 .. _matplotlib: https://matplotlib.org/
 .. _hdf5: https://support.hdfgroup.org/HDF5/
@@ -72,7 +63,7 @@ In addition we recommend the following tools for pre- and post-processing:
 .. _PETSc: http://www.mcs.anl.gov/petsc/
 .. _Gmsh: http://gmsh.info/
 .. _ParaView: https://www.paraview.org/
-
+.. _Anaconda: https://www.anaconda.com/
 
 Getting Started
 ---------------
