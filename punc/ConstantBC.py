@@ -363,12 +363,19 @@ class Circuit(object):
             obj_a_id = isource[0]
             obj_b_id = isource[1]
             dQ = isource[2]*self.dt
+            print('dQ: {}'.format(dQ))
 
             if obj_a_id != -1:
+                tmp1 = self.objects[obj_a_id].charge
                 self.objects[obj_a_id].charge -= dQ
+                tmp2 = self.objects[obj_a_id].charge
+                print('Charge: {:g} -> {:g}'.format(tmp1, tmp2))
 
             if obj_b_id != -1:
-                self.objects[obj_a_id].charge += dQ
+                tmp1 = self.objects[obj_b_id].charge
+                self.objects[obj_b_id].charge += dQ
+                tmp2 = self.objects[obj_b_id].charge
+                print('Charge: {:g} -> {:g}'.format(tmp1, tmp2))
 
 class ConstantBoundary(df.SubDomain):
     """

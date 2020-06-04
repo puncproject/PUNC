@@ -44,19 +44,18 @@ import signal
 import sys
 import logging
 
+exit_now = False
+def signal_handler(signal, frame):
+    global exit_now
+    if exit_now:
+        sys.exit(0)
+    else:
+        print("\nCompleting and storing timestep before exiting. "
+              "Press Ctrl+C again to force quit.")
+        exit_now = True
+
 def run():
-    exit_now = False
-    def signal_handler(signal, frame):
-        global exit_now
-        if exit_now:
-            sys.exit(0)
-        else:
-            print("\nCompleting and storing timestep before exiting. "
-                  "Press Ctrl+C again to force quit.")
-            exit_now = True
-
     signal.signal(signal.SIGINT, signal_handler)
-
     df.set_log_level(logging.WARNING)
 
     # Loading input script in params (acting as a simplified sandbox)
@@ -84,6 +83,16 @@ def run():
     isources      = params.pop('isources', None)
     Vnorm         = params.pop('Vnorm', 1)
     Inorm         = params.pop('Inorm', 1)
+    RLC           = params.pop('RLC', False)
+    R             = params.pop('R', 0)
+    L             = params.pop('L', 1e-6)
+    C             = params.pop('C', 1e6)
+    show_curr     = params.pop('show_curr', False)
+
+    Ic = np.array([0., 0., 0.])
+    Vc = np.array([0., 0.])
+    tau1 = 0.5*dt*R/L
+    tau2 = 0.5*dt**2/(L*C)
 
     assert object_method in ['capacitance', 'stiffness']
     assert dist_method in ['DG0', 'voronoi', 'weighted', 'patch', 'element']
@@ -173,6 +182,17 @@ def run():
             compute_object_potentials(objects, E, inv_cap_matrix, mesh, bnd)
             phi = poisson.solve(rho, objects)
         else:
+            if RLC:
+                Ic[1:0] = Ic[2:1]
+                Vc[0] = Vc[1]
+                Vc[1] = objects[1].potential - objects[0].potential
+                Ic[2] = 2*Ic[1] - (1-tau1+tau2)*Ic[0] + (Vc[1]-Vc[0])*dt/L
+                Ic[2] /= (1+tau1+tau2)
+                isources[0][2] = Ic[2]
+            if show_curr:
+                print('RLC: {:g} {:g} {:g}'.format(R, L, C))
+                print('Voltage: {:g}'.format(Vc[1]-Vc[0]))
+                print('Current: {:g}'.format(isources[0][2]))
             phi = poisson.solve(rho)
             for o in objects:
                 o.update(phi)
