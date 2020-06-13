@@ -70,8 +70,12 @@ imposed_potential = 2.0/Vnorm
 Iapp = Ilam
 Iapp /= (species.Q/species.T)
 
+R = 1e-1
+L = 1e-3
+C = 1e2
+
 vsources = []
-isources = [[0,1,Iapp]]
+isources = [RLC(0, 1, dt, R, L, C)]
 # vsources = [[-1,0,imposed_potential]]
 # isources = []
 # vsources = []
@@ -79,13 +83,6 @@ isources = [[0,1,Iapp]]
 
 print("vsources:",vsources)
 print("isources:",isources)
-
-show_curr = True
-RLC = True
-R = 1e-2*(Vlam/Vnorm)/(Ilam/Inorm)
-R = 1e-1
-L = 1e-3
-C = 1e2
 
 # R /= 10
 # dt /= 10

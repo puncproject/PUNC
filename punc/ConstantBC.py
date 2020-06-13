@@ -360,22 +360,72 @@ class Circuit(object):
     def apply_isources_to_object(self):
 
         for isource in self.isources:
-            obj_a_id = isource[0]
-            obj_b_id = isource[1]
-            dQ = isource[2]*self.dt
-            print('dQ: {}'.format(dQ))
+
+            if isinstance(isource, ISource):
+                obj_a_id = isource.obj_a_id
+                obj_b_id = isource.obj_b_id
+                obj_a = self.objects[obj_a_id]
+                obj_b = self.objects[obj_b_id]
+
+                # TBD: does V have the wrong sign?
+                V = obj_b.potential - obj_a.potential # Voltage at step n
+                I = isource.get_current(V) # Current at step n+0.5
+                dQ = I*self.dt
+
+            else:
+                obj_a_id = isource[0]
+                obj_b_id = isource[1]
+                dQ = isource[2]*self.dt
 
             if obj_a_id != -1:
-                tmp1 = self.objects[obj_a_id].charge
                 self.objects[obj_a_id].charge -= dQ
-                tmp2 = self.objects[obj_a_id].charge
-                print('Charge: {:g} -> {:g}'.format(tmp1, tmp2))
 
             if obj_b_id != -1:
-                tmp1 = self.objects[obj_b_id].charge
                 self.objects[obj_b_id].charge += dQ
-                tmp2 = self.objects[obj_b_id].charge
-                print('Charge: {:g} -> {:g}'.format(tmp1, tmp2))
+
+class ISource(object):
+    def __init__(self, obj_a_id, obj_b_id, I=None):
+        self.obj_a_id = obj_a_id
+        self.obj_b_id = obj_b_id
+        self.I = I
+
+    def get_current(self, Vn):
+        return self.I
+
+class RLC(ISource):
+    def __init__(self, obj_a_id, obj_b_id, dt, R, L, C, V=None, I=None):
+        super().__init__(obj_a_id, obj_b_id)
+
+        self.R = R
+        self.L = L
+        self.C = C
+        self.dt = dt
+        self.tau1 = 0.5*dt*R/L
+        self.tau2 = 0.5*dt**2/(L*C)
+
+        if V is None:
+            # Voltages at time steps n and n-1
+            self.V = np.array([0., 0.])
+        else:
+            self.V = V
+
+        if I is None:
+            # Currents at time steps n+0.5, n-0.5 and n-1.5
+            self.I = np.array([0., 0., 0.])
+        else:
+            self.I = I
+
+    def get_current(self, Vn):
+        """
+        Takes voltage at step n and returns current at step n+0.5.
+        Updates the internal state of RLC.
+        """
+        self.I[1:0] = self.I[2:1]
+        self.V[0] = self.V[1]
+        self.V[1] = Vn
+        self.I[2] = 2*self.I[1] - (1-self.tau1+self.tau2)*self.I[0] + (self.V[1]-self.V[0])*self.dt/self.L
+        self.I[2] /= (1+self.tau1+self.tau2)
+        return self.I[2]
 
 class ConstantBoundary(df.SubDomain):
     """
