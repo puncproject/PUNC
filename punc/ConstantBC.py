@@ -368,7 +368,7 @@ class Circuit(object):
                 obj_b = self.objects[obj_b_id]
 
                 # TBD: does V have the wrong sign?
-                V = obj_b.potential - obj_a.potential # Voltage at step n
+                V = obj_a.potential - obj_b.potential # Voltage at step n
                 I = isource.get_current(V) # Current at step n+0.5
                 dQ = I*self.dt
 
